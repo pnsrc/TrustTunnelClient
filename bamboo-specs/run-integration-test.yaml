@@ -40,31 +40,31 @@ Run integration test:
         interpreter: SHELL
         scripts:
           - |-
-            set -x
-            
+            set -x -e
+
             cd ./examples/my_vpn
-            
+
             OPENSSL_CONF_FILE="openssl.conf"
             KEY_FILE_NAME="key.pem"
             CERT_FILE_NAME="cert.pem"
-            
+
             if [ ! -f "$KEY_FILE_NAME" ] || [ ! -f "$CERT_FILE_NAME" ]; then
               openssl req -config "$OPENSSL_CONF_FILE" -new -x509 -sha256 -newkey rsa:2048 -nodes -days 1000 \
               -keyout "$KEY_FILE_NAME" -out "$CERT_FILE_NAME" -subj "/C=de/CN=www.example.com"
             fi
-            
-            cargo build
+
+            cargo build --release
         description: Build vpn-libs-endpoint
         working-dir: vpn-libs-endpoint
     - script:
         interpreter: SHELL
         scripts:
           - |-
-            set -x
-            
+            set -x -e
+
             mkdir -p build && cd build
 
-            cmake -DCMAKE_BUILD_TYPE=Debug \
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_C_FLAGS='-fsanitize=address' \

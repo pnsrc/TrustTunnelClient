@@ -39,12 +39,12 @@ Run tests on Linux:
         interpreter: SHELL
         scripts:
           - |-
-            set -x
+            set -x -e
 
             mkdir -p build
             cd build
 
-            cmake -DCMAKE_BUILD_TYPE=Debug \
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_C_FLAGS='-fsanitize=address' \
@@ -90,7 +90,7 @@ Run tests on Windows:
             mkdir build || exit /b 1
             cd build || exit /b 1
             
-            cmake -DCMAKE_BUILD_TYPE=Debug ^
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
                 -DCMAKE_C_COMPILER="C:/Program Files (x86)/LLVM/bin/clang-cl.exe" ^
                 -DCMAKE_CXX_COMPILER="C:/Program Files (x86)/LLVM/bin/clang-cl.exe" ^
                 -DCMAKE_C_FLAGS_DEBUG=/MT ^
@@ -137,13 +137,15 @@ Run tests on macOS:
         interpreter: SHELL
         scripts:
           - |-
+            set -e -x
+
             # Clean up local cache
             conan remove -f '*'
 
             # Build tests
             mkdir -p build
             cd build
-            cmake -DCMAKE_BUILD_TYPE=Debug -GNinja \
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja \
                 -DTARGET_OS=macos \
                 -DCMAKE_C_COMPILER=clang \
                 -DCMAKE_CXX_COMPILER=clang++ \
