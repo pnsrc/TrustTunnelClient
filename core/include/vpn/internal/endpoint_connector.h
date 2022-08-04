@@ -63,6 +63,16 @@ public:
      * Interrupt the connection procedure
      */
     virtual void disconnect() = 0;
+
+    /**
+     * Handle a system sleep event. The system is going to sleep after this function returns.
+     */
+    virtual void handle_sleep() = 0;
+
+    /**
+     * Handle a system wake up event.
+     */
+    virtual void handle_wake() = 0;
 };
 
 } // namespace ag

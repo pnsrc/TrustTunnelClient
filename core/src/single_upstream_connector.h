@@ -22,6 +22,8 @@ private:
 
     VpnError connect(uint32_t timeout_ms) override;
     void disconnect() override;
+    void handle_sleep() override;
+    void handle_wake() override;
 };
 
 } // namespace ag

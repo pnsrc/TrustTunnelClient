@@ -193,7 +193,7 @@ public:
     }
 
     /**
-     * Handler a system wake up event.
+     * Handle a system wake up event.
      */
     virtual void handle_wake() {
         // Default no-op

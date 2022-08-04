@@ -45,6 +45,8 @@ private:
 
     VpnError connect(uint32_t timeout_ms) override;
     void disconnect() override;
+    void handle_sleep() override;
+    void handle_wake() override;
 
     [[nodiscard]] EndpointConnectorParameters make_connector_parameters(EndpointConnectorHandler h) const;
     void handle_connect_result(const EndpointConnector *connector, EndpointConnectorResult result);

@@ -62,6 +62,26 @@ void FallbackableUpstreamConnector::disconnect() {
     m_fallback.result_task.reset();
 }
 
+void FallbackableUpstreamConnector::handle_sleep() {
+    if (!m_main.has_result && m_main.connector != nullptr) {
+        m_main.connector->handle_sleep();
+    }
+
+    if (m_fallback.tried && !m_fallback.has_result && m_fallback.connector != nullptr) {
+        m_fallback.connector->handle_sleep();
+    }
+}
+
+void FallbackableUpstreamConnector::handle_wake() {
+    if (!m_main.has_result && m_main.connector != nullptr) {
+        m_main.connector->handle_wake();
+    }
+
+    if (m_fallback.tried && !m_fallback.has_result && m_fallback.connector != nullptr) {
+        m_fallback.connector->handle_wake();
+    }
+}
+
 EndpointConnectorParameters FallbackableUpstreamConnector::make_connector_parameters(EndpointConnectorHandler h) const {
     return {
             this->PARAMETERS.ev_loop,

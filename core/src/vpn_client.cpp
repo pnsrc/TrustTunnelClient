@@ -575,6 +575,15 @@ void VpnClient::handle_sleep() {
     log_client(this, dbg, "...");
     switch (auto s = (vpn_client::State) this->fsm.get_state()) {
     case vpn_client::S_CONNECTING:
+        if (this->endpoint_upstream == nullptr) {
+            if (this->endpoint_connector != nullptr) {
+                this->endpoint_connector->handle_sleep();
+            } else {
+                log_client(this, warn, "Both upstream and connector are null");
+                return;
+            }
+        }
+        [[fallthrough]];
     case vpn_client::S_CONNECTED:
         this->endpoint_upstream->handle_sleep();
         break;
@@ -590,6 +599,15 @@ void VpnClient::handle_wake() {
     log_client(this, dbg, "...");
     switch (auto s = (vpn_client::State) this->fsm.get_state()) {
     case vpn_client::S_CONNECTING:
+        if (this->endpoint_upstream == nullptr) {
+            if (this->endpoint_connector != nullptr) {
+                this->endpoint_connector->handle_wake();
+            } else {
+                log_client(this, warn, "Both upstream and connector are null");
+                return;
+            }
+        }
+        [[fallthrough]];
     case vpn_client::S_CONNECTED:
         this->endpoint_upstream->handle_wake();
         break;

@@ -250,4 +250,16 @@ void SingleUpstreamConnector::disconnect() {
     log_connector(m_impl, dbg, "Done");
 }
 
+void SingleUpstreamConnector::handle_sleep() {
+    if (auto s = (State) m_impl->fsm.get_state(); s == S_CONNECTING) {
+        m_impl->upstream->handle_sleep();
+    }
+}
+
+void SingleUpstreamConnector::handle_wake() {
+    if (auto s = (State) m_impl->fsm.get_state(); s == S_CONNECTING) {
+        m_impl->upstream->handle_wake();
+    }
+}
+
 } // namespace ag
