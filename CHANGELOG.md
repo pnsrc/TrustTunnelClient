@@ -1,5 +1,7 @@
 # CHANGELOG
 
+## 0.90.15
+
 * [Feature] Route QUIC connections according to the VPN mode instead of always dropping or redirecting them
 
 ## 0.90.13
