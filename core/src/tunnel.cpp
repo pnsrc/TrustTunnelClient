@@ -13,6 +13,7 @@
 #include "common/net_utils.h"
 #include "fake_upstream.h"
 #include "net/dns_utils.h"
+#include "net/quic_utils.h"
 #include "net/utils.h"
 #include "vpn/internal/vpn_client.h"
 #include "vpn/internal/wire_utils.h"
@@ -232,16 +233,45 @@ enum AfterLookuperAction {
     ALUA_DONE,     // lookuper has nothing more to do
     ALUA_PASS,     // lookuper wants to process the next packet, the current one can be sent
     ALUA_SHUTDOWN, // lookuper realized that connection should've been routed to another upstream
+    ALUA_BLOCK,    // lookuper realized that connection shouldn't be processed
 };
 
 static AfterLookuperAction pass_through_lookuper(
         Tunnel *tunnel, VpnConnection *conn, DomainLookuperPacketDirection dir, const uint8_t *data, size_t length) {
-    assert(conn->proto == IPPROTO_TCP);
     DomainLookuper *lookuper = &((TcpVpnConnection *) conn)->domain_lookuper;
-    DomainLookuperResult r = lookuper->proceed(dir, data, length);
-
-    DomainFilter *filter = &tunnel->vpn->domain_filter;
+    DomainLookuperResult r;
     AfterLookuperAction action = ALUA_DONE;
+    DomainFilter *filter = &tunnel->vpn->domain_filter;
+    if (conn->proto == IPPROTO_UDP) {
+        // parse quic header
+        auto quic_header = ag::quic_utils::parse_quic_header({data, length});
+        if (quic_header.has_value() && quic_header->type == ag::quic_utils::INITIAL) {
+            // quic traffic
+            auto quic_data =
+                    ag::quic_utils::prepare_for_domain_lookup({data, length}, quic_header.value());
+            if (!quic_data.has_value()) {
+                // no data for domain lookup
+                return ALUA_DONE;
+            }
+            r = lookuper->proceed(dir, conn->proto, quic_data->data(), quic_data->size());
+        } else {
+            // get destination port
+            const sockaddr *dst = (sockaddr *) std::get_if<sockaddr_storage>(&conn->addr.dst);
+            assert(dst != nullptr);
+            auto dst_port = sockaddr_get_port(dst);
+            // Check if destination is default quic port
+            if (dst_port == ag::quic_utils::DEFAULT_QUIC_PORT) {
+                // expected to get quic initial, but got wrong data, block it
+                return ALUA_BLOCK;
+            }
+            // simple udp traffic
+            return ALUA_DONE;
+        }
+    } else {
+        // tcp traffic
+        r = lookuper->proceed(dir, conn->proto, data, length);
+    }
+
     switch (r.status) {
     case DLUS_NOTFOUND:
         log_conn(tunnel, conn, trace, "Gave up to find domain name");
@@ -344,7 +374,6 @@ void Tunnel::upstream_handler(ServerUpstream *upstream, ServerEvent what, void *
             break;
         }
         case CONNS_WAITING_RESPONSE_MIGRATING: {
-            assert(conn->proto == IPPROTO_TCP);
             auto *tcp_conn = (TcpVpnConnection *) conn;
 
             VpnConnection *src_conn =
@@ -428,6 +457,12 @@ void Tunnel::upstream_handler(ServerUpstream *upstream, ServerEvent what, void *
                                                                                : "through VPN endpoint");
                 close_client_side_connection(this, conn, 0, false);
                 return;
+            case ALUA_BLOCK:
+                log_conn(this, conn, dbg, "Dropped QUIC connection");
+                conn->listener->turn_read(conn->client_id, false);
+                close_client_side_connection(this, conn, -1, true);
+                event->result = -1;
+                break;
             }
         }
 
@@ -511,7 +546,6 @@ void Tunnel::upstream_handler(ServerUpstream *upstream, ServerEvent what, void *
             log_conn(this, conn, dbg, "Failed to switch upstream: {} ({})", safe_to_string_view(event->error.text),
                     event->error.code);
 
-            assert(conn->proto == IPPROTO_TCP);
             VpnConnection *src_conn = vpn_connection_get_by_id(
                     this->connections.by_client_id, ((TcpVpnConnection *) conn)->migrating_client_id);
             if (src_conn != nullptr) {
@@ -811,7 +845,7 @@ void Tunnel::complete_connect_request(uint64_t id, std::optional<VpnConnectActio
         conn->flags.set(CONNF_FORCIBLY_REDIRECTED);
         break;
     case VPN_CA_DEFAULT:
-        conn->flags.set(CONNF_LOOKINGUP_DOMAIN, conn->proto == IPPROTO_TCP);
+        conn->flags.set(CONNF_LOOKINGUP_DOMAIN);
         action = VPN_CA_DEFAULT;
         break;
     }
@@ -1089,19 +1123,6 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
             break;
         }
 
-        if (!this->vpn->quic_enabled && conn->proto == IPPROTO_UDP && conn->flags.test(CONNF_FIRST_PACKET)
-                && !conn->flags.test(CONNF_FORCIBLY_BYPASSED) && !conn->flags.test(CONNF_FORCIBLY_REDIRECTED)) {
-            const sockaddr *dst = (sockaddr *) std::get_if<sockaddr_storage>(&conn->addr.dst);
-            assert(dst != nullptr);
-            if (packet_is_quic(sockaddr_get_port(dst), event->data, event->length)) {
-                log_conn(this, conn, dbg, "Dropped QUIC connection");
-                conn->listener->turn_read(conn->client_id, false);
-                close_client_side_connection(this, conn, -1, true);
-                event->result = -1;
-                break;
-            }
-        }
-
         if (conn->flags.test(CONNF_LOOKINGUP_DOMAIN)) {
             bool migrate_to_another_upstream = false;
             AfterLookuperAction alua = pass_through_lookuper(this, conn, DLUPD_OUTGOING, event->data, event->length);
@@ -1120,6 +1141,12 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
                                                                                : "through VPN endpoint");
                 conn->flags.reset(CONNF_LOOKINGUP_DOMAIN);
                 migrate_to_another_upstream = true;
+                break;
+            case ALUA_BLOCK:
+                log_conn(this, conn, dbg, "Dropped QUIC connection");
+                conn->listener->turn_read(conn->client_id, false);
+                close_client_side_connection(this, conn, -1, true);
+                event->result = -1;
                 break;
             }
 

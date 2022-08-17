@@ -128,14 +128,6 @@ std::string http_headers_to_http1_message(const HttpHeaders *headers, bool one_l
  */
 std::vector<NameValue> http_headers_to_nv_list(const HttpHeaders *headers);
 
-/**
- * Check if given packet is QUIC
- * @param dst_port destination port
- * @param data packet payload
- * @param length payload size
- * @return true if QUIC, false otherwise
- */
-bool packet_is_quic(uint32_t dst_port, const uint8_t *data, size_t length);
 
 /**
  * Make a deep copy of an endpoint

@@ -15,6 +15,44 @@ struct Parser { // NOLINT(cppcoreguidelines-special-member-functions,hicpp-speci
     virtual DomainLookuperResult parse(DomainLookuperPacketDirection dir, std::vector<uint8_t> *buffer) = 0;
 };
 
+struct QuicParser : public Parser {
+
+    TlsReader reader = {};
+
+    ~QuicParser() override = default;
+
+    DomainLookuperResult parse(DomainLookuperPacketDirection dir, std::vector<uint8_t> *buffer) override {
+
+        if (dir != DLUPD_OUTGOING) {
+            return {DLUS_NOTFOUND}; // not TLS
+        }
+
+        tls_input_hshake(&this->reader, buffer->data(), buffer->size());
+
+        bool got_sni = false;
+        bool stop = false;
+        while (!stop) {
+            TlsParseResult r = tls_parse(&this->reader);
+            switch (r) {
+            case TlsParseResult::TLS_RCLIENT_HELLO_SNI:
+                got_sni = true;
+                [[fallthrough]];
+            case TlsParseResult::TLS_RERR:
+            case TlsParseResult::TLS_RMORE:
+            case TlsParseResult::TLS_RDONE:
+                stop = true;
+                break;
+            default:
+                continue;
+            }
+        }
+        if (got_sni) {
+            return {DLUS_FOUND, {this->reader.tls_hostname.data(), this->reader.tls_hostname.size()}};
+        }
+        return {DLUS_NOTFOUND};
+    }
+};
+
 struct TlsParser : public Parser { // NOLINT(cppcoreguidelines-special-member-functions,hicpp-special-member-functions)
     enum State {
         TPS_IDLE,
@@ -164,9 +202,8 @@ struct HttpParser : public Parser {
 
 struct ParserFactory {
     size_t idx = 0;
-
     using ParserProducer = std::unique_ptr<Parser> (*)();
-    static constexpr ParserProducer PRODUCE_TABLE[] = {
+    static constexpr ParserProducer PRODUCE_TABLE_TCP[] = {
             []() -> std::unique_ptr<Parser> {
                 return std::make_unique<TlsParser>();
             },
@@ -175,19 +212,34 @@ struct ParserFactory {
             },
     };
 
-    std::unique_ptr<Parser> produce() {
-        static constexpr size_t TABLE_SIZE = std::size(PRODUCE_TABLE);
-        if (this->idx >= TABLE_SIZE) {
-            return nullptr;
-        }
+    static constexpr ParserProducer PRODUCE_TABLE_UDP[] = {
+            []() -> std::unique_ptr<Parser> {
+                return std::make_unique<QuicParser>();
+            },
+    };
 
-        return PRODUCE_TABLE[this->idx++]();
+    std::unique_ptr<Parser> produce(int proto) {
+        if (proto == IPPROTO_TCP) {
+            size_t TABLE_SIZE = std::size(PRODUCE_TABLE_TCP);
+            if (this->idx >= TABLE_SIZE) {
+                return nullptr;
+            }
+            return PRODUCE_TABLE_TCP[this->idx++]();
+        } else {
+            size_t TABLE_SIZE = std::size(PRODUCE_TABLE_UDP);
+            if (this->idx >= TABLE_SIZE) {
+                return nullptr;
+            }
+            return PRODUCE_TABLE_UDP[this->idx++]();
+        }
     }
 };
 
 struct DomainLookuper::Context {
+    explicit Context(int proto): proto(proto) {};
+    int proto {};
     ParserFactory factory = {};
-    std::unique_ptr<Parser> current_parser = factory.produce();
+    std::unique_ptr<Parser> current_parser = factory.produce(proto);
     std::vector<uint8_t> buffer;
 
     DomainLookuperResult parse(DomainLookuperPacketDirection dir, const uint8_t *data, size_t length);
@@ -204,7 +256,7 @@ DomainLookuperResult DomainLookuper::Context::parse(
         case DLUS_PASS:
             return r;
         case DLUS_NOTFOUND:
-            this->current_parser = this->factory.produce();
+            this->current_parser = this->factory.produce(proto);
             break;
         }
     }
@@ -212,9 +264,9 @@ DomainLookuperResult DomainLookuper::Context::parse(
     return {DLUS_NOTFOUND, ""};
 }
 
-DomainLookuperResult DomainLookuper::proceed(DomainLookuperPacketDirection dir, const uint8_t *data, size_t length) {
+DomainLookuperResult DomainLookuper::proceed(DomainLookuperPacketDirection dir, int proto, const uint8_t *data, size_t length) {
     if (m_context == nullptr) {
-        m_context = std::make_unique<DomainLookuper::Context>();
+        m_context = std::make_unique<DomainLookuper::Context>(proto);
     }
 
     DomainLookuperResult r = m_context->parse(dir, data, length);

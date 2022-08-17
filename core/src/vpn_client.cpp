@@ -230,7 +230,6 @@ VpnClient::VpnClient(vpn_client::Parameters parameters)
 VpnError VpnClient::init(const VpnSettings *settings) {
     log_client(this, dbg, "...");
 
-    this->quic_enabled = settings->quic_enabled;
     this->kill_switch_on = settings->killswitch_enabled;
     update_exclusions(settings->mode, {settings->exclusions.data, settings->exclusions.size});
 

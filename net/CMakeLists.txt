@@ -33,6 +33,7 @@ set(SOURCE_FILES
         ${NET_SOURCE_DIR}/locations_pinger.cpp
         ${NET_SOURCE_DIR}/locations_pinger_runner.cpp
         ${NET_SOURCE_DIR}/dns_utils.cpp
+        ${NET_SOURCE_DIR}/quic_utils.cpp
     )
 
 
@@ -80,6 +81,7 @@ set(TEST_EXTRA_INCLUDES ${NET_SOURCE_DIR})
 add_unit_test(test_http_headers "${TEST_DIR}" "" FALSE FALSE)
 add_unit_test(test_tls_parse "${TEST_DIR}" "" FALSE FALSE)
 add_unit_test(test_ping "${TEST_DIR}" "${TEST_EXTRA_INCLUDES}" TRUE TRUE)
+add_unit_test(test_quic_parse "${TEST_DIR}" "${TEST_EXTRA_INCLUDES}" TRUE TRUE)
 add_unit_test(test_locations_pinger "${TEST_DIR}" "${TEST_EXTRA_INCLUDES}" TRUE TRUE)
 add_unit_test(test_locations_pinger_runner "${TEST_DIR}" "${TEST_EXTRA_INCLUDES}" TRUE TRUE)
 add_unit_test(test_dns_utils "${TEST_DIR}" "${TEST_EXTRA_INCLUDES}" TRUE TRUE)

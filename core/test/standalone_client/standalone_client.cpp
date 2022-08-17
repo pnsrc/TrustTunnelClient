@@ -48,6 +48,10 @@ static void vpn_handler(void *arg, VpnEvent what, void *data);
 
 static const ag::Logger g_logger("STANDALONE_CLIENT");
 
+#ifdef __APPLE__
+static uint32_t g_bound_if_index = 0; // bound interface index, to avoid route loop
+#endif
+
 static const std::unordered_map<std::string, ag::LogLevel> LOG_LEVEL_MAP = {
         {"error", ag::LOG_LEVEL_ERROR},
         {"warn", ag::LOG_LEVEL_WARN},
@@ -115,6 +119,7 @@ struct Params {
     std::vector<ag::CidrRange> ipv4_routes;
     std::vector<ag::CidrRange> ipv6_routes;
     std::string dns_upstream;
+    std::string bound_if;
 
     void init(cxxopts::ParseResult &result, const std::string &config) {
         parse_json_config(config);
@@ -195,6 +200,21 @@ struct Params {
             auto tun_info = config_file["tun_info"];
             mtu_size = tun_info["mtu_size"];
             parse_routes(tun_info["included_routes"], tun_info["excluded_routes"]);
+            if (tun_info.contains("bound_if") && tun_info["bound_if"].is_string()) {
+                bound_if = tun_info["bound_if"] ;
+            }
+#ifdef __APPLE__
+            if (bound_if.empty()) {
+                g_bound_if_index = 0;
+            } else {
+                g_bound_if_index = if_nametoindex(bound_if.c_str());
+                // user put wrong interface name in settings
+                if (g_bound_if_index == 0) {
+                    errlog(g_logger, "Unknown interface type, use 'ifconfig' to see possible values");
+                    exit(1);
+                }
+            }
+#endif
         } else if (listener_type == LT_SOCKS) {
             parse_listener_info(config_file["socks_info"]);
         }
@@ -453,36 +473,60 @@ static void listener_runner(ListenerType listener_type) {
     vpn_close(g_vpn);
 }
 
-static void vpn_handler(void *, VpnEvent what, void *data) {
-    switch (what) {
-    case VPN_EVENT_CLIENT_OUTPUT:
-    case VPN_EVENT_PROTECT_SOCKET:
-    case VPN_EVENT_ENDPOINT_CONNECTION_STATS:
-    case VPN_EVENT_DNS_UPSTREAM_UNAVAILABLE:
-        // do nothing
-        break;
-    case VPN_EVENT_VERIFY_CERTIFICATE: {
-        auto *event = (VpnVerifyCertificateEvent *) data;
-        const char *err = g_params.skip_verify ? nullptr : tls_verify_cert(event->ctx, nullptr);
-        if (err == nullptr) {
-            tracelog(g_logger, "Certificate verified successfully\n");
-            event->result = 0;
-        } else {
-            errlog(g_logger, "Failed to verify certificate: {}\n", err);
-            event->result = -1;
+    static void vpn_protect_socket(SocketProtectEvent *event) {
+#ifdef __APPLE__
+        uint32_t idx = g_bound_if_index;
+        if (idx == 0) {
+            return ;
         }
-        break;
+        if (event->family == AF_INET) {
+            setsockopt(event->fd, IPPROTO_IP, IP_BOUND_IF, &idx, sizeof(idx));
+        } else if (event->family == AF_INET6) {
+            setsockopt(event->fd, IPPROTO_IPV6, IPV6_BOUND_IF, &idx, sizeof(idx));
+        }
+#endif // __APPLE__
+#ifdef __linux__
+        if (!g_params.bound_if.empty()) {
+            setsockopt(event->fd, SOL_SOCKET, SO_BINDTODEVICE, g_params.bound_if.data(), (socklen_t) g_params.bound_if.size());
+        }
+#endif
     }
-    case VPN_EVENT_STATE_CHANGED: {
-        const VpnStateChangedEvent *event = (VpnStateChangedEvent *) data;
-        if (event->state == VPN_SS_WAITING_RECOVERY) {
-            tracelog(g_logger, "Endpoint connection state changed: state={} to_next={}ms err={} {}\n", event->state,
-                    (int) event->waiting_recovery_info.time_to_next_ms, event->waiting_recovery_info.error.code,
-                    safe_to_string_view(event->waiting_recovery_info.error.text));
-        } else if (event->error.code != 0 && event->state != VPN_SS_CONNECTED) {
-            tracelog(g_logger, "Endpoint connection state changed: state={} err={} {}\n", event->state,
-                    event->error.code, safe_to_string_view(event->error.text));
+
+    static void vpn_handler(void *, VpnEvent what, void *data) {
+        switch (what) {
+        case VPN_EVENT_PROTECT_SOCKET: {
+            // protect socket to avoid route loop
+            auto *event = (SocketProtectEvent *) data;
+            vpn_protect_socket(event);
+            break;
         }
+        case VPN_EVENT_CLIENT_OUTPUT:
+        case VPN_EVENT_ENDPOINT_CONNECTION_STATS:
+        case VPN_EVENT_DNS_UPSTREAM_UNAVAILABLE:
+            // do nothing
+            break;
+        case VPN_EVENT_VERIFY_CERTIFICATE: {
+            auto *event = (VpnVerifyCertificateEvent *) data;
+            const char *err = g_params.skip_verify ? nullptr : tls_verify_cert(event->ctx, nullptr);
+            if (err == nullptr) {
+                tracelog(g_logger, "Certificate verified successfully\n");
+                event->result = 0;
+            } else {
+                errlog(g_logger, "Failed to verify certificate: {}\n", err);
+                event->result = -1;
+            }
+            break;
+        }
+        case VPN_EVENT_STATE_CHANGED: {
+            const VpnStateChangedEvent *event = (VpnStateChangedEvent *) data;
+            if (event->state == VPN_SS_WAITING_RECOVERY) {
+                tracelog(g_logger, "Endpoint connection state changed: state={} to_next={}ms err={} {}\n", event->state,
+                        (int) event->waiting_recovery_info.time_to_next_ms, event->waiting_recovery_info.error.code,
+                        safe_to_string_view(event->waiting_recovery_info.error.text));
+            } else if (event->error.code != 0 && event->state != VPN_SS_CONNECTED) {
+                tracelog(g_logger, "Endpoint connection state changed: state={} err={} {}\n", event->state,
+                        event->error.code, safe_to_string_view(event->error.text));
+            }
 
         std::scoped_lock l(g_connect_result_guard);
         if (g_waiting_connect_result && (event->state == VPN_SS_CONNECTED || event->state == VPN_SS_DISCONNECTED)) {

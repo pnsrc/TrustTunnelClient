@@ -424,17 +424,6 @@ typedef struct {
      */
     int max_conn_buffer_file_size;
     /**
-     * By default QUIC connections are dropped (with the exceptions described below),
-     * set to true to alter it.
-     *
-     * QUIC connections are not dropped in the following cases:
-     *     1) Connection is bypassed by the application (i.e. it returned `VPN_CA_FORCE_BYPASS` in
-     *        `vpn_complete_connect_request`)
-     *     2) Connection is redirected to the VPN endpoint forcibly (i.e. the application returned
-     *        `VPN_CA_FORCE_REDIRECT` in `vpn_complete_connect_request`)
-     */
-    bool quic_enabled;
-    /**
      * When disabled, all connection requests are routed directly to target hosts in case session
      * to VPN endpoint is lost and the library fails to recover it. This helps not to break
      * an Internet connection if user has poor connectivity to an endpoint.

@@ -11,8 +11,6 @@
 
 namespace ag {
 
-static const uint32_t DEFAULT_QUIC_PORT = 443;
-
 std::string http_headers_to_http1_message(const HttpHeaders *headers, bool one_line) {
     if (headers == nullptr) {
         return "";
@@ -87,23 +85,6 @@ http_headers_to_nv_list(const HttpHeaders *headers) {
     }
 
     return nva;
-}
-
-static bool has_quic_header(const uint8_t *data, size_t length) {
-    // Old Google QUIC header
-    // https://github.com/AdguardTeam/AdguardForWindows/issues/1261#issuecomment-242708930
-    if (length >= 13 && (data[0] == 13 || data[0] == 9) && data[9] == 'Q' && data[10] == '0' && data[11] >= '2'
-            && data[11] <= '9' && data[12] >= '0' && data[12] <= '9') {
-        return true;
-    }
-    // QUIC IETF header
-    // https://github.com/AdguardTeam/CoreLibs/issues/486
-    // FIXME: IETF QUIC detection is temporarily dropped because new header is too generic and needs decode
-    return false;
-}
-
-bool packet_is_quic(uint32_t dst_port, const uint8_t *data, size_t length) {
-    return dst_port == DEFAULT_QUIC_PORT || has_quic_header(data, length);
 }
 
 HttpVersion http_make_version(int major, int minor) {

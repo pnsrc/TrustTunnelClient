@@ -132,7 +132,6 @@ public:
     vpn_client::Parameters parameters = {};
     VpnListenerConfig listener_config = {};                    // common listener configuration
     vpn_client::EndpointConnectionConfig upstream_config = {}; // upstream configuration
-    bool quic_enabled = false;
     bool kill_switch_on = false;
     bool ipv6_available = false;
     std::unique_ptr<ServerUpstream> endpoint_upstream;  // upstream for connections routed through vpn

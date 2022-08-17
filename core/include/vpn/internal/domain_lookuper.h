@@ -35,7 +35,7 @@ public:
     DomainLookuper(DomainLookuper &&) noexcept = delete;
     DomainLookuper &operator=(DomainLookuper &&) noexcept = delete;
 
-    DomainLookuperResult proceed(DomainLookuperPacketDirection dir, const uint8_t *data, size_t length);
+    DomainLookuperResult proceed(DomainLookuperPacketDirection dir, int proto, const uint8_t *data, size_t length);
 
     void reset();
 
