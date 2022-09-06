@@ -16,8 +16,21 @@ The config file contains the following fields:
   * `username` - Server config username
   * `password` - Server config password
   * `skip_cert_verify` - Skip certificate verify
+  * `upstream_protocol` - VPN upstream protocol (`"http2"` or `"http3"`)
+  * `upstream_fallback_protocol` - VPN fallback protocol (`"http2"` or `"http3"`)
 
 
+* `dns_upstream` - DNS upstream. One of the following kinds:
+
+  * `8.8.8.8:53` - plain DNS
+  * `tcp://8.8.8.8:53` - plain DNS over TCP
+  * `tls://1.1.1.1` - DNS-over-TLS
+  * `https://dns.adguard.com/dns-query` - DNS-over-HTTPS
+  * `sdns://...` - DNS stamp (see https://dnscrypt.info/stamps-specifications)
+  * `quic://dns.adguard.com:8853` - DNS-over-QUIC
+
+
+* `killswitch_enabled` - kill-switch feature
 * `listener_type` - There are two possible types: `"tun"` & `"socks"`
 
 If `tun` is selected as the VPN mode, the `socks_info` fields can be left blank:
@@ -36,6 +49,10 @@ If `socks` is selected as the VPN mode, the `tun_info` field can be left blank:
   
 
 * `loglevel` - Logging level. Possible values: `error`, `warn`, `info`, `debug`, `trace`
+* `vpn_mode`:
+  * `general` - Route through a VPN endpoint all connections except ones which destinations are in exclusions
+  * `selective` - Route through a VPN endpoint only the connections which destinations are in exclusions
+* `exclusions` - list of the domains and addresses which should be routed in a special manner. Recognized formats are: `[IPv6Address]:port`, `[IPv6Address]`, `IPv6Address`, `IPv4Address:port`, `IPv4Address`
 
 All fields are filled in quotation marks, except for `mtu_size`(integer) and `skip_cert_verify`(bool)
 
