@@ -75,12 +75,13 @@ void locations_pinger_runner_run(LocationsPingerRunner *runner) {
 static void runner_stop(LocationsPingerRunner *runner) {
     log_runner(runner, info, "...");
 
+    std::unique_lock l(runner->stop_guard);
+
     vpn_event_loop_stop(runner->ev_loop.get());
     locations_pinger_stop(runner->pinger.get());
 
     log_runner(runner, info, "Waiting for event loop stop");
 
-    std::unique_lock l(runner->stop_guard);
     runner->stop_barrier.wait(l, [runner]() -> bool {
         return runner->actually_stopped;
     });
@@ -89,9 +90,7 @@ static void runner_stop(LocationsPingerRunner *runner) {
 }
 
 void locations_pinger_runner_free(LocationsPingerRunner *runner) {
-    if (runner->ev_loop != nullptr) {
-        runner_stop(runner);
-    }
+    runner_stop(runner);
     delete runner;
 }
 
