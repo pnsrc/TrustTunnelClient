@@ -541,7 +541,7 @@ static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sock
     }
 
     if (!sockaddr_is_loopback(dst)) {
-        event = {fd, dst->sa_family, 0};
+        event = {fd, dst, 0};
         callbacks->handler(callbacks->arg, TCP_SOCKET_EVENT_PROTECT, &event);
         if (event.result != 0) {
             log_sock(sock, err, "Failed to protect socket: {}", event.result);

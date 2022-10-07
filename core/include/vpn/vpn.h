@@ -9,6 +9,7 @@
 #include <openssl/x509.h>
 
 #include "common/logger.h"
+#include "net/os_tunnel.h"
 #include "net/utils.h"
 #include "vpn/event_loop.h"
 #include "vpn/utils.h"
@@ -52,12 +53,17 @@ typedef void VpnListener;
  */
 typedef struct {
     /**
-     * File descriptor of TUN device. If -1, the client handler expects that application will
+     * File descriptor of TUN device. If -1, the client handler expects that
+     * `tunnel` is specified. If `tunnel` is NULL, it is expected that an application will
      * provide data packet from a client application via `vpn_process_client_packet` and send
      * data from a server in `VPN_EVENT_CLIENT_OUTPUT` handler. Otherwise it listens the descriptor
      * by itself.
      */
     evutil_socket_t fd;
+    /**
+     * For non-fd mode, if specified, then `VPN_EVENT_CLIENT_OUTPUT is not needed - it will be automatically passed to this tunnel.
+     */
+    VpnOsTunnel *tunnel;
     /** Maximum transfer unit for TCP protocol (if 0, `DEFAULT_MTU_SIZE` will be used) */
     uint32_t mtu_size;
     /** Pcap file name */

@@ -104,6 +104,43 @@ typedef struct {
 
 typedef AG_ARRAY_OF(VpnPacket) VpnPackets;
 
+class VpnPacketsHolder {
+public:
+    VpnPacketsHolder() = default;
+    explicit VpnPacketsHolder(VpnPackets packets)
+            : m_packets(packets.data, packets.data + packets.size)
+    {}
+    ~VpnPacketsHolder() {
+        for (auto p : m_packets) {
+            if (p.destructor) {
+                p.destructor(p.destructor_arg, p.data);
+            }
+        }
+    }
+    std::vector<VpnPacket> release() {
+        std::vector<VpnPacket> ret = std::move(m_packets);
+        return ret;
+    }
+    void add(VpnPacket packet) {
+        m_packets.push_back(packet);
+    }
+    void add(VpnPackets packets) {
+        std::copy(packets.data, packets.data + packets.size, std::back_inserter(m_packets));
+    }
+
+    VpnPacketsHolder(const VpnPacketsHolder &) = delete;
+    void operator=(const VpnPacketsHolder &) = delete;
+    VpnPacketsHolder(VpnPacketsHolder &&other) noexcept {
+        *this = std::move(other);
+    }
+    VpnPacketsHolder &operator=(VpnPacketsHolder &&other) noexcept {
+        std::swap(m_packets, other.m_packets);
+        return *this;
+    }
+private:
+    std::vector<VpnPacket> m_packets;
+};
+
 /**
  * Convert milliseconds to timeval structure
  */

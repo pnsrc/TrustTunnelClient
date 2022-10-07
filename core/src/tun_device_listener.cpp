@@ -36,6 +36,7 @@ static constexpr TcpipAction CONNECT_RESULT_TO_TCPIP_ACTION[magic_enum::enum_cou
 static VpnTunListenerConfig clone_config(const VpnTunListenerConfig *config) {
     return VpnTunListenerConfig{
             .fd = config->fd,
+            .tunnel = config->tunnel,
             .mtu_size = config->mtu_size,
             .pcap_filename = safe_strdup(config->pcap_filename),
     };
@@ -62,6 +63,11 @@ ClientListener::InitResult TunListener::init(VpnClient *vpn, ClientHandler handl
         return result;
     }
 
+    if (m_config.fd != -1 && m_config.tunnel != nullptr) {
+        errlog(m_log, "Passed both fd and tunnel to TUN listener");
+        return InitResult::FAILURE;
+    }
+
     TcpipParameters tcpip_params = {
             .tun_fd = m_config.fd,
             .event_loop = this->vpn->parameters.ev_loop,
@@ -76,11 +82,22 @@ ClientListener::InitResult TunListener::init(VpnClient *vpn, ClientHandler handl
         deinit();
         return InitResult::FAILURE;
     }
+    if (m_config.tunnel) {
+        m_config.tunnel->start_recv_packets(recv_packets_handler, this);
+    }
 
     return InitResult::SUCCESS;
 }
 
 void TunListener::deinit() {
+    if (m_config.tunnel) {
+        m_config.tunnel->stop_recv_packets();
+        std::unique_lock l(m_recv_packets_queue_mutex);
+        if (m_recv_packets_task.has_value()) {
+            tracelog(m_log, "Reset remaining recv_packets task");
+            m_recv_packets_task.reset();
+        }
+    }
     tcpip_close(m_tcpip);
     m_tcpip = nullptr;
 }
@@ -235,6 +252,11 @@ void TunListener::tcpip_handler(void *arg, TcpipEvent what, void *data) {
         break;
     }
     case TCPIP_EVENT_TUN_OUTPUT: {
+        if (listener->m_config.tunnel) {
+            auto *event = (TcpipTunOutputEvent *) data;
+            listener->m_config.tunnel->send_packet({event->packet.chunks, event->packet.chunks_num});
+            break;
+        }
         listener->handler.func(listener->handler.arg, CLIENT_EVENT_OUTPUT, data);
         break;
     }
@@ -358,6 +380,31 @@ int TunListener::process_client_packets(VpnPackets packets) {
 
 void TunListener::process_icmp_reply(const IcmpEchoReply &reply) {
     tcpip_process_icmp_echo_reply(m_tcpip, &reply);
+}
+
+void TunListener::recv_packets_handler(void *arg, VpnPackets *packets){
+    auto *listener = (TunListener *) arg;
+    std::unique_lock l(listener->m_recv_packets_queue_mutex);
+    listener->m_recv_packets_queue.add(*packets);
+    if (!listener->m_recv_packets_task.has_value()) {
+        auto action = [](void *arg, TaskId task_id) {
+            auto *listener = (TunListener *) arg;
+            std::vector<VpnPacket> packets;
+            {
+                std::unique_lock l(listener->m_recv_packets_queue_mutex);
+                packets = listener->m_recv_packets_queue.release();
+                listener->m_recv_packets_task.release();
+            }
+            listener->vpn->process_client_packets({packets.data(), (uint32_t) packets.size()});
+        };
+        listener->m_recv_packets_task = event_loop::submit(listener->vpn->parameters.ev_loop,
+                VpnEventLoopTask{
+                        .arg = listener,
+                        .action = action,
+                        .finalize = nullptr,
+                });
+        tracelog(listener->m_log, "Scheduled new recv_packets task");
+    }
 }
 
 } // namespace ag

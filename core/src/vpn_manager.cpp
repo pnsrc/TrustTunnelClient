@@ -648,20 +648,12 @@ VpnDnsUpstreamValidationStatus vpn_validate_dns_upstream(const char *address) {
     return VPN_DUVS_OK;
 }
 
-std::vector<VpnPacket> c_packets_to_vector(const VpnPackets &packets) {
-    return std::vector<VpnPacket>{packets.data, packets.data + packets.size};
-}
-
-VpnPackets to_c_packets(std::vector<VpnPacket> &packets) {
-    return VpnPackets{packets.data(), (uint32_t) packets.size()};
-}
-
 void vpn_process_client_packets(Vpn *vpn, VpnPackets packets) {
     std::unique_lock l(vpn->stop_guard);
 
-    vpn->submit([vpn, packets_vector = c_packets_to_vector(packets)]() mutable {
-        VpnPackets packets = to_c_packets(packets_vector);
-        vpn->client.process_client_packets(packets);
+    vpn->submit([vpn, packets_holder = std::make_shared<VpnPacketsHolder>(packets)]() mutable {
+        auto packets = packets_holder->release();
+        vpn->client.process_client_packets({packets.data(), (uint32_t) packets.size()});
     });
 }
 

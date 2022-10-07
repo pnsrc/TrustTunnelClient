@@ -1,5 +1,7 @@
 # CHANGELOG
 
+* [Feature] Added Wintun support. Dll downloaded from www.wintun.net is needed for standalone_client to run under Windows.
+
 ## 0.90.15
 
 * [Feature] Route QUIC connections according to the VPN mode instead of always dropping or redirecting them

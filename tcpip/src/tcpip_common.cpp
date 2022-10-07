@@ -12,6 +12,7 @@
 #include <span>
 #include <vector>
 
+#include <common/utils.h>
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
 #include <event2/event.h>
@@ -452,7 +453,13 @@ static void open_pcap_file(TcpipCtx *ctx, const char *pcap_filename) {
         return;
     }
 
-    ctx->pcap_fd = open(pcap_filename, O_WRONLY | O_CREAT | O_TRUNC, 0664);
+#ifdef _WIN32
+    int flags = O_WRONLY | O_CREAT | O_TRUNC | O_BINARY;
+    ctx->pcap_fd = _wopen(ag::utils::to_wstring(pcap_filename).c_str(), flags, 0664);
+#else
+    int flags = O_WRONLY | O_CREAT | O_TRUNC;
+    ctx->pcap_fd = open(pcap_filename, flags, 0664);
+#endif
     if (ctx->pcap_fd == -1) {
         errlog(ctx->logger, "pcap: can't open output file: {}", strerror(errno));
         return;

@@ -5,10 +5,6 @@
 #ifndef ARCH_CC_H
 #define ARCH_CC_H
 
-// #if !defined(__GNUC__) && !defined(__clang__)
-// #error Unsupported compiler
-// #endif // !defined(__GNUC__) && !defined(__clang__)
-
 /**
  * Custom logger function for LWIP, uses common logger
  * @param message Format string
@@ -34,13 +30,8 @@ void libevent_lwip_log_debug(const char *message, ...);
 #define BIG_ENDIAN REG_DWORD_BIG_ENDIAN
 #undef LITTLE_ENDIAN
 #define LITTLE_ENDIAN REG_DWORD_LITTLE_ENDIAN
-
 #undef BYTE_ORDER
-#if REG_DWORD == REG_DWORD_LITTLE_ENDIAN
-#define BYTE_ORDER LITTLE_ENDIAN
-#else
-#define BYTE_ORDER BIG_ENDIAN
-#endif // REG_DWORD == REG_DWORD_LITTLE_ENDIAN
+#define BYTE_ORDER REG_DWORD
 
 #else
 
@@ -56,7 +47,7 @@ void libevent_lwip_log_debug(const char *message, ...);
 // Use byteswapping operations on compiler/system (for optimization)
 #define LWIP_DONT_PROVIDE_BYTEORDER_FUNCTIONS 1
 #ifdef _WIN32
-#define SWAP_BYTES_IN_WORD(w) (((uint16_t)(w) << 8) | ((uint16_t)(w) & 0xff))
+#define SWAP_BYTES_IN_WORD(w) _byteswap_ushort(w)
 #else
 #define SWAP_BYTES_IN_WORD(w) __builtin_bswap16(w)
 #endif
@@ -67,6 +58,11 @@ void libevent_lwip_log_debug(const char *message, ...);
 #include <basetsd.h>
 #define SSIZE_MAX MAXSSIZE_T
 #endif
+#endif
+
+// Struct packing
+#ifdef _WIN32
+#define PACK_STRUCT_USE_INCLUDES 1
 #endif
 
 #endif /* ARCH_CC_H */

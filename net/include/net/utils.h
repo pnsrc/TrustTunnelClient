@@ -18,9 +18,9 @@
 namespace ag {
 
 struct SocketProtectEvent {
-    evutil_socket_t fd; // file descriptor
-    int family;         // address family
-    int result;         // FILLED BY HANDLER: operation result (0 in case of success)
+    evutil_socket_t fd;   // file descriptor
+    const sockaddr *peer; // destination address
+    int result;           // FILLED BY HANDLER: operation result (0 in case of success)
 };
 
 struct CertVerifyHandler {

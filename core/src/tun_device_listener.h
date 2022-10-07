@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <queue>
 #include <unordered_map>
 #include <vector>
@@ -42,6 +43,9 @@ private:
     std::unordered_map<uint64_t, Connection> m_connections;
     ag::Logger m_log{"TUN_LISTENER"};
     VpnTunListenerConfig m_config;
+    std::mutex m_recv_packets_queue_mutex;
+    VpnPacketsHolder m_recv_packets_queue;
+    event_loop::AutoTaskId m_recv_packets_task;
 
     InitResult init(VpnClient *vpn, ClientHandler handler) override;
     void deinit() override;
@@ -56,6 +60,7 @@ private:
 
     static void tcpip_handler(void *arg, TcpipEvent id, void *data);
     static void complete_read(void *arg, TaskId task_id);
+    static void recv_packets_handler(void *arg, VpnPackets *packets);
 
     int read_out_pending_data(uint64_t id, Connection *conn) const;
 };

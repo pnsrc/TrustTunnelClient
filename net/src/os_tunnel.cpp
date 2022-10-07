@@ -1,0 +1,174 @@
+#include "net/os_tunnel.h"
+
+#ifdef _WIN32
+#define POPEN _popen
+#define PCLOSE _pclose
+#else
+#define POPEN popen
+#define PCLOSE pclose
+#endif
+
+static constexpr std::string_view DEFAULT_IPV4_ROUTE = "0.0.0.0/0";
+static constexpr std::string_view DEFAULT_IPV6_ROUTE = "::/0";
+static constexpr std::string_view DEFAULT_IPV6_ROUTE_UNICAST = "2000::/3";
+
+void ag::tunnel_utils::split_default_route(std::vector<ag::CidrRange> &routes, ag::CidrRange route) {
+    for (size_t idx = 0; idx < routes.size(); ++idx) {
+        if (routes[idx] == route) {
+            routes.erase(routes.begin() + idx);
+
+            auto split = route.split();
+            routes.push_back(split.value().first);
+            routes.push_back(split.value().second);
+        }
+    }
+}
+
+void ag::tunnel_utils::get_setup_routes(std::vector<ag::CidrRange> &ipv4_routes,
+        std::vector<ag::CidrRange> &ipv6_routes, ag::VpnRoutes &included_routes, ag::VpnRoutes &excluded_routes) {
+    for (size_t i = 0; i < included_routes.size; i++) {
+        std::string_view route(included_routes.data[i]);
+        if (route.find(':') == std::string::npos) {
+            ipv4_routes.emplace_back(route);
+        } else {
+            if (route == DEFAULT_IPV6_ROUTE) {
+                ipv6_routes.emplace_back(DEFAULT_IPV6_ROUTE_UNICAST);
+            } else {
+                ipv6_routes.emplace_back(route);
+            }
+        }
+    }
+    for (size_t i = 0; i < excluded_routes.size; i++) {
+        std::string_view excluded_route(excluded_routes.data[i]);
+        if (excluded_route.find(':') == std::string::npos) {
+            ipv4_routes = ag::CidrRange::exclude(ipv4_routes, ag::CidrRange(excluded_route));
+        } else {
+            ipv6_routes = ag::CidrRange::exclude(ipv6_routes, ag::CidrRange(excluded_route));
+        }
+    }
+
+    split_default_route(ipv4_routes, ag::CidrRange(DEFAULT_IPV4_ROUTE));
+    split_default_route(ipv6_routes, ag::CidrRange(DEFAULT_IPV6_ROUTE_UNICAST));
+}
+
+std::string ag::tunnel_utils::exec_with_output(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&PCLOSE)> pipe(POPEN(cmd, "r"), PCLOSE);
+    if (!pipe) {
+        return{"popen() failed!"};
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+ag::CidrRange ag::tunnel_utils::get_address_for_index(const char *ipv4_address, uint32_t index) {
+    ag::CidrRange range{ipv4_address};
+    ag::Uint8Vector addr = range.get_address();
+    if (addr.empty()) {
+        return range;
+    }
+    if (addr.back() == 0) {
+        addr.back() = index + 2;
+    }
+    return {Uint8View{addr.data(), addr.size()}, addr.size() * 8};
+}
+
+ag::VpnOsTunnelSettings *ag::vpn_os_tunnel_settings_clone(const ag::VpnOsTunnelSettings *settings) {
+    ag::VpnOsTunnelSettings *dst = new VpnOsTunnelSettings{};
+    dst->ipv4_address = safe_strdup(settings->ipv4_address);
+    dst->ipv6_address = safe_strdup(settings->ipv6_address);
+    dst->included_routes.size = settings->included_routes.size;
+    dst->included_routes.data = new const char *[settings->included_routes.size] {};
+    for (size_t i = 0; i != dst->included_routes.size; i++) {
+        dst->included_routes.data[i] = safe_strdup(settings->included_routes.data[i]);
+    }
+    dst->excluded_routes.size = settings->excluded_routes.size;
+    dst->excluded_routes.data = new const char *[settings->excluded_routes.size] {};
+    for (size_t i = 0; i != dst->excluded_routes.size; i++) {
+        dst->excluded_routes.data[i] = safe_strdup(settings->excluded_routes.data[i]);
+    }
+    dst->mtu = settings->mtu;
+    return dst;
+}
+
+void ag::vpn_os_tunnel_settings_destroy(ag::VpnOsTunnelSettings *settings) {
+    if (settings == nullptr) {
+        return;
+    }
+    free((void *) settings->ipv4_address);
+    free((void *) settings->ipv6_address);
+    for (size_t i = 0; i != settings->included_routes.size; i++) {
+        free((void *) settings->included_routes.data[i]);
+    }
+    delete[] settings->included_routes.data;
+    for (size_t i = 0; i != settings->excluded_routes.size; i++) {
+        free((void *) settings->excluded_routes.data[i]);
+    }
+    delete[] settings->excluded_routes.data;
+    delete settings;
+}
+
+const ag::VpnOsTunnelSettings *ag::vpn_os_tunnel_settings_defaults() {
+    static const char *included_routes[] = {"0.0.0.0/0", "2000::/3"};
+    static const char *excluded_routes[] = {"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "224.0.0.0/3"};
+    static const VpnOsTunnelSettings settings{
+            .ipv4_address = "172.16.219.2",
+            .ipv6_address = "fd01::2",
+            .included_routes = {.data = included_routes, .size = std::size(included_routes)},
+            .excluded_routes = {.data = excluded_routes, .size = std::size(excluded_routes)},
+            .mtu = 9000,
+    };
+    return &settings;
+}
+
+const ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_defaults() {
+    static const char *dns_server = "94.140.14.140";
+    static const ag::VpnWinTunnelSettings win_settings = {
+            .adapter_name = "Adguard VpnLibs test tunnel",
+            .dns_servers = {&dns_server, 1}, // Adguard DNS unfiltered
+            .wintun_lib = nullptr,
+    };
+    return &win_settings;
+}
+
+ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_clone(const ag::VpnWinTunnelSettings *settings) {
+    VpnWinTunnelSettings *dst = new VpnWinTunnelSettings{};
+    dst->adapter_name = safe_strdup(settings->adapter_name);
+    dst->dns_servers.size = settings->dns_servers.size;
+    dst->dns_servers.data = new const char *[dst->dns_servers.size];
+    for (size_t i = 0; i != dst->dns_servers.size; i++) {
+        dst->dns_servers.data[i] = safe_strdup(settings->dns_servers.data[i]);
+    }
+    dst->wintun_lib = settings->wintun_lib;
+    return dst;
+}
+
+void ag::vpn_win_tunnel_settings_destroy(ag::VpnWinTunnelSettings *settings) {
+    if (settings == nullptr) {
+        return;
+    }
+    delete settings->adapter_name;
+    for (size_t i = 0; i != settings->dns_servers.size; i++) {
+        free((void *) settings->dns_servers.data[i]);
+    }
+    delete[] settings->dns_servers.data;
+    delete settings;
+}
+
+std::unique_ptr<ag::VpnOsTunnel> ag::make_vpn_tunnel() {
+#ifdef _WIN32
+    std::unique_ptr<ag::VpnWinTunnel> tunnel{new ag::VpnWinTunnel{}};
+    return tunnel;
+#elif __APPLE__
+    std::unique_ptr<ag::VpnMacTunnel> tunnel{new ag::VpnMacTunnel{}};
+    return tunnel;
+#elif __linux__ && !ANDROID
+    std::unique_ptr<ag::VpnLinuxTunnel> tunnel{new ag::VpnLinuxTunnel{}};
+    return tunnel;
+#else
+    return nullptr;
+#endif
+}

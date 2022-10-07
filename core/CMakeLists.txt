@@ -39,6 +39,7 @@ set(SOURCE_FILES
         ${VPNCORE_SRC_DIR}/vpn_connection.cpp
 )
 
+
 if(NOT TARGET vpnlibs_common)
     add_subdirectory(${VPN_LIB_DIR}/common ${CMAKE_BINARY_DIR}/common)
 endif(NOT TARGET vpnlibs_common)
@@ -90,6 +91,7 @@ target_link_libraries(standalone_client vpnlibs_core CONAN_PKG::cxxopts)
 target_link_libraries(standalone_client CONAN_PKG::native_libs_common)
 target_link_libraries(standalone_client CONAN_PKG::nlohmann_json)
 target_link_libraries(standalone_client CONAN_PKG::magic_enum)
+
 
 enable_testing()
 

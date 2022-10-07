@@ -10,7 +10,7 @@ namespace ag::sys {
 
 static size_t get_wide_error_message(DWORD code, wchar_t *dst, size_t dst_cap) {
     DWORD n = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK,
-            0, code, 0, (LPWSTR) dst, DWORD(dst_cap), 0);
+            nullptr, code, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), (LPWSTR) dst, DWORD(dst_cap), nullptr);
     if (n == 0) {
         return 0;
     }

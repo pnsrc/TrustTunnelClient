@@ -90,7 +90,7 @@ UdpSocket *udp_socket_create(const UdpSocketParameters *parameters) {
     }
     {
         if (!sockaddr_is_loopback(peer)) {
-            SocketProtectEvent protect_event = {fd, peer->sa_family, 0};
+            SocketProtectEvent protect_event = {fd, peer, 0};
             parameters->handler.func(parameters->handler.arg, UDP_SOCKET_EVENT_PROTECT, &protect_event);
             if (protect_event.result != 0) {
                 log_sock(sock, err, "Failed to protect socket");

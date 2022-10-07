@@ -8,12 +8,15 @@
 
 #ifdef __linux__
 #include <net/if.h>
-
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #endif
 
+#ifdef _WIN32
+#include <WinSock2.h>
+#else
 #include <sys/ioctl.h>
+#endif
 
 #include <atomic>
 #include <csignal>
@@ -30,17 +33,13 @@
 #include "common/logger.h"
 #include "common/net_utils.h"
 #include "common/utils.h"
+#include "net/os_tunnel.h"
 #include "net/tls.h"
+#include "tcpip/tcpip.h"
 #include "vpn/vpn.h"
 
-#define SLEEP() sleep(100000)
-
-static constexpr unsigned DEFAULT_MTU_SIZE = 1500;
-static constexpr std::string_view DEFAULT_IPV4_ROUTE = "0.0.0.0/0";
-static constexpr std::string_view DEFAULT_IPV6_ROUTE = "::/0";
-static constexpr std::string_view DEFAULT_IPV6_ROUTE_UNICAST = "2000::/3";
 static constexpr std::string_view DEFAULT_CONFIG_FILE = "standalone_client.conf";
-static constexpr std::string_view REDIRECT_OUTPUT = "> /dev/null";
+[[maybe_unused]]static constexpr std::string_view WINTUN_DLL_NAME = "wintun";
 
 using namespace ag;
 
@@ -103,18 +102,6 @@ static std::optional<std::string> read_file_to_str(const std::string &filename) 
     return file_str;
 }
 
-static void split_default_route(std::vector<ag::CidrRange> &routes, std::string_view route) {
-    for (size_t idx = 0; idx < routes.size(); ++idx) {
-        if (routes[idx].to_string() == route) {
-            routes.erase(routes.begin() + idx);
-
-            auto split = ag::CidrRange(route).split();
-            routes.push_back(split.value().first);
-            routes.push_back(split.value().second);
-        }
-    }
-}
-
 struct Params {
     std::string hostname;
     std::string address;
@@ -127,8 +114,8 @@ struct Params {
     ListenerType listener_type = LT_SOCKS;
     bool skip_verify = false;
     uint32_t mtu_size = DEFAULT_MTU_SIZE;
-    std::vector<ag::CidrRange> ipv4_routes;
-    std::vector<ag::CidrRange> ipv6_routes;
+    std::vector<std::string> included_routes;
+    std::vector<std::string> excluded_routes;
     std::string dns_upstream;
     std::string bound_if;
     bool killswitch_enabled;
@@ -177,33 +164,13 @@ struct Params {
         }
     }
 
-    void parse_routes(nlohmann::json::reference &included_routes, nlohmann::json::reference &excluded_routes) {
-        for (std::string included_route : included_routes) {
-            if (included_route.find(':') == std::string::npos) {
-                ipv4_routes.emplace_back(included_route);
-            } else {
-                if (included_route == DEFAULT_IPV6_ROUTE) {
-                    ipv6_routes.emplace_back(DEFAULT_IPV6_ROUTE_UNICAST);
-                } else {
-                    ipv6_routes.emplace_back(included_route);
-                }
-            }
+    void parse_routes(nlohmann::json::reference &included_routes_info, nlohmann::json::reference &excluded_routes_info) {
+        for (std::string route : included_routes_info) {
+            included_routes.emplace_back(std::move(route));
         }
-
-        auto [host_view, port_view] = ag::utils::split_host_port(address);
-        ipv4_routes = ag::CidrRange::exclude(ipv4_routes, ag::CidrRange(host_view));
-        ipv6_routes = ag::CidrRange::exclude(ipv6_routes, ag::CidrRange(host_view));
-
-        for (std::string excluded_route : excluded_routes) {
-            if (excluded_route.find(':') == std::string::npos) {
-                ipv4_routes = ag::CidrRange::exclude(ipv4_routes, ag::CidrRange(excluded_route));
-            } else {
-                ipv6_routes = ag::CidrRange::exclude(ipv6_routes, ag::CidrRange(excluded_route));
-            }
+        for (std::string route : excluded_routes_info) {
+            excluded_routes.emplace_back(std::move(route));
         }
-
-        split_default_route(ipv4_routes, DEFAULT_IPV4_ROUTE);
-        split_default_route(ipv6_routes, DEFAULT_IPV6_ROUTE_UNICAST);
     }
 
     void parse_json_config(const std::string &config) {
@@ -236,6 +203,11 @@ struct Params {
                 }
             }
 #endif
+#ifdef _WIN32
+            uint32_t idx;
+            bound_if.empty() ? idx = 0 : idx = if_nametoindex(bound_if.c_str());
+            vpn_win_set_bound_if(idx);
+#endif
         } else if (listener_type == LT_SOCKS) {
             parse_listener_info(config_file["socks_info"]);
         }
@@ -266,27 +238,27 @@ struct Params {
     }
 };
 
-struct TunInfo {
-    int fd = -1;
-    uint32_t tun_num = 0;
-    std::string name;
-};
-
+static DeclPtr<VpnEventLoop, &vpn_event_loop_destroy> g_extra_loop{nullptr};
 static VpnSettings g_vpn_settings = {{vpn_handler, nullptr}, {}};
 static VpnUpstreamConfig g_vpn_server_config;
 static VpnEndpoint g_endpoint;
 static VpnListenerConfig g_vpn_common_listener_config;
 static VpnTunListenerConfig g_vpn_tun_listener_config;
 static VpnSocksListenerConfig g_vpn_socks_listener_config;
-static Vpn *g_vpn;
-static TunInfo g_tun_info;
+static std::atomic<Vpn *> g_vpn;
 static Params g_params;
+static std::unique_ptr<ag::VpnOsTunnel> g_tunnel;
 
 static bool g_waiting_connect_result = false;
 static std::optional<bool> g_connect_result;
 static std::mutex g_connect_result_guard;
+static std::mutex g_listener_runner_mutex;
 static std::condition_variable g_connect_barrier;
+static std::condition_variable g_listener_runner_barrier;
 static std::atomic_bool g_stop = false;
+#ifdef _WIN32
+static HMODULE g_wintun;
+#endif
 
 static void sighandler(int /*sig*/) {
     signal(SIGINT, SIG_DFL);
@@ -294,146 +266,10 @@ static void sighandler(int /*sig*/) {
 
     if (g_vpn != nullptr) {
         g_stop = true;
+        g_listener_runner_barrier.notify_one();
     } else {
         exit(1);
     }
-}
-
-// Needed because using `__func__` (which is used in `tracelog()`) inside variadic
-// template function causes a compiler error inside fmtlib's headers
-static void fsystem_expanded(const std::string &cmd) {
-    tracelog(g_logger, "{} {}", (geteuid() == 0) ? '#' : '$', cmd);
-    system(cmd.c_str());
-}
-
-template <typename... Ts>
-static void fsystem(std::string_view fmt, Ts &&...args) {
-    fsystem_expanded(fmt::vformat(fmt, fmt::make_format_args(args...)) + std::string(REDIRECT_OUTPUT));
-}
-
-static void setup_if(const TunInfo &info) {
-#ifdef __APPLE__
-    fsystem("set -x\n");
-    fsystem("/sbin/ifconfig {} mtu {} up", info.name, g_params.mtu_size);
-    std::string ipv4address = AG_FMT("172.16.218.{}", info.tun_num + 2);
-    std::string ipv6address = AG_FMT("fd00::{:x}", info.tun_num + 2);
-    fsystem("/sbin/ifconfig {} inet add {} {} netmask 0xffffffff\n", info.name, ipv4address, ipv4address);
-    fsystem("/sbin/ifconfig {} inet6 add {} prefixlen 64\n", info.name, ipv6address);
-#endif // __APPLE__
-#ifdef __linux__
-    std::string ipv4address = AG_FMT("172.16.218.{}", info.tun_num);
-    std::string ipv6address = AG_FMT("fd00::{:x}", info.tun_num);
-    fsystem("ip addr add {} dev {}", ipv4address, info.name);
-    fsystem("ip -6 addr add {} dev {}", ipv6address, info.name);
-    fsystem("ip link set dev {} mtu {} up", info.name, g_params.mtu_size);
-#endif // __linux__
-}
-
-static void setup_routes(const TunInfo &info) {
-#ifdef __APPLE__
-    for (auto &route : g_params.ipv4_routes) {
-        fsystem("route add {} -iface {}", route.to_string(), info.name);
-    }
-    for (auto &route : g_params.ipv6_routes) {
-        fsystem("route add -inet6 {} -iface {}", route.to_string(), info.name);
-    }
-#endif // __APPLE__
-#ifdef __linux__
-    for (auto &route : g_params.ipv4_routes) {
-        fsystem("ip ro add {} dev {}", route.to_string(), info.name);
-    }
-    for (auto &route : g_params.ipv6_routes) {
-        fsystem("ip -6 ro add {} dev {}", route.to_string(), info.name);
-    }
-#endif // __linux__
-}
-
-#if defined(__APPLE__)
-static int tun_open(uint32_t num) {
-    int fd;
-    struct sockaddr_ctl addr;
-    struct ctl_info info;
-
-    if (fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL); fd < 0) {
-        errlog(g_logger, "Failed to create socket: {}", strerror(errno));
-        return -1;
-    }
-    memset(&info, 0, sizeof(info));
-    strncpy(info.ctl_name, UTUN_CONTROL_NAME, strlen(UTUN_CONTROL_NAME));
-
-    if (ioctl(fd, CTLIOCGINFO, &info) < 0) {
-        errlog(g_logger, "IOCTL system call failed: {}", strerror(errno));
-        close(fd);
-        return -1;
-    }
-
-    addr.sc_id = info.ctl_id;
-    addr.sc_len = sizeof(addr);
-    addr.sc_family = AF_SYSTEM;
-    addr.ss_sysaddr = AF_SYS_CONTROL;
-    addr.sc_unit = num + 1;
-
-    if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        errlog(g_logger, "Failed to connect: {}", strerror(errno));
-        close(fd);
-        return -1;
-    }
-
-    g_tun_info = {fd, num, AG_FMT("utun{}", num)};
-    infolog(g_logger, "Device {} opened\n", safe_to_string_view(info.ctl_name));
-
-    setup_if(g_tun_info);
-
-    return fd;
-}
-#elif defined(__linux__)
-static int tun_open() {
-    evutil_socket_t fd;
-
-    if (fd = open("/dev/net/tun", O_RDWR); fd == -1) {
-        errlog(g_logger, "Failed to open /dev/net/tun: {}", strerror(errno));
-        return -1;
-    }
-
-    struct ifreq ifr = {};
-    ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-
-    char devname[7];
-    memset(devname, 0, sizeof(devname));
-
-    if (ioctl(fd, TUNSETIFF, &ifr) == -1) {
-        errlog(g_logger, "ioctl TUNSETIFF failed: {}", strerror(errno));
-        evutil_closesocket(fd);
-        return -1;
-    }
-    g_tun_info = {fd, if_nametoindex(ifr.ifr_name), ifr.ifr_name};
-
-    infolog(g_logger, "Device {} opened, setting up\n", ifr.ifr_name);
-
-    setup_if(g_tun_info);
-
-    return fd;
-}
-#else
-static int tun_open() {
-    return -1;
-}
-#endif
-
-static int create_tunnel() {
-#ifdef __APPLE__
-    for (uint8_t i = 0; i < 255; i++) {
-        if (int fd = tun_open(i); fd != -1) {
-            return fd;
-        }
-    }
-#endif // __APPLE__
-#ifdef __linux__
-    if (int fd = tun_open(); fd != -1) {
-        return fd;
-    }
-#endif //__linux__
-    return -1;
 }
 
 static bool connect_to_server(Vpn *v, int line) {
@@ -464,16 +300,76 @@ static bool connect_to_server(Vpn *v, int line) {
 static void vpn_runner(ListenerType type) {
     if (!connect_to_server(g_vpn, __LINE__)) {
         vpn_stop(g_vpn);
+        g_stop = true;
         return;
     }
 
     VpnListener *listener;
 
     switch (type) {
-    case LT_TUN:
-        setup_routes(g_tun_info);
+    case LT_TUN: {
+        VpnOsTunnelSettings common_settings{};
+        const auto *defaults = vpn_os_tunnel_settings_defaults();
+        // append endpoint address to excluded routes
+        auto [host_view, port_view] = ag::utils::split_host_port(g_params.address.c_str());
+        std::string addr(host_view.data(), host_view.size());
+        std::string ipv4_address = "172.16.218.0";
+        std::string ipv6_address = "fd00::0";
+        common_settings.ipv4_address = ipv4_address.c_str();
+        common_settings.ipv6_address = ipv6_address.c_str();
+        common_settings.mtu = defaults->mtu;
+        std::vector<const char *> included_routes;
+        for (auto &route : g_params.included_routes) {
+            included_routes.emplace_back(route.c_str());
+        }
+        common_settings.included_routes.data = included_routes.data();
+        common_settings.included_routes.size = included_routes.size();
+        std::vector<const char *> excluded_routes;
+        for (auto &route : g_params.excluded_routes) {
+            excluded_routes.emplace_back(route.c_str());
+        }
+        excluded_routes.emplace_back(addr.c_str());
+        common_settings.excluded_routes.data = excluded_routes.data();
+        common_settings.excluded_routes.size = excluded_routes.size();
+        g_tunnel = ag::make_vpn_tunnel();
+        if (g_tunnel == nullptr) {
+            errlog(g_logger, "Tunnel create error");
+            g_stop = true;
+            return;
+        }
+
+#ifdef _WIN32
+        g_wintun = LoadLibraryEx(WINTUN_DLL_NAME.data(), nullptr,
+                LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        if (g_wintun == nullptr) {
+            errlog(g_logger, "wintun.dll from wintun-0.14.1.zip is not found in standalone_client directory");
+            g_stop = true;
+            return;
+        }
+        VpnWinTunnelSettings win_settings{};
+        const auto *win_defaults = vpn_win_tunnel_settings_defaults();
+        win_settings.wintun_lib = g_wintun;
+        win_settings.adapter_name = win_defaults->adapter_name;
+        win_settings.dns_servers = win_defaults->dns_servers;
+        auto res = g_tunnel->init_win(&common_settings, &win_settings);
+#else
+        auto res = g_tunnel->init(&common_settings);
+#endif
+        if (res.code != 0) {
+            errlog(g_logger, "{}", res.text);
+            g_tunnel->deinit();
+            g_tunnel.reset();
+            g_stop = true;
+            return;
+        }
+        g_vpn_tun_listener_config.fd = g_tunnel->get_fd();
+        g_vpn_tun_listener_config.mtu_size = common_settings.mtu;
+#ifdef _WIN32
+        g_vpn_tun_listener_config.tunnel = g_tunnel.get();
+#endif
         listener = vpn_create_tun_listener(g_vpn, &g_vpn_tun_listener_config);
         break;
+    }
     case LT_SOCKS:
         listener = vpn_create_socks_listener(g_vpn, &g_vpn_socks_listener_config);
         break;
@@ -487,7 +383,8 @@ static void vpn_runner(ListenerType type) {
     if (error.code != 0) {
         errlog(g_logger, "Failed on start listening: {} ({})", safe_to_string_view(error.text),
                 magic_enum::enum_name((VpnErrorCode) error.code));
-        close(g_tun_info.fd);
+        g_tunnel->deinit();
+        g_tunnel.reset();
         g_stop = true;
     }
 }
@@ -499,14 +396,21 @@ static void listener_runner(ListenerType listener_type) {
     }
 
     vpn_runner(listener_type);
-
-    while (!g_stop) {
-        SLEEP();
+    std::unique_lock<std::mutex> listener_runner_lock(g_listener_runner_mutex);
+    g_listener_runner_barrier.wait(listener_runner_lock, []() {return g_stop.load();});
+    listener_runner_lock.unlock();
+    Vpn *vpn = g_vpn.exchange(nullptr);
+    vpn_stop(vpn);
+    vpn_close(vpn);
+    if (g_tunnel) {
+        g_tunnel->deinit();
+        g_tunnel.reset();
     }
-
-    vpn_stop(g_vpn);
-    vpn_close(g_vpn);
+#ifdef _WIN32
+    FreeLibrary(g_wintun);
+#endif
 }
+
 
 static void vpn_protect_socket(SocketProtectEvent *event) {
 #ifdef __APPLE__
@@ -514,9 +418,9 @@ static void vpn_protect_socket(SocketProtectEvent *event) {
     if (idx == 0) {
         return;
     }
-    if (event->family == AF_INET) {
+    if (event->peer->sa_family == AF_INET) {
         setsockopt(event->fd, IPPROTO_IP, IP_BOUND_IF, &idx, sizeof(idx));
-    } else if (event->family == AF_INET6) {
+    } else if (event->peer->sa_family == AF_INET6) {
         setsockopt(event->fd, IPPROTO_IPV6, IPV6_BOUND_IF, &idx, sizeof(idx));
     }
 #endif // __APPLE__
@@ -526,6 +430,14 @@ static void vpn_protect_socket(SocketProtectEvent *event) {
                 event->fd, SOL_SOCKET, SO_BINDTODEVICE, g_params.bound_if.data(), (socklen_t) g_params.bound_if.size());
     }
 #endif
+#ifdef _WIN32
+    bool protect_success = vpn_win_socket_protect(event->fd, event->peer);
+    if (!protect_success) {
+        event->result = -1;
+        return ;
+    }
+#endif
+
 }
 
 static void vpn_handler(void *, VpnEvent what, void *data) {
@@ -574,20 +486,31 @@ static void vpn_handler(void *, VpnEvent what, void *data) {
     case VPN_EVENT_CONNECT_REQUEST: {
         const VpnConnectRequestEvent *event = (VpnConnectRequestEvent *) data;
 
-        VpnConnectionInfo info = {event->id};
+        auto *info = new VpnConnectionInfo{event->id};
 #ifndef REDIRECT_ONLY_TCP
-        info.action = VPN_CA_DEFAULT;
+        info->action = VPN_CA_DEFAULT;
 #else
-        info.action = (event->proto == IPPROTO_TCP) ? VPN_CA_DEFAULT : VPN_CA_FORCE_BYPASS;
+        info->action = (event->proto == IPPROTO_TCP) ? VPN_CA_DEFAULT : VPN_CA_FORCE_BYPASS;
 #endif
 
 #ifdef FUZZY_ACTION
-        info.action = rand() % (VPN_CA_FORCE_REDIRECT + 1);
+        info->action = rand() % (VPN_CA_FORCE_REDIRECT + 1);
 #endif
 
-        info.appname = "standalone_client";
-
-        vpn_complete_connect_request(g_vpn, &info);
+        info->appname = "standalone_client";
+        vpn_event_loop_submit(g_extra_loop.get(),
+                {
+                        info,
+                        [](void *arg, TaskId) {
+                            auto info = (VpnConnectionInfo *) arg;
+                            if (g_vpn) {
+                                vpn_complete_connect_request(g_vpn, info);
+                            }
+                        },
+                        [](void *arg) {
+                            delete (VpnConnectionInfo *) arg;
+                        }
+                });
         break;
     }
     }
@@ -609,7 +532,7 @@ void apply_vpn_settings() {
 
     g_endpoint.address = sockaddr_from_str(g_params.address.c_str());
     g_endpoint.name = g_params.hostname.c_str();
-    g_vpn_server_config.location = (VpnLocation){"1", {&g_endpoint, 1}};
+    g_vpn_server_config.location = {"1", {&g_endpoint, 1}};
     g_vpn_server_config.username = g_params.username.c_str();
     g_vpn_server_config.password = g_params.password.c_str();
     g_vpn_server_config.protocol.type = g_params.upstream_protocol;
@@ -617,13 +540,6 @@ void apply_vpn_settings() {
 
     switch (g_params.listener_type) {
     case LT_TUN:
-        if (create_tunnel() < 0) {
-            errlog(g_logger, "Failed to create tunnel");
-            exit(1);
-        } else {
-            g_vpn_tun_listener_config.fd = g_tun_info.fd;
-            g_vpn_tun_listener_config.mtu_size = g_params.mtu_size;
-        }
         break;
     case LT_SOCKS:
         g_vpn_socks_listener_config.listen_address = sockaddr_from_str(g_params.listener_address.c_str());
@@ -639,13 +555,32 @@ void apply_vpn_settings() {
     }
 }
 
-int main(int argc, char **argv) {
-    srand(time(nullptr));
+static void setup_sighandler() {
+#ifdef _WIN32
     signal(SIGINT, sighandler);
     signal(SIGTERM, sighandler);
+#else
+    // Block SIGINT and SIGTERM - they will be waited using sigwait().
+    sigset_t sigset;
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGINT);
+    sigaddset(&sigset, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &sigset, nullptr);
+    std::thread([sigset]{
+        int signum = 0;
+        sigwait(&sigset, &signum);
+        sighandler(signum);
+    }).detach();
+#endif
+}
+
+int main(int argc, char **argv) {
+    srand(time(nullptr));
+    setup_sighandler();
+#ifndef _WIN32
+    // Ignore SIGPIPE
     signal(SIGPIPE, SIG_IGN);
-    struct sigaction act {};
-    sigaction(SIGPIPE, &act, nullptr);
+#endif
 
     // clang-format off
     g_options.add_options()
@@ -667,7 +602,17 @@ int main(int argc, char **argv) {
 
     apply_vpn_settings();
 
+    g_extra_loop.reset(vpn_event_loop_create());
+    std::thread m_loop_thread = std::thread([loop = g_extra_loop.get()]() {
+        vpn_event_loop_run(loop);
+    });
+
     listener_runner(g_params.listener_type);
+
+    vpn_event_loop_stop(g_extra_loop.get());
+    if (m_loop_thread.joinable()) {
+        m_loop_thread.join();
+    }
 
     return 0;
 }

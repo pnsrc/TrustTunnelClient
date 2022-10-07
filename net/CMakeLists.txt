@@ -34,8 +34,15 @@ set(SOURCE_FILES
         ${NET_SOURCE_DIR}/locations_pinger_runner.cpp
         ${NET_SOURCE_DIR}/dns_utils.cpp
         ${NET_SOURCE_DIR}/quic_utils.cpp
+        ${NET_SOURCE_DIR}/os_tunnel.cpp
     )
-
+if (APPLE)
+    list(APPEND SOURCE_FILES ${NET_SOURCE_DIR}/os_tunnel_mac.cpp)
+elseif(WIN32)
+    list(APPEND SOURCE_FILES ${NET_SOURCE_DIR}/os_tunnel_win.cpp)
+else()
+    list(APPEND SOURCE_FILES ${NET_SOURCE_DIR}/os_tunnel_linux.cpp)
+endif()
 
 if(NOT TARGET vpnlibs_common)
     add_subdirectory(${VPN_LIB_DIR}/common ${CMAKE_BINARY_DIR}/common)
@@ -65,6 +72,11 @@ endif ()
 if (MSVC)
     target_link_libraries(vpnlibs_net "Iphlpapi.lib")
 endif ()
+
+if (WIN32)
+    target_link_libraries (vpnlibs_net wsock32 ws2_32 ntdll iphlpapi)
+    target_include_directories(vpnlibs_net PUBLIC ${THIRD_PARTY_DIR}/wintun/include)
+endif()
 
 enable_testing()
 
