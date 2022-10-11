@@ -702,7 +702,6 @@ std::optional<VpnConnectAction> Tunnel::finalize_connect_action(
     const DomainFilter *filter = &this->vpn->domain_filter;
     std::optional<VpnConnectAction> out;
     if (request_result.action.has_value() && request_result.action.value() != VPN_CA_DEFAULT) {
-        log_conn(this, conn, dbg, "Action: {}", magic_enum::enum_name(request_result.action.value()));
         out = request_result.action;
     } else if (conn->flags.test(CONNF_PLAIN_DNS_CONNECTION) && only_app_initiated_dns) {
         out = VPN_CA_FORCE_BYPASS;
@@ -745,6 +744,8 @@ std::optional<VpnConnectAction> Tunnel::finalize_connect_action(
             break;
         }
     }
+
+    log_conn(this, conn, dbg, "Final action: {}", out.has_value() ? magic_enum::enum_name(out.value()) : "<none>");
 
     return out;
 }
@@ -885,7 +886,13 @@ void Tunnel::complete_connect_request(uint64_t id, std::optional<VpnConnectActio
 
         conn->flags.set(CONNF_FAKE_CONNECTION, this->fake_upstream.get() == conn->upstream);
         conn->server_id = conn->upstream->open_connection(&conn->addr, conn->proto, conn->app_name);
+        if (conn->server_id == NON_ID) [[unlikely]] {
+            log_conn(this, conn, dbg, "Upstream failed to open connection");
+        }
+    } else [[unlikely]] {
+        log_conn(this, conn, dbg, "Upstream was not selected");
     }
+
     if (conn->server_id != NON_ID) {
         conn->state = CONNS_WAITING_RESPONSE;
         log_conn(this, conn, trace, "Connecting...");
