@@ -95,7 +95,7 @@ Run integration test:
                 then
                     echo "...Passed"
                 else
-                    has_error=has_error+1
+                    has_error=`expr $has_error + 1`
                     echo "...Failed"
                 fi
             }

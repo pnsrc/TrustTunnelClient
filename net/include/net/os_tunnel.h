@@ -139,7 +139,7 @@ private:
     evutil_socket_t m_tun_fd{-1};
     std::string m_tun_name{};
 };
-#elif __APPLE__
+#elif __APPLE__ && !TARGET_OS_IPHONE
 class VpnMacTunnel : public VpnOsTunnel {
 public:
     /** Initialize tunnel */

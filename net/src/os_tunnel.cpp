@@ -162,7 +162,7 @@ std::unique_ptr<ag::VpnOsTunnel> ag::make_vpn_tunnel() {
 #ifdef _WIN32
     std::unique_ptr<ag::VpnWinTunnel> tunnel{new ag::VpnWinTunnel{}};
     return tunnel;
-#elif __APPLE__
+#elif __APPLE__ && !TARGET_OS_IPHONE
     std::unique_ptr<ag::VpnMacTunnel> tunnel{new ag::VpnMacTunnel{}};
     return tunnel;
 #elif __linux__ && !ANDROID

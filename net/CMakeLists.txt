@@ -36,11 +36,13 @@ set(SOURCE_FILES
         ${NET_SOURCE_DIR}/quic_utils.cpp
         ${NET_SOURCE_DIR}/os_tunnel.cpp
     )
-if (APPLE)
+
+string(TOLOWER "${CMAKE_OSX_SYSROOT}" OSX_SYSROOT_LC)
+if(APPLE AND OSX_SYSROOT_LC MATCHES "/macosx([0-9]+\.)+sdk$")
     list(APPEND SOURCE_FILES ${NET_SOURCE_DIR}/os_tunnel_mac.cpp)
 elseif(WIN32)
     list(APPEND SOURCE_FILES ${NET_SOURCE_DIR}/os_tunnel_win.cpp)
-else()
+elseif(CMAKE_SYSTEM_NAME STREQUAL Linux)
     list(APPEND SOURCE_FILES ${NET_SOURCE_DIR}/os_tunnel_linux.cpp)
 endif()
 
