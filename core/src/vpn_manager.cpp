@@ -478,8 +478,8 @@ static void vpn_complete_connect_request_task(Vpn *vpn, ConnectRequestResult res
 void vpn_complete_connect_request(Vpn *vpn, const VpnConnectionInfo *info) {
     std::unique_lock l(vpn->stop_guard);
 
-    if (vpn->ev_loop == nullptr) {
-        log_vpn(vpn, warn, "Can't complete request {} since event loop doesn't exist", info->id);
+    if (vpn->ev_loop.get() == nullptr) {
+        log_vpn(vpn, warn, "Can't complete request {} since event loop is not active", info->id);
         return;
     }
 
@@ -499,6 +499,11 @@ void vpn_update_exclusions(Vpn *vpn, VpnMode mode, VpnStr exclusions) {
     log_vpn(vpn, info, "...");
 
     std::unique_lock l(vpn->stop_guard);
+
+    if (!vpn_event_loop_is_active(vpn->ev_loop.get())) {
+        log_vpn(vpn, warn, "Can't update exclusions since event loop is not active");
+        return;
+    }
 
     struct Ctx {
         Vpn *vpn;
@@ -535,6 +540,11 @@ void vpn_reset_connections(Vpn *vpn, int uid) {
 
     std::unique_lock l(vpn->stop_guard);
 
+    if (!vpn_event_loop_is_active(vpn->ev_loop.get())) {
+        log_vpn(vpn, warn, "Can't reset connections since event loop is not active");
+        return;
+    }
+
     vpn->submit([vpn, uid]() {
         vpn->client.reset_connections(uid);
     });
@@ -546,6 +556,11 @@ void vpn_notify_network_change(Vpn *vpn, bool network_loss_suspected) {
     log_vpn(vpn, info, "Loss suspected={}", network_loss_suspected);
 
     std::unique_lock l(vpn->stop_guard);
+
+    if (!vpn_event_loop_is_active(vpn->ev_loop.get())) {
+        log_vpn(vpn, warn, "Can't notify network change since event loop is not active");
+        return;
+    }
 
     vpn->submit([vpn, network_loss_suspected]() {
         vpn->fsm.perform_transition(vpn_fsm::CE_NETWORK_CHANGE, (void *) &network_loss_suspected);
@@ -562,6 +577,7 @@ void vpn_request_endpoint_connection_stats(Vpn *vpn) {
     if (!vpn_event_loop_is_active(vpn->ev_loop.get())) {
         VpnEndpointConnectionStatsEvent event = {{VPN_EC_ERROR, "Event loop is stopped"}};
         vpn->handler.func(vpn->handler.arg, VPN_EVENT_ENDPOINT_CONNECTION_STATS, &event);
+        return;
     }
 
     vpn->submit([vpn]() {
@@ -585,6 +601,11 @@ void vpn_notify_sleep(Vpn *vpn, void (*completion_handler)(void *), void *arg) {
     log_vpn(vpn, dbg, "...");
 
     std::unique_lock l(vpn->stop_guard);
+
+    if (!vpn_event_loop_is_active(vpn->ev_loop.get())) {
+        log_vpn(vpn, warn, "Can't notify sleep since event loop is not active");
+        return;
+    }
 
     struct vpn_notify_sleep_ctx_t {
         void (*handler)(void *);
@@ -616,6 +637,12 @@ void vpn_notify_sleep(Vpn *vpn, void (*completion_handler)(void *), void *arg) {
 void vpn_notify_wake(Vpn *vpn) {
     log_vpn(vpn, dbg, "...");
     std::unique_lock l(vpn->stop_guard);
+
+    if (!vpn_event_loop_is_active(vpn->ev_loop.get())) {
+        log_vpn(vpn, warn, "Can't notify wake since event loop is not active");
+        return;
+    }
+
     vpn->submit([vpn] {
         vpn->client.handle_wake();
     });
