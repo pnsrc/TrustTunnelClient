@@ -40,6 +40,8 @@ Run integration test:
         interpreter: SHELL
         scripts:
           - |-
+            #!/bin/bash
+            
             set -x -e
 
             cd ./examples/my_vpn
@@ -60,6 +62,8 @@ Run integration test:
         interpreter: SHELL
         scripts:
           - |-
+            #!/bin/bash
+            
             set -x -e
 
             mkdir -p build && cd build
@@ -81,7 +85,9 @@ Run integration test:
         description: Run integration test
         scripts:
           - |-
-            set -x
+            #!/bin/bash
+            
+            set -x -e
 
             export SRC_ROOT=${PWD}
 
@@ -101,7 +107,7 @@ Run integration test:
             }
 
             cd vpn-libs-endpoint/examples/my_vpn
-            ../../target/debug/vpn_endpoint vpn.conf > /dev/null 2>&1 &
+            ../../target/release/vpn_endpoint vpn.conf > /dev/null 2>&1 &
             echo "Start endpoint"
             sleep 3
 
@@ -161,6 +167,8 @@ Run integration test:
         interpreter: SHELL
         scripts:
           - |-
+            #!/bin/bash
+            
             conan user -p "${bamboo_artifactoryPassword}" -r art "${bamboo_artifactoryUser}" > upload.txt 2>&1
             conan upload -r art --all -c '*' > upload.txt 2>&1
             echo conan upload finished with status $?
