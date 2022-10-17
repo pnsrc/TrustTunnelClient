@@ -76,6 +76,8 @@ void DirectUpstream::close_session() {
         close_connection(m_udp_connections.begin()->first, false);
     }
 
+    m_icmp_requests.clear();
+
     log_upstream(this, dbg, "Done");
 }
 
