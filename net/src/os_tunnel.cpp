@@ -160,7 +160,8 @@ void ag::vpn_win_tunnel_settings_destroy(ag::VpnWinTunnelSettings *settings) {
 }
 
 std::unique_ptr<ag::VpnOsTunnel> ag::make_vpn_tunnel() {
-#ifdef _WIN32
+#if 0 && defined _WIN32
+    // TODO: enable this after VpnWinTunnel will be compatible with Windows 7
     std::unique_ptr<ag::VpnWinTunnel> tunnel{new ag::VpnWinTunnel{}};
     return tunnel;
 #elif __APPLE__ && !TARGET_OS_IPHONE

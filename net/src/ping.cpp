@@ -365,7 +365,8 @@ static void do_prepare(void *arg) {
                 goto error;
             }
         }
-#else // #ifndef _WIN32
+#elif 0 // #ifndef _WIN32
+        // TODO: Enable after VpnWinTunnel is fixed undet Windows 7
         if (!vpn_win_socket_protect(it->fd.get(), (sockaddr *) &it->dest)) {
             log_ping(self, dbg, "Failed to connect to {} via {}: failed to protect socket",
                     sockaddr_to_str((sockaddr *) &it->dest), it->bound_if_name);
