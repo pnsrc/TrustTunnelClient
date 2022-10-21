@@ -710,6 +710,9 @@ std::optional<VpnConnectAction> Tunnel::finalize_connect_action(
         log_conn(this, conn, dbg, "DNS query will be routed to DNS upstream");
         out = VPN_CA_FORCE_BYPASS;
         conn->flags.set(CONNF_ROUTE_TO_DNS_PROXY);
+    } else if (conn->flags.test(CONNF_PLAIN_DNS_CONNECTION)) {
+        log_conn(this, conn, dbg, "Routing plain DNS connection through endpoint");
+        out = VPN_CA_FORCE_REDIRECT;
     } else if (const sockaddr_storage *dst = std::get_if<sockaddr_storage>(&conn->addr.dst); dst != nullptr) {
         DomainFilterMatchStatus filter_result = filter->match_tag(conn->make_tag());
         switch (filter_result) {
