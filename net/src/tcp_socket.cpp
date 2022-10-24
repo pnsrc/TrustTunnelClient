@@ -773,7 +773,7 @@ VpnConnectionStats tcp_socket_get_stats(const TcpSocket *socket) {
                 err);
     }
 
-    log_sock(socket, dbg, "RTT=%" PRIu32 "us, packets sent=%u lost=%u loss ratio=%f retransmitted=%u", stats.rtt_us,
+    log_sock(socket, dbg, "RTT={}us, packets sent={}, lost={}, loss ratio={}, retransmitted={}", stats.rtt_us,
             ti.tcpi_segs_out, ti.tcpi_lost, stats.packet_loss_ratio, ti.tcpi_retrans);
 
     return stats;
@@ -827,8 +827,8 @@ VpnConnectionStats tcp_socket_get_stats(const TcpSocket *socket) {
                 err);
     }
 
-    log_sock(socket, dbg, "RTT=%" PRIu32 "us, bytes sent={} retransmitted={} loss ratio=%f", stats.rtt_us,
-            ti.tcpi_txbytes, ti.tcpi_txretransmitbytes, stats.packet_loss_ratio);
+    log_sock(socket, dbg, "RTT={}us, bytes sent={}, retransmitted={}, loss ratio={}", stats.rtt_us, ti.tcpi_txbytes,
+            ti.tcpi_txretransmitbytes, stats.packet_loss_ratio);
 
     return stats;
 }
