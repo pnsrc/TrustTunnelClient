@@ -329,6 +329,28 @@ static std::unique_ptr<ServerUpstream> make_upstream(const VpnUpstreamProtocolCo
     return upstream;
 }
 
+static VpnError start_dns_proxy(VpnClient *self) {
+    VpnSocksListenerConfig dns_listener_config{};
+    self->dns_proxy_listener = std::make_unique<SocksListener>(&dns_listener_config);
+    if (self->dns_proxy_listener->init(self, {&dns_proxy_listener_handler, self})
+            != ClientListener::InitResult::SUCCESS) {
+        return {VPN_EC_INVALID_SETTINGS, "Failed to initialize DNS proxy listener"};
+    }
+
+    self->dns_proxy = std::make_unique<DnsProxyAccessor>(DnsProxyAccessor::Parameters{
+            .resolver_address = self->listener_config.dns_upstream,
+            .socks_listener_address = ((SocksListener &) *self->dns_proxy_listener).get_listen_address(),
+            .cert_verify_handler = self->parameters.cert_verify_handler,
+            .ipv6_available = self->ipv6_available,
+    });
+
+    if (!self->dns_proxy->start(self->upstream_config.timeout)) {
+        return {VPN_EC_ERROR, "Failed to start DNS proxy"};
+    }
+
+    return {VPN_EC_NOERROR};
+}
+
 VpnError VpnClient::connect(vpn_client::EndpointConnectionConfig config, std::optional<Millis> timeout) {
     log_client(this, dbg, "...");
 
@@ -362,6 +384,13 @@ VpnError VpnClient::connect(vpn_client::EndpointConnectionConfig config, std::op
     error = client_connect(this, timeout);
     if (error.code != VPN_EC_NOERROR) {
         goto fail;
+    }
+
+    if (this->listener_config.dns_upstream != nullptr && this->dns_proxy == nullptr) {
+        error = start_dns_proxy(this);
+        if (error.code != VPN_EC_NOERROR) {
+            goto fail;
+        }
     }
 
     log_client(this, dbg, "Done");
@@ -411,23 +440,9 @@ VpnError VpnClient::listen(
         clean_up_buffer_files(this->tmp_files_base_path->c_str());
     }
 
-    if (this->listener_config.dns_upstream != nullptr) {
-        VpnSocksListenerConfig dns_listener_config{};
-        this->dns_proxy_listener = std::make_unique<SocksListener>(&dns_listener_config);
-        if (this->dns_proxy_listener->init(this, {&dns_proxy_listener_handler, this})
-                != ClientListener::InitResult::SUCCESS) {
-            error = {VPN_EC_INVALID_SETTINGS, "Failed to initialize DNS proxy listener"};
-            goto fail;
-        }
-
-        this->dns_proxy = std::make_unique<DnsProxyAccessor>(DnsProxyAccessor::Parameters{
-                .resolver_address = this->listener_config.dns_upstream,
-                .socks_listener_address = ((SocksListener &) *this->dns_proxy_listener).get_listen_address(),
-                .cert_verify_handler = this->parameters.cert_verify_handler,
-                .ipv6_available = ipv6_available,
-        });
-        if (!this->dns_proxy->start(this->upstream_config.timeout)) {
-            error.text = "Failed to start DNS proxy";
+    if (this->listener_config.dns_upstream != nullptr && this->dns_proxy == nullptr) {
+        error = start_dns_proxy(this);
+        if (error.code != VPN_EC_NOERROR) {
             goto fail;
         }
     }
