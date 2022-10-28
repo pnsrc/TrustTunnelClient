@@ -1,5 +1,8 @@
+#include <vector>
+
 #include "net/os_tunnel.h"
 #include "net/utils.h"
+#include "common/utils.h"
 
 #ifdef _WIN32
 #define POPEN _popen
@@ -25,8 +28,26 @@ void ag::tunnel_utils::split_default_route(std::vector<ag::CidrRange> &routes, a
     }
 }
 
+void ag::tunnel_utils::get_setup_dns(
+        std::string &dns_list_v4, std::string &dns_list_v6, ag::VpnAddressArray &dns_servers) {
+    auto *dns_iter = dns_servers.data;
+    auto *dns_end = dns_servers.data + dns_servers.size;
+    std::vector<std::string> dns_v4;
+    std::vector<std::string> dns_v6;
+    for (; dns_iter != dns_end; dns_iter++) {
+        if (ag::utils::is_valid_ip4(*dns_iter)) {
+            dns_v4.emplace_back(*dns_iter);
+        } else if (ag::utils::is_valid_ip6(*dns_iter)) {
+            dns_v6.emplace_back(*dns_iter);
+        }
+    }
+
+    dns_list_v4 = ag::utils::join(dns_v4.begin(), dns_v4.end(), ",");
+    dns_list_v6 = ag::utils::join(dns_v6.begin(), dns_v6.end(), ",");
+}
+
 void ag::tunnel_utils::get_setup_routes(std::vector<ag::CidrRange> &ipv4_routes,
-        std::vector<ag::CidrRange> &ipv6_routes, ag::VpnRoutes &included_routes, ag::VpnRoutes &excluded_routes) {
+        std::vector<ag::CidrRange> &ipv6_routes, ag::VpnAddressArray &included_routes, ag::VpnAddressArray &excluded_routes) {
     for (size_t i = 0; i < included_routes.size; i++) {
         std::string_view route(included_routes.data[i]);
         if (route.find(':') == std::string::npos) {
@@ -52,12 +73,12 @@ void ag::tunnel_utils::get_setup_routes(std::vector<ag::CidrRange> &ipv4_routes,
     split_default_route(ipv6_routes, ag::CidrRange(DEFAULT_IPV6_ROUTE_UNICAST));
 }
 
-std::string ag::tunnel_utils::exec_with_output(const char* cmd) {
+std::string ag::tunnel_utils::exec_with_output(const char *cmd) {
     std::array<char, 128> buffer;
     std::string result;
     std::unique_ptr<FILE, decltype(&PCLOSE)> pipe(POPEN(cmd, "r"), PCLOSE);
     if (!pipe) {
-        return{"popen() failed!"};
+        return {"popen() failed!"};
     }
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         result += buffer.data();
@@ -160,8 +181,7 @@ void ag::vpn_win_tunnel_settings_destroy(ag::VpnWinTunnelSettings *settings) {
 }
 
 std::unique_ptr<ag::VpnOsTunnel> ag::make_vpn_tunnel() {
-#if 0 && defined _WIN32
-    // TODO: enable this after VpnWinTunnel will be compatible with Windows 7
+#ifdef _WIN32
     std::unique_ptr<ag::VpnWinTunnel> tunnel{new ag::VpnWinTunnel{}};
     return tunnel;
 #elif __APPLE__ && !TARGET_OS_IPHONE

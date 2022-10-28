@@ -9,17 +9,15 @@
 #define HMODULE void *
 #endif
 
-#include "vpn/platform.h"
-#include "vpn/utils.h"
 #include <common/cidr_range.h>
-#include <common/net_utils.h>
+#include <vpn/utils.h>
 
 #ifdef __cplusplus
 namespace ag {
 extern "C" {
 #endif
 
-typedef AG_ARRAY_OF(const char *) VpnRoutes;
+typedef AG_ARRAY_OF(const char *) VpnAddressArray;
 
 struct VpnOsTunnelSettings {
     /** IPv4 address for interface */
@@ -27,9 +25,9 @@ struct VpnOsTunnelSettings {
     /** IPv6 address for the interface. Specify NULL if you don't need IPv6 */
     const char *ipv6_address;
     /** Included routes **/
-    VpnRoutes included_routes;
+    VpnAddressArray included_routes;
     /** Excluded routes **/
-    VpnRoutes excluded_routes;
+    VpnAddressArray excluded_routes;
     /** MTU of the interface */
     int mtu;
 };
@@ -38,7 +36,7 @@ struct VpnWinTunnelSettings {
     /** Adapter name */
     const char *adapter_name;
     /** DNS servers addresses */
-    AG_ARRAY_OF(const char *) dns_servers;
+    VpnAddressArray dns_servers;
     /** Library module to handle tunnel */
     HMODULE wintun_lib;
 };
@@ -215,8 +213,9 @@ template <typename... Ts>
 void fsystem(std::string_view fmt, Ts &&...args) {
     sys_cmd(fmt::vformat(fmt, fmt::make_format_args(args...)));
 }
+void get_setup_dns(std::string &dns_list_v4, std::string &dns_list_v6, ag::VpnAddressArray &dns_servers);
 void get_setup_routes(std::vector<ag::CidrRange> &ipv4_routes, std::vector<ag::CidrRange> &ipv6_routes,
-        ag::VpnRoutes &included_routes, ag::VpnRoutes &excluded_routes);
+        ag::VpnAddressArray &included_routes, ag::VpnAddressArray &excluded_routes);
 void split_default_route(std::vector<ag::CidrRange> &routes, ag::CidrRange route);
 ag::CidrRange get_address_for_index(const char *ipv4_address, uint32_t index);
 } // namespace tunnel_utils

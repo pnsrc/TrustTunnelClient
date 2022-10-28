@@ -25,6 +25,10 @@ set(SOURCE_FILES
         ${COMMON_SRC_DIR}/platform.cpp
 )
 
+if (WIN32)
+    list(APPEND SOURCE_FILES ${COMMON_SRC_DIR}/guid_utils.cpp)
+endif()
+
 add_library(vpnlibs_common STATIC EXCLUDE_FROM_ALL ${SOURCE_FILES})
 set_property(TARGET vpnlibs_common PROPERTY POSITION_INDEPENDENT_CODE ON)
 if (NOT MSVC)

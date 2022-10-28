@@ -206,6 +206,9 @@ struct Params {
 #ifdef _WIN32
             uint32_t idx;
             bound_if.empty() ? idx = 0 : idx = if_nametoindex(bound_if.c_str());
+            if (idx == 0) {
+                idx = vpn_win_detect_active_if();
+            }
             vpn_win_set_bound_if(idx);
 #endif
         } else if (listener_type == LT_SOCKS) {
@@ -350,7 +353,13 @@ static void vpn_runner(ListenerType type) {
         const auto *win_defaults = vpn_win_tunnel_settings_defaults();
         win_settings.wintun_lib = g_wintun;
         win_settings.adapter_name = win_defaults->adapter_name;
-        win_settings.dns_servers = win_defaults->dns_servers;
+        static const char *dns_servers[] = {
+                AG_UNFILTERED_DNS_IPS_V4[0].data(),
+                AG_UNFILTERED_DNS_IPS_V4[1].data(),
+                AG_UNFILTERED_DNS_IPS_V6[0].data(),
+                AG_UNFILTERED_DNS_IPS_V6[1].data()
+        };
+        win_settings.dns_servers = {dns_servers, 4};
         auto res = g_tunnel->init_win(&common_settings, &win_settings);
 #else
         auto res = g_tunnel->init(&common_settings);

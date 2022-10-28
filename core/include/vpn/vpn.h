@@ -650,7 +650,7 @@ WIN_EXPORT ag::VpnEventLoop *vpn_get_event_loop(Vpn *vpn);
 WIN_EXPORT void vpn_abandon_current_endpoint(Vpn *vpn);
 
 /** Create a TUN interface listener. */
-VpnListener *vpn_create_tun_listener(Vpn *vpn, const VpnTunListenerConfig *config);
+WIN_EXPORT VpnListener *vpn_create_tun_listener(Vpn *vpn, const VpnTunListenerConfig *config);
 
 /** Create a SOCKS listener. */
 WIN_EXPORT VpnListener *vpn_create_socks_listener(Vpn *vpn, const VpnSocksListenerConfig *config);
