@@ -332,12 +332,12 @@ int http1_session_send_headers(HttpSession *session, int32_t stream_id, const Ht
     log_sid(session, stream_id, trace, "...");
     int r = 0;
 
-    auto transfer_encoding = headers->get_field("Transfer-Encoding");
-    auto content_length = headers->get_field("Content-Length");
+    std::optional<std::string_view> transfer_encoding = headers->get_field("Transfer-Encoding");
+    std::optional<std::string_view> content_length = headers->get_field("Content-Length");
     std::optional<int32_t> clen;
-    if (transfer_encoding != nullptr && case_equals(*transfer_encoding, "chunked")) {
+    if (transfer_encoding.has_value() && case_equals(transfer_encoding.value(), "chunked")) {
         session->h1->clength = CLEN_CHUNKED;
-    } else if (content_length && (clen = ag::utils::to_integer<int32_t>(*content_length))) {
+    } else if (content_length.has_value() && (clen = ag::utils::to_integer<int32_t>(content_length.value()))) {
         session->h1->clength = *clen;
     } else {
         session->h1->clength = CLEN_UNSET;
