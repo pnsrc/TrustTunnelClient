@@ -316,8 +316,12 @@ static bool configure_events(TcpipCtx *ctx) {
 static void release_resources(TcpipCtx *ctx) {
     delete ctx->pool;
 
-    close(ctx->parameters.tun_fd);
-    close(ctx->pcap_fd);
+    if (ctx->parameters.tun_fd != -1) {
+        close(ctx->parameters.tun_fd);
+    }
+    if (ctx->pcap_fd != -1) {
+        close(ctx->pcap_fd);
+    }
 
     free(ctx->tun_input_buffer);
 
