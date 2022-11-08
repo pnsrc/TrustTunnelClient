@@ -6,6 +6,8 @@
 #include "net/os_tunnel.h"
 #include "vpn/guid_utils.h"
 
+#include <fmt/ranges.h>
+
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
 #include <mstcpip.h>
@@ -298,9 +300,8 @@ static DWORD get_physical_interfaces(std::unordered_set<NET_IFINDEX> &physical_i
     HKEY current_key {};
     char subkey[BUFSIZ];
     DWORD error = ERROR_SUCCESS;
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINREG_NETWORK_CARDS_PATH.data(), 0, KEY_READ | KEY_ENUMERATE_SUB_KEYS,
-                &current_key)
-            == ERROR_SUCCESS) {
+    if (error = RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINREG_NETWORK_CARDS_PATH.data(), 0, KEY_READ | KEY_ENUMERATE_SUB_KEYS,
+                &current_key); error == ERROR_SUCCESS) {
         DWORD key_index = 0;
         DWORD name_length = BUFSIZ;
         while (RegEnumKeyEx(current_key, key_index++, subkey, &name_length, nullptr, nullptr, nullptr, nullptr)
@@ -326,14 +327,23 @@ static DWORD get_physical_interfaces(std::unordered_set<NET_IFINDEX> &physical_i
         }
         RegCloseKey(current_key);
     }
+    dbglog(logger, "Physical interfaces: {}", physical_ifs);
     return error;
 }
 
-static void get_default_route_ifs(std::unordered_set<NET_IFINDEX> &net_ifs_v4, std::unordered_set<NET_IFINDEX> &net_ifs_v6) {
+static DWORD get_default_route_ifs(
+        std::unordered_set<NET_IFINDEX> &net_ifs_v4, std::unordered_set<NET_IFINDEX> &net_ifs_v6) {
     PMIB_IPFORWARD_TABLE2 table_v4{};
     PMIB_IPFORWARD_TABLE2 table_v6{};
-    GetIpForwardTable2(AF_INET, &table_v4);
-    GetIpForwardTable2(AF_INET6, &table_v6);
+    DWORD error = ERROR_SUCCESS;
+    if (error = GetIpForwardTable2(AF_INET, &table_v4); error != ERROR_SUCCESS) {
+        errlog(logger, "Ipv4 GetIpForwardTable2(): {}", ag::sys::strerror(error));
+        return error;
+    }
+    if (error = GetIpForwardTable2(AF_INET6, &table_v6); error != ERROR_SUCCESS) {
+        errlog(logger, "Ipv6 GetIpForwardTable2(): {}", ag::sys::strerror(error));
+        return error;
+    }
     for (size_t i = 0; i < table_v4->NumEntries; i++) {
         if ((ag::sockaddr_is_any((SOCKADDR *) &table_v4->Table[i].DestinationPrefix.Prefix.Ipv4))
                 && (table_v4->Table[i].SitePrefixLength == 0)) {
@@ -346,6 +356,8 @@ static void get_default_route_ifs(std::unordered_set<NET_IFINDEX> &net_ifs_v4, s
             net_ifs_v6.insert(table_v6->Table[i].InterfaceIndex);
         }
     }
+    dbglog(logger, "Default route interfaces: ipv4 = {}, ipv6 = {}", net_ifs_v4, net_ifs_v6);
+    return error;
 }
 
 /// return interface with minimal metric: <index, min_metric>
@@ -355,7 +367,7 @@ static std::pair<uint32_t, uint32_t> get_min_metric_if(std::unordered_set<NET_IF
         ip_family = AF_INET6;
     }
     uint32_t result_idx = 0;
-    uint32_t min_metric = -1;
+    uint32_t min_metric = NL_MAX_METRIC_COMPONENT;
     for (const auto &index : net_ifs) {
         MIB_IPINTERFACE_ROW row;
         InitializeIpInterfaceEntry(&row);
@@ -494,12 +506,18 @@ uint32_t ag::vpn_win_detect_active_if() {
     DWORD error = get_physical_interfaces(physical_ifs);
     if (error != ERROR_SUCCESS) {
         SetLastError(error);
+        errlog(logger, "get_physical_interfaces: {}", ag::sys::strerror(error));
         return 0;
     }
     // get interfaces with default route from routing table
     std::unordered_set<NET_IFINDEX> net_ifs_v4;
     std::unordered_set<NET_IFINDEX> net_ifs_v6;
-    get_default_route_ifs(net_ifs_v4, net_ifs_v6);
+    error = get_default_route_ifs(net_ifs_v4, net_ifs_v6);
+    if (error != ERROR_SUCCESS) {
+        SetLastError(error);
+        errlog(logger, "get_default_route_ifs: {}", ag::sys::strerror(error));
+        return 0;
+    }
     // exclude non-physical interfaces
     for (const auto &net_ifs: net_ifs_v4) {
         if (!physical_ifs.contains(net_ifs)) {
@@ -515,10 +533,13 @@ uint32_t ag::vpn_win_detect_active_if() {
     // Then choose operational one with minimal metric
     // handle ipv4
     auto [index_v4, min_metric_v4] = get_min_metric_if(net_ifs_v4, false);
+    dbglog(logger, "min_metric_v4 = {} with if_index = {}", min_metric_v4, index_v4);
     // handle ipv6
     auto [index_v6, min_metric_v6] = get_min_metric_if(net_ifs_v6, true);
+    dbglog(logger, "min_metric_v6 = {} with if_index = {}", min_metric_v6, index_v6);
     // both checks failed
-    if (min_metric_v4 == min_metric_v6 && min_metric_v4 == (uint32_t)-1) {
+    if (min_metric_v4 == min_metric_v6 && min_metric_v4 == NL_MAX_METRIC_COMPONENT) {
+        errlog(logger, "Both metric checks failed");
         return 0;
     }
     if (min_metric_v4 < min_metric_v6) {
