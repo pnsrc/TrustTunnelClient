@@ -1,5 +1,7 @@
 # CHANGELOG
 
+## 0.91.45
+
 * [Changed] `Location unavailable` semantics:
   * It is now considered as a fatal error, i.e. the client goes in the disconnected state.
     It is up to application to refresh a location data and restart the client.
