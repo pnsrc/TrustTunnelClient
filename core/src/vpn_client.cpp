@@ -344,6 +344,7 @@ static VpnError start_dns_proxy(VpnClient *self) {
     });
 
     if (!self->dns_proxy->start(self->upstream_config.timeout)) {
+        self->dns_proxy.reset();
         return {VPN_EC_ERROR, "Failed to start DNS proxy"};
     }
 

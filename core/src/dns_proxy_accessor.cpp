@@ -53,13 +53,18 @@ static dns::DnsProxySettings make_dns_proxy_settings(const DnsProxyAccessor::Par
 }
 
 DnsProxyAccessor::DnsProxyAccessor(Parameters p)
-        : m_dns_proxy(std::make_unique<dns::DnsProxy>())
-        , m_parameters(std::move(p)) {
+        : m_parameters(std::move(p)) {
 }
 
 DnsProxyAccessor::~DnsProxyAccessor() = default;
 
 bool DnsProxyAccessor::start(std::chrono::milliseconds timeout) {
+    if (m_dns_proxy != nullptr) {
+        log_accessor(this, err, "Already started");
+        return false;
+    }
+
+    m_dns_proxy = std::make_unique<dns::DnsProxy>();
     auto [ok, msg] = m_dns_proxy->init(make_dns_proxy_settings(m_parameters, timeout),
             {
                     .on_request_processed = nullptr,
@@ -91,6 +96,8 @@ bool DnsProxyAccessor::start(std::chrono::milliseconds timeout) {
         if (msg.has_value()) {
             log_accessor(this, err, "Failed to initialize DNS proxy: {}", *msg);
         }
+        m_dns_proxy.reset();
+        this->stop();
         return false;
     }
 
@@ -116,6 +123,7 @@ bool DnsProxyAccessor::start(std::chrono::milliseconds timeout) {
             || m_dns_proxy_tcp_listen_address.ss_family == AF_UNSPEC) {
         log_accessor(this, err, "DNS proxy is not listening for queries over {}",
                 (m_dns_proxy_udp_listen_address.ss_family == AF_UNSPEC) ? "UDP" : "TCP");
+        this->stop();
         return false;
     }
 
@@ -125,7 +133,10 @@ bool DnsProxyAccessor::start(std::chrono::milliseconds timeout) {
 void DnsProxyAccessor::stop() {
     if (m_dns_proxy != nullptr) {
         m_dns_proxy->deinit();
+        m_dns_proxy.reset();
     }
+    m_dns_proxy_udp_listen_address = {};
+    m_dns_proxy_tcp_listen_address = {};
 }
 
 const sockaddr_storage &DnsProxyAccessor::get_listen_address(int proto) const {
