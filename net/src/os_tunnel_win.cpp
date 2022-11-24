@@ -557,16 +557,12 @@ uint32_t ag::vpn_win_detect_active_if() {
         return 0;
     }
     // exclude non-physical interfaces
-    for (const auto &net_ifs: net_ifs_v4) {
-        if (!physical_ifs.contains(net_ifs)) {
-            net_ifs_v4.erase(net_ifs);
-        }
-    }
-    for (const auto &net_ifs: net_ifs_v6) {
-        if (!physical_ifs.contains(net_ifs)) {
-            net_ifs_v6.erase(net_ifs);
-        }
-    }
+    std::erase_if(net_ifs_v4, [&](auto net_if) {
+        return !physical_ifs.contains(net_if);
+    });
+    std::erase_if(net_ifs_v6, [&](auto net_if) {
+        return !physical_ifs.contains(net_if);
+    });
 
     // Then choose operational one with minimal metric
     // handle ipv4
