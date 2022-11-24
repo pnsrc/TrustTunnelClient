@@ -86,6 +86,8 @@ ag::WfpFirewall::WfpFirewall()
         if (DWORD error = FwpmSubLayerAdd0(m_impl->engine_handle, &sublayer, nullptr); error != ERROR_SUCCESS) {
             return make_error(FE_WFP_ERROR, AG_FMT("FwpmSubLayerAdd0 failed with code {:#x}", error));
         }
+
+        return nullptr;
     };
 
     if (auto error = run_transaction(m_impl->engine_handle, std::move(register_base_objects))) {
