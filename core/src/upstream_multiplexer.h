@@ -52,7 +52,6 @@ private:
     std::optional<int> m_health_check_upstream_id; // id of an upstream which performs health check
     MakeUpstream m_make_upstream;
     std::optional<VpnError> m_pending_error;
-    std::vector<event_loop::AutoTaskId> m_failed_icmp_pings;
 
     ag::Logger m_log{"UPSTREAM_MUX"};
 

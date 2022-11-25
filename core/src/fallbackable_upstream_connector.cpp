@@ -96,10 +96,12 @@ void FallbackableUpstreamConnector::handle_connect_result(
     bool need_raise = false;
     if (std::holds_alternative<std::unique_ptr<ServerUpstream>>(result)) {
         log_connector(this, dbg, "Got successful result from {} connector",
-                (m_main.connector.get() == connector) ? "main" : "m_fallback");
+                (m_main.connector.get() == connector) ? "main" : "fallback");
         EndpointConnector *another_connector =
-                (m_main.connector.get() == connector) ? m_main.connector.get() : m_fallback.connector.get();
-        another_connector->disconnect();
+                (m_main.connector.get() == connector) ? m_fallback.connector.get() : m_main.connector.get();
+        if (another_connector != nullptr) {
+            another_connector->disconnect();
+        }
         need_raise = true;
     }
 

@@ -52,6 +52,7 @@ private:
     TcpSocketPtr m_socket;
     bool m_in_handler = false;
     bool m_closed = false;
+    bool m_closing = false;
     std::optional<VpnError> m_pending_session_error;
     std::unordered_map<uint64_t, TcpConnection> m_tcp_connections;
     std::unordered_map<uint32_t, uint64_t> m_conn_id_by_stream_id;

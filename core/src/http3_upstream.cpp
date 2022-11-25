@@ -69,7 +69,7 @@ Http3Upstream::Http3Upstream(int id, const VpnUpstreamProtocolConfig &protocol_c
 #if 0
     quiche_enable_debug_logging(
             [] (const char *line, void *) {
-                static logger_ptr_t log{ logger_open("Q", LOG_LEVEL_TRACE) };
+                static Logger log{"Q"};
                 tracelog(log, "{}", line);
             },
             nullptr);
@@ -838,16 +838,22 @@ void Http3Upstream::close_stream(uint64_t stream_id, Http3ErrorCode err) {
     this->flush_pending_quic_data();
 }
 
-ssize_t Http3Upstream::read_out_h3_data(uint64_t stream_id, uint8_t *buffer, size_t cap) {
-    ssize_t r = quiche_h3_recv_body(m_h3_conn.get(), m_quic_conn.get(), stream_id, buffer, cap);
-    if (r == QUICHE_H3_ERR_DONE) {
-        r = 0;
-    } else if (r < 0) {
-        log_stream(
-                this, stream_id, dbg, "Failed to read stream data: err={}", magic_enum::enum_name((quiche_h3_error) r));
+ssize_t Http3Upstream::read_out_h3_data(uint64_t stream_id, uint8_t *buf, size_t cap) {
+    U8View buffer = {buf, cap};
+    while (buffer.size() > 0) {
+        ssize_t r = quiche_h3_recv_body(
+                m_h3_conn.get(), m_quic_conn.get(), stream_id, (uint8_t *) buffer.data(), buffer.size());
+        if (r >= 0) {
+            buffer.remove_prefix(r);
+        } else if (r == QUICHE_H3_ERR_DONE) {
+            break;
+        } else if (r < 0) {
+            log_stream(this, stream_id, dbg, "Failed to read stream data: err={}",
+                    magic_enum::enum_name((quiche_h3_error) r));
+            return r;
+        }
     }
-
-    return r;
+    return cap - buffer.size();
 }
 
 void Http3Upstream::process_pending_data(uint64_t stream_id) {

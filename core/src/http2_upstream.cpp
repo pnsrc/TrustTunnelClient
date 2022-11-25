@@ -228,6 +228,10 @@ void Http2Upstream::http_handler(void *arg, HttpEventId what, void *data) {
                     nghttp2_http2_strerror(http_event->error_code), http_event->error_code);
             upstream->m_icmp_mux.close();
         } else if (upstream->m_health_check_info.has_value() && upstream->m_health_check_info->stream_id == stream_id) {
+            if (upstream->m_closing) {
+                log_upstream(upstream, dbg, "Drop health check result while closing session");
+                break;
+            }
             if (upstream->m_health_check_info->error.code == 0 && http_event->error_code != NGHTTP2_NO_ERROR) {
                 upstream->m_health_check_info->error = {VPN_EC_ERROR, nghttp2_http2_strerror(http_event->error_code)};
             }
@@ -490,6 +494,8 @@ void Http2Upstream::close_session_inner(std::optional<VpnError> error) {
 void Http2Upstream::close_session() {
     log_upstream(this, dbg, "...");
 
+    m_closing = true;
+
     std::vector<uint64_t> remaining_connections;
     remaining_connections.reserve(m_tcp_connections.size());
     std::transform(m_tcp_connections.begin(), m_tcp_connections.end(), std::back_inserter(remaining_connections),
@@ -516,6 +522,8 @@ void Http2Upstream::close_session() {
     m_icmp_mux.close();
     m_stream_id_generator.reset();
     m_health_check_info.reset();
+
+    m_closing = false;
 
     log_upstream(this, dbg, "Done");
 }
