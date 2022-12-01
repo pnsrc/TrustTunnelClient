@@ -43,6 +43,7 @@ private:
 
     WINTUN_ADAPTER_HANDLE m_wintun_adapter{nullptr};
     WINTUN_SESSION_HANDLE m_wintun_session{nullptr};
+    HANDLE m_wintun_quit_event{nullptr};
     std::unique_ptr<std::thread> m_recv_thread_handle{};
 
     WfpFirewall m_firewall;

@@ -39,8 +39,6 @@ static WINTUN_SEND_PACKET_FUNC *WintunSendPacket;
 
 static const ag::Logger logger("OS_TUNNEL_WIN");
 
-static HANDLE wintun_quit_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
 static std::atomic<uint32_t> g_win_bound_if = 0;
 
 static constexpr std::string_view WINREG_INTERFACES_PATH_V4 =
@@ -52,6 +50,7 @@ static constexpr std::string_view WINREG_NETWORK_CARDS_PATH =
 
 struct WintunThreadParams {
     WINTUN_SESSION_HANDLE session_ptr;
+    HANDLE quit_event;
     void (*read_callback)(void *arg, ag::VpnPackets *packets);
     void *read_callback_arg;
 };
@@ -134,7 +133,8 @@ static void WINAPI send_wintun_packet(WINTUN_SESSION_HANDLE session, std::span<c
 
 static DWORD WINAPI receive_wintun_packets(std::unique_ptr<WintunThreadParams> params) {
     WINTUN_SESSION_HANDLE session = params->session_ptr;
-    HANDLE wait_handles[] = {WintunGetReadWaitEvent(session), wintun_quit_event};
+    HANDLE quit_event = params->quit_event;
+    HANDLE wait_handles[] = {WintunGetReadWaitEvent(session), quit_event};
     std::vector<ag::VpnPacket> packets;
     while (true) {
         DWORD packet_size = 0;
@@ -215,10 +215,6 @@ static WINTUN_SESSION_HANDLE create_wintun_session(
     return session;
 }
 
-static void set_wintun_close_event() {
-    SetEvent(wintun_quit_event);
-}
-
 static void close_wintun(WINTUN_SESSION_HANDLE session, WINTUN_ADAPTER_HANDLE adapter) {
     if (session) {
         WintunEndSession(session);
@@ -239,6 +235,11 @@ ag::VpnError ag::VpnWinTunnel::init(
     m_wintun_adapter = create_wintun_adapter(win_settings->adapter_name);
     if (m_wintun_adapter == nullptr) {
         return {-1, "Unable to create wintun adapter"};
+    }
+    m_wintun_quit_event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (m_wintun_quit_event == nullptr) {
+        errlog(logger, "{}", ag::sys::strerror(ag::sys::last_error()));
+        return {-1, "Unable to create wintun quit event"};
     }
     m_if_index = get_wintun_adapter_index(m_wintun_adapter);
     std::string ipv4_address = tunnel_utils::get_address_for_index(settings->ipv4_address, m_if_index).to_string();
@@ -501,8 +502,9 @@ evutil_socket_t ag::VpnWinTunnel::get_fd() {
 
 void ag::VpnWinTunnel::start_recv_packets(
         void (*read_callback)(void *arg, VpnPackets *packets), void *read_callback_arg) {
+    ResetEvent(m_wintun_quit_event);
     std::unique_ptr<WintunThreadParams> pass_params(
-            new WintunThreadParams{m_wintun_session, read_callback, read_callback_arg});
+            new WintunThreadParams{m_wintun_session, m_wintun_quit_event, read_callback, read_callback_arg});
     m_recv_thread_handle = std::make_unique<std::thread>(receive_wintun_packets, std::move(pass_params));
 }
 
@@ -513,7 +515,7 @@ void ag::VpnWinTunnel::send_packet(std::span<const evbuffer_iovec> chunks) {
 void ag::VpnWinTunnel::stop_recv_packets() {
     if (m_recv_thread_handle) {
         dbglog(logger, "Stopping receiving packets");
-        set_wintun_close_event();
+        SetEvent(m_wintun_quit_event);
         m_recv_thread_handle->join();
         m_recv_thread_handle.reset();
         dbglog(logger, "Stopped receiving packets");
@@ -521,6 +523,7 @@ void ag::VpnWinTunnel::stop_recv_packets() {
 }
 ag::VpnWinTunnel::~VpnWinTunnel() {
     close_wintun(m_wintun_session, m_wintun_adapter);
+    CloseHandle(m_wintun_quit_event);
 }
 
 void *ag::vpn_win_tunnel_create(ag::VpnOsTunnelSettings *settings, ag::VpnWinTunnelSettings *win_settings) {
