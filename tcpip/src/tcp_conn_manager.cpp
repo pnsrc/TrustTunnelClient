@@ -277,7 +277,7 @@ void tcp_cm_close_descriptor(TcpipCtx *ctx, uint64_t id, bool graceful) {
     }
 
     auto *connection = (TcpConnDescriptor *) kh_value(ctx->tcp.connections.by_id, i);
-    log_conn(connection, dbg, "Closing connection {}", (void *) connection);
+    log_conn(connection, trace, "Closing connection {}", (void *) connection);
 
     notify_connection_statistics(&connection->common);
 
@@ -294,7 +294,7 @@ void tcp_cm_close_descriptor(TcpipCtx *ctx, uint64_t id, bool graceful) {
 
     tcpip_remove_connection(&ctx->tcp.connections, &connection->common);
 
-    log_conn(connection, dbg, "Connection closed {}, {} active connections left", (void *) connection,
+    log_conn(connection, trace, "Connection closed {}, {} active connections left", (void *) connection,
             kh_size(ctx->tcp.connections.by_id));
 
     free(connection);

@@ -66,6 +66,7 @@ struct Tunnel {
 
     void complete_connect_request(uint64_t id, std::optional<VpnConnectAction> action);
     void reset_connections(int uid);
+    void reset_connections(ClientListener *listener);
     void reset_connection(uint64_t client_id);
     void on_before_endpoint_disconnect(ServerUpstream *upstream);
     void on_after_endpoint_disconnect(ServerUpstream *upstream);

@@ -332,15 +332,16 @@ static void vpn_runner(ListenerType type) {
         }
         common_settings.included_routes.data = included_routes.data();
         common_settings.included_routes.size = included_routes.size();
-        std::vector<const char *> excluded_routes;
-        for (auto &route : g_params.excluded_routes) {
-            excluded_routes.emplace_back(route.c_str());
-        }
 
+        std::vector<std::string> owned_excluded_routes = g_params.excluded_routes;
         for (const std::string &address : g_params.addresses) {
             auto [host_view, port_view] = ag::utils::split_host_port(address.c_str());
-            std::string addr(host_view.data(), host_view.size());
-            excluded_routes.emplace_back(addr.c_str());
+            owned_excluded_routes.emplace_back(host_view.data(), host_view.size());
+        }
+
+        std::vector<const char *> excluded_routes;
+        for (auto &route : owned_excluded_routes) {
+            excluded_routes.emplace_back(route.c_str());
         }
 
         common_settings.excluded_routes.data = excluded_routes.data();

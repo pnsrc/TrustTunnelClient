@@ -211,7 +211,7 @@ void udp_cm_close_descriptor(TcpipCtx *ctx, uint64_t id) {
     }
 
     auto *connection = (UdpConnDescriptor *) kh_value(ctx->udp.connections.by_id, i);
-    log_conn(connection, dbg, "Closing connection {}", (void *) connection);
+    log_conn(connection, trace, "Closing connection {}", (void *) connection);
 
     notify_connection_statistics(&connection->common);
 
@@ -222,7 +222,7 @@ void udp_cm_close_descriptor(TcpipCtx *ctx, uint64_t id) {
 
     connection->pending_packets.clear();
 
-    log_conn(connection, dbg, "Connection closed {}, {} active connections left", (void *) connection,
+    log_conn(connection, trace, "Connection closed {}, {} active connections left", (void *) connection,
             kh_size(ctx->udp.connections.by_id));
 
     free(connection);

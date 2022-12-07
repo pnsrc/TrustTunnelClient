@@ -716,10 +716,13 @@ static void vpn_client::run_disconnect(void *ctx, void *data) {
     auto *vpn = (VpnClient *) ctx;
     log_client(vpn, trace, "...");
 
+    // @fixme: It turns out that sometimes for some reason not all DNS proxy listener connections
+    //         are closed during a shutdown. That's why `dns_proxy_listener->deinit()` was
+    //         replaced with `tunnel->reset_connections(dns_proxy_listener)` here.
     if (vpn->dns_proxy_listener != nullptr) {
-        // Stop the listener here to complete all the pending DNS requests.
-        // But do not delete it here, because connections in the tunnel refer to it.
-        vpn->dns_proxy_listener->deinit();
+        // Reset DNS proxy listener connections to complete all the pending DNS requests.
+        // But do not deinitialize it here, because connections in the tunnel refer to it.
+        vpn->tunnel->reset_connections(vpn->dns_proxy_listener.get());
     }
 
     vpn->tunnel->on_before_endpoint_disconnect(vpn->endpoint_upstream.get());
@@ -743,6 +746,10 @@ static void vpn_client::run_disconnect(void *ctx, void *data) {
     // a server side connection through this upstream after the corresponding client side
     // connection is closed
     vpn->tunnel->on_after_endpoint_disconnect(vpn->endpoint_upstream.get());
+
+    if (vpn->dns_proxy_listener != nullptr) {
+        vpn->dns_proxy_listener->deinit();
+    }
 
     log_client(vpn, trace, "Done");
 }

@@ -409,16 +409,15 @@ void Tunnel::upstream_handler(ServerUpstream *upstream, ServerEvent what, void *
     case SERVER_EVENT_CONNECTION_CLOSED: {
         uint64_t id = *(uint64_t *) data;
 
-        log_tun(this, dbg, "Server closed connection {}", id);
-
         VpnConnection *conn = vpn_connection_get_by_id(this->connections.by_server_id, id);
         if (conn == nullptr) {
-            log_tun(this, dbg, "Got close event for inexistent or already closed connection: {}", id);
+            log_tun(this, dbg, "Got close event for nonexistent or already closed connection: R:{}", id);
             assert(0);
             destroy_connection(this, NON_ID, id);
             break;
         }
 
+        log_conn(this, conn, dbg, "Connection closed");
         if (nullptr != vpn_connection_get_by_id(this->connections.by_client_id, conn->client_id)) {
             vpn_connection_remove(this->connections.by_server_id, conn->server_id);
             conn->listener->turn_read(conn->client_id, false);
@@ -932,6 +931,26 @@ void Tunnel::reset_connections(int uid) {
 
     for (uint64_t id : ids) {
         if (VpnConnection *conn = vpn_connection_get_by_id(table, id)) {
+            close_client_side_connection(this, conn, -1, false);
+        }
+    }
+}
+
+void Tunnel::reset_connections(ClientListener *listener) {
+    log_tun(this, dbg, "Resetting connections by listener");
+
+    khash_t(connections_by_id) *table = this->connections.by_client_id;
+    std::vector<uint64_t> ids;
+    ids.reserve(kh_size(table));
+
+    vpn_connections_foreach(table, [&](VpnConnection *conn) {
+        if (conn->listener == listener) {
+            ids.push_back(conn->client_id);
+        }
+    });
+
+    for (uint64_t conn_id : ids) {
+        if (VpnConnection *conn = vpn_connection_get_by_id(table, conn_id); conn != nullptr) {
             close_client_side_connection(this, conn, -1, false);
         }
     }

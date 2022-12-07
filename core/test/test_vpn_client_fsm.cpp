@@ -248,6 +248,8 @@ void Tunnel::complete_connect_request(uint64_t, std::optional<VpnConnectAction> 
 }
 void Tunnel::reset_connections(int) {
 }
+void Tunnel::reset_connections(ClientListener *) {
+}
 void Tunnel::reset_connection(uint64_t) {
 }
 std::optional<VpnConnectAction> Tunnel::finalize_connect_action(ConnectRequestResult &request_result, bool) const {
