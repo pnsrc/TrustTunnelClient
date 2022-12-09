@@ -185,6 +185,12 @@ void TunListener::tcpip_handler(void *arg, TcpipEvent what, void *data) {
                     event.data = (uint8_t *) v->iov_base;
                     event.length = v->iov_len;
                     listener->handler.func(listener->handler.arg, CLIENT_EVENT_READ, &event);
+                    if (conn->proto == IPPROTO_UDP && event.result >= 0 && ssize_t(event.length) != event.result) {
+                        log_conn(listener, tcp_event->id, dbg,
+                                "UDP packet sent partially, dropping the rest: length={}, result={}", event.length,
+                                event.result);
+                        event.result = event.length;
+                    }
                     if (event.result >= 0) {
                         tcp_event->result += event.result;
                         v->iov_base = (uint8_t *) v->iov_base + event.result;

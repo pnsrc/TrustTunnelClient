@@ -708,9 +708,9 @@ static ServerUpstream *select_upstream(const Tunnel *self, VpnConnectAction acti
 }
 
 /**
- * @return Number of bytes to consume, if some
+ * @return Number of bytes processed to set to the result
  */
-[[nodiscard]] static std::optional<size_t> initiate_connection_migration(
+[[nodiscard]] static size_t initiate_connection_migration(
         Tunnel *self, VpnConnection *conn, ServerUpstream *upstream, U8View packet) {
     log_conn(self, conn, dbg, "Migrating to {} upstream",
             (upstream == self->vpn->endpoint_upstream.get())         ? "VPN endpoint"
@@ -721,10 +721,10 @@ static ServerUpstream *select_upstream(const Tunnel *self, VpnConnectAction acti
     uint64_t server_id = upstream->open_connection(&conn->addr, conn->proto, {});
     if (server_id == NON_ID) {
         close_client_side_connection(self, conn, -1, true);
-        return std::nullopt;
+        return 0;
     }
 
-    std::optional<size_t> to_consume;
+    size_t processed = 0;
 
     VpnConnection *sw_conn = VpnConnection::make(NON_ID, conn->addr, conn->proto);
     sw_conn->server_id = server_id;
@@ -737,7 +737,7 @@ static ServerUpstream *select_upstream(const Tunnel *self, VpnConnectAction acti
         // do not turn off reads on migrating UDP connections,
         // because otherwise the unread packets might be dropped
         ((UdpVpnConnection *) conn)->buffered_packets.emplace_back(packet.begin(), packet.end());
-        to_consume = packet.size();
+        processed = packet.size();
     } else {
         conn->listener->turn_read(conn->client_id, false);
     }
@@ -748,7 +748,7 @@ static ServerUpstream *select_upstream(const Tunnel *self, VpnConnectAction acti
     }
 
     log_conn(self, sw_conn, trace, "Connecting...");
-    return to_consume;
+    return processed;
 }
 
 std::optional<VpnConnectAction> Tunnel::finalize_connect_action(
@@ -1281,13 +1281,10 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
                     break;
                 }
 
-                if (std::optional to_consume = initiate_connection_migration(this, conn,
-                            select_upstream(
-                                    this, invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode())), conn),
-                            {event->data, event->length});
-                        to_consume.has_value()) {
-                    conn->listener->consume(conn->client_id, to_consume.value());
-                }
+                event->result = initiate_connection_migration(this, conn,
+                        select_upstream(
+                                this, invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode())), conn),
+                        {event->data, event->length});
                 break;
             }
         }
@@ -1299,11 +1296,8 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
                     "Couldn't find domain name for suspect-to-be-exclusion connection, routing it as usual");
             conn->flags.reset(CONNF_FAKE_CONNECTION);
             conn->flags.reset(CONNF_SUSPECT_EXCLUSION);
-            if (std::optional to_consume = initiate_connection_migration(
-                        this, conn, select_upstream(this, VPN_CA_DEFAULT, conn), {event->data, event->length});
-                    to_consume.has_value()) {
-                conn->listener->consume(conn->client_id, to_consume.value());
-            }
+            event->result = initiate_connection_migration(
+                    this, conn, select_upstream(this, VPN_CA_DEFAULT, conn), {event->data, event->length});
             break;
         }
 
