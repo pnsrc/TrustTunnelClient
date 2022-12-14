@@ -708,10 +708,15 @@ static ServerUpstream *select_upstream(const Tunnel *self, VpnConnectAction acti
 }
 
 /**
- * @return Number of bytes processed to set to the result
+ * @return The result code which should be set to the event
  */
-[[nodiscard]] static size_t initiate_connection_migration(
+[[nodiscard]] static ssize_t initiate_connection_migration(
         Tunnel *self, VpnConnection *conn, ServerUpstream *upstream, U8View packet) {
+    if (upstream == nullptr) {
+        log_conn(self, conn, dbg, "Can't start migration due to upstream isn't selected");
+        return -1;
+    }
+
     log_conn(self, conn, dbg, "Migrating to {} upstream",
             (upstream == self->vpn->endpoint_upstream.get())         ? "VPN endpoint"
                     : (upstream == self->vpn->bypass_upstream.get()) ? "direct"
