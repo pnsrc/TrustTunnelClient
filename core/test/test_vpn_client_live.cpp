@@ -201,3 +201,51 @@ TEST_F(VpnClientLive, DnsBeingHealthCheckedListenAfterConnected) {
     ASSERT_NO_FATAL_FAILURE(wait_log("ipv4only.arpa"));
     ASSERT_NO_FATAL_FAILURE(wait_log("DNS resolver health check succeeded"));
 }
+
+TEST_F(VpnClientLive, ExclusionsUpdateDoesNotBreakDnsHealthCheck) {
+    constexpr std::chrono::seconds DNS_TIMEOUT{3};
+
+    connection_config.timeout = DNS_TIMEOUT;
+    ag::VpnError error = this->vpn->connect(std::move(connection_config));
+    ASSERT_EQ(error.code, ag::VPN_EC_NOERROR) << error.text;
+
+    ag::VpnListenerConfig listener_config = {
+            .dns_upstream = "tls://unfiltered.adguard-dns.com",
+    };
+    error = this->vpn->listen(std::make_unique<TestListener>(), &listener_config, /* ipv6_available */ true);
+    ASSERT_EQ(error.code, ag::VPN_EC_NOERROR) << error.text;
+
+    ASSERT_TRUE(this->wait_event(ag::vpn_client::EVENT_CONNECTED));
+    ASSERT_NO_FATAL_FAILURE(wait_log(";; ipv4only.arpa.\tIN\tA"));
+    ag::vpn_event_loop_submit(this->ev_loop.get(),
+            {
+                    .arg = this,
+                    .action =
+                            [](void *arg, ag::TaskId) {
+                                auto *self = (VpnClientLive *) arg;
+                                self->vpn->reset_connections(-1);
+                                self->vpn->update_exclusions(ag::VPN_MODE_SELECTIVE, "example.com");
+                            },
+            });
+
+    ASSERT_FALSE(this->wait_event(ag::vpn_client::EVENT_DNS_UPSTREAM_UNAVAILABLE, 3 * DNS_TIMEOUT / 2));
+}
+
+TEST_F(VpnClientLive, DnsUnavailableOnTimeout) {
+    constexpr std::chrono::seconds DNS_TIMEOUT{3};
+
+    connection_config.timeout = DNS_TIMEOUT;
+    ag::VpnError error = this->vpn->connect(std::move(connection_config));
+    ASSERT_EQ(error.code, ag::VPN_EC_NOERROR) << error.text;
+
+    ag::VpnListenerConfig listener_config = {
+            .dns_upstream = "1.1.2.3",
+    };
+    error = this->vpn->listen(std::make_unique<TestListener>(), &listener_config, /* ipv6_available */ true);
+    ASSERT_EQ(error.code, ag::VPN_EC_NOERROR) << error.text;
+
+    ASSERT_TRUE(this->wait_event(ag::vpn_client::EVENT_CONNECTED));
+    ASSERT_NO_FATAL_FAILURE(wait_log(";; ipv4only.arpa.\tIN\tA"));
+
+    ASSERT_TRUE(this->wait_event(ag::vpn_client::EVENT_DNS_UPSTREAM_UNAVAILABLE, 3 * DNS_TIMEOUT / 2));
+}

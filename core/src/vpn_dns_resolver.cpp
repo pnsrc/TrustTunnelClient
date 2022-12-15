@@ -47,12 +47,16 @@ std::optional<VpnDnsResolveId> VpnDnsResolver::resolve(
 
     if (std::holds_alternative<ResolveState>(this->state)) {
         if (!this->deferred_resolve_task.has_value()) {
-            this->deferred_resolve_task =
-                    event_loop::submit(this->vpn->parameters.ev_loop, {this, [](void *arg, TaskId) {
-                                                                   auto *self = (VpnDnsResolver *) arg;
-                                                                   self->deferred_resolve_task.release();
-                                                                   self->resolve_pending_domains();
-                                                               }});
+            this->deferred_resolve_task = event_loop::submit(this->vpn->parameters.ev_loop,
+                    {
+                            .arg = this,
+                            .action =
+                                    [](void *arg, TaskId) {
+                                        auto *self = (VpnDnsResolver *) arg;
+                                        self->deferred_resolve_task.release();
+                                        self->resolve_pending_domains();
+                                    },
+                    });
         }
         return id;
     }
@@ -92,8 +96,8 @@ std::optional<VpnDnsResolveId> VpnDnsResolver::resolve(
     }
 
     if (std::holds_alternative<BootstrapState>(this->state)) {
-        bootstrap.timeout_task = event_loop::schedule(this->vpn->parameters.ev_loop, {this, on_bootstrap_timeout},
-                this->vpn->upstream_config.timeout);
+        bootstrap.timeout_task = event_loop::schedule(
+                this->vpn->parameters.ev_loop, {this, on_bootstrap_timeout}, this->vpn->upstream_config.timeout);
     }
 
     return id;
@@ -119,8 +123,33 @@ void VpnDnsResolver::cancel(VpnDnsResolveId id) {
     }
 }
 
-void VpnDnsResolver::stop_resolving() {
-    this->stopping = true;
+void VpnDnsResolver::stop_resolving(std::optional<VpnDnsResolverQueue> queue) {
+    std::bitset<magic_enum::enum_count<VpnDnsResolverQueue>()> stopping_queues;
+    if (queue.has_value()) {
+        stopping_queues.set(queue.value());
+    } else {
+        stopping_queues.set();
+    }
+
+    for (VpnDnsResolverQueue q : magic_enum::enum_values<VpnDnsResolverQueue>()) {
+        if (!stopping_queues.test(q)) {
+            continue;
+        }
+
+        for (auto &[entry_id, entry] : std::exchange(this->queues[q], {})) {
+            for (size_t i = 0; i < entry.record_types.size(); ++i) {
+                if (entry.record_types.test(i)) {
+                    raise_result(entry.handler, entry_id, VpnDnsResolverFailure{dns_utils::RecordType(i)});
+                }
+            }
+        }
+    }
+
+    if (std::any_of(this->queues.begin(), this->queues.end(), [](const auto &q) {
+            return !q.empty();
+        })) {
+        return;
+    }
 
     std::vector<uint64_t> connections;
     if (auto *bootstrap = std::get_if<BootstrapState>(&this->state); bootstrap != nullptr) {
@@ -138,7 +167,6 @@ void VpnDnsResolver::stop_resolving() {
     }
 
     this->deinit();
-    this->stopping = false;
 }
 
 void VpnDnsResolver::deinit() {
@@ -167,16 +195,20 @@ void VpnDnsResolver::complete_connect_request(uint64_t id, ClientConnectResult r
 
     this->accepting_connections.push_back(id);
     if (!this->deferred_accept_task.has_value()) {
-        this->deferred_accept_task =
-                event_loop::submit(this->vpn->parameters.ev_loop, {this, [](void *arg, TaskId) {
-                                                               auto *self = (VpnDnsResolver *) arg;
-                                                               self->deferred_accept_task.release();
-                                                               std::vector<uint64_t> connections;
-                                                               connections.swap(self->accepting_connections);
-                                                               for (uint64_t id : connections) {
-                                                                   self->accept_pending_connection(id);
-                                                               }
-                                                           }});
+        this->deferred_accept_task = event_loop::submit(this->vpn->parameters.ev_loop,
+                {
+                        .arg = this,
+                        .action =
+                                [](void *arg, TaskId) {
+                                    auto *self = (VpnDnsResolver *) arg;
+                                    self->deferred_accept_task.release();
+                                    std::vector<uint64_t> connections;
+                                    connections.swap(self->accepting_connections);
+                                    for (uint64_t id : connections) {
+                                        self->accept_pending_connection(id);
+                                    }
+                                },
+                });
     }
 }
 
@@ -241,16 +273,20 @@ void VpnDnsResolver::close_connection(uint64_t id, bool graceful, bool async) {
     if (async) {
         this->closing_connections.push_back(id);
         if (!this->deferred_close_task.has_value()) {
-            this->deferred_close_task =
-                    event_loop::submit(this->vpn->parameters.ev_loop, {this, [](void *arg, TaskId) {
-                                                                   auto *self = (VpnDnsResolver *) arg;
-                                                                   self->deferred_close_task.release();
-                                                                   std::vector<uint64_t> connections;
-                                                                   connections.swap(self->closing_connections);
-                                                                   for (uint64_t id : connections) {
-                                                                       self->close_connection(id, true, false);
-                                                                   }
-                                                               }});
+            this->deferred_close_task = event_loop::submit(this->vpn->parameters.ev_loop,
+                    {
+                            .arg = this,
+                            .action =
+                                    [](void *arg, TaskId) {
+                                        auto *self = (VpnDnsResolver *) arg;
+                                        self->deferred_close_task.release();
+                                        std::vector<uint64_t> connections;
+                                        connections.swap(self->closing_connections);
+                                        for (uint64_t id : connections) {
+                                            self->close_connection(id, true, false);
+                                        }
+                                    },
+                    });
         }
         return;
     }
@@ -274,31 +310,29 @@ void VpnDnsResolver::close_connection(uint64_t id, bool graceful, bool async) {
 
         this->state.emplace<ResolveState>();
         assert(!this->deferred_resolve_task.has_value());
-        this->deferred_resolve_task =
-                event_loop::submit(this->vpn->parameters.ev_loop, {this, [](void *arg, TaskId) {
-                                                               auto *self = (VpnDnsResolver *) arg;
-                                                               self->deferred_resolve_task.release();
-                                                               self->resolve_pending_domains();
-                                                           }});
+        this->deferred_resolve_task = event_loop::submit(this->vpn->parameters.ev_loop,
+                {
+                        .arg = this,
+                        .action =
+                                [](void *arg, TaskId) {
+                                    auto *self = (VpnDnsResolver *) arg;
+                                    self->deferred_resolve_task.release();
+                                    self->resolve_pending_domains();
+                                },
+                });
     } else if (auto *resolve = std::get_if<ResolveState>(&this->state);
                resolve != nullptr && resolve->connection_id == id) {
         log_resolver(this, dbg, "Resolve connection has been closed");
 
-        if (!this->stopping) {
-            while (!resolve->queries.empty()) {
-                ResolveState::Query q = resolve->queries.begin()->second;
-                resolve->queries.erase(resolve->queries.begin());
-                raise_result(q.result_handler, q.id, VpnDnsResolverFailure{q.record_type});
-            }
+        for (auto &[_, q] : std::exchange(resolve->queries, {})) {
+            raise_result(q.result_handler, q.id, VpnDnsResolverFailure{q.record_type});
+        }
 
-            for (Queue &queue : this->queues) {
-                while (!queue.empty()) {
-                    auto [entry_id, entry] = std::move(*queue.begin());
-                    queue.erase(queue.begin());
-                    for (size_t i = 0; i < entry.record_types.size(); ++i) {
-                        if (entry.record_types.test(i)) {
-                            raise_result(entry.handler, entry_id, VpnDnsResolverFailure{dns_utils::RecordType(i)});
-                        }
+        for (const Queue &queue : std::exchange(this->queues, {})) {
+            for (auto &[entry_id, entry] : queue) {
+                for (size_t i = 0; i < entry.record_types.size(); ++i) {
+                    if (entry.record_types.test(i)) {
+                        raise_result(entry.handler, entry_id, VpnDnsResolverFailure{dns_utils::RecordType(i)});
                     }
                 }
             }
@@ -496,8 +530,8 @@ void VpnDnsResolver::resolve_pending_domains() {
     }
 
     auto *resolve = std::get_if<ResolveState>(&this->state);
-    resolve->timeout_task = event_loop::schedule(this->vpn->parameters.ev_loop, {this, on_resolve_timeout},
-            this->vpn->upstream_config.timeout);
+    resolve->timeout_task = event_loop::schedule(
+            this->vpn->parameters.ev_loop, {this, on_resolve_timeout}, this->vpn->upstream_config.timeout);
 
     if (!resolve->is_open) {
         resolve->connection_id = this->vpn->listener_conn_id_generator.get();

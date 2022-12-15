@@ -1002,7 +1002,7 @@ void Tunnel::reset_connections(int uid) {
     ids.reserve(kh_size(table));
 
     vpn_connections_foreach(table, [&](VpnConnection *conn) {
-        if (uid == -1 || conn->uid == uid) {
+        if ((uid == -1 || conn->uid == uid) && conn->listener != this->dns_resolver.get()) {
             ids.push_back(conn->client_id);
         }
     });
@@ -1047,7 +1047,7 @@ void Tunnel::on_before_endpoint_disconnect(ServerUpstream *upstream) {
     if (this->vpn->endpoint_upstream.get() != upstream) {
         return;
     }
-    this->dns_resolver->stop_resolving();
+    this->dns_resolver->stop_resolving(std::nullopt);
     this->repeat_exclusions_resolve_task.reset();
 
     std::vector<uint64_t> ids;
@@ -1093,13 +1093,16 @@ void Tunnel::on_after_endpoint_disconnect(ServerUpstream *upstream) { // NOLINT(
 }
 
 void Tunnel::on_exclusions_updated() {
-    assert(this->endpoint_upstream_connected);
+    // exclusions are resolved in background
+    this->dns_resolver->stop_resolving(VDRQ_BACKGROUND);
 
     if (this->vpn->endpoint_upstream != nullptr) {
         std::vector<std::string_view> names = this->vpn->domain_filter.get_resolvable_exclusions();
         this->dns_resolver->set_ipv6_availability(this->vpn->ipv6_available);
         for (std::string_view name : names) {
-            this->dns_resolver->resolve(VDRQ_BACKGROUND, std::string(name));
+            if (!this->dns_resolver->resolve(VDRQ_BACKGROUND, std::string(name)).has_value()) {
+                log_tun(this, dbg, "Failed to start resolve of {}", name);
+            }
         }
     } else {
         log_tun(this, dbg, "Skipping exclusions resolve as there's no connection to endpoint");

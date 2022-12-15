@@ -89,10 +89,11 @@ public:
     void cancel(VpnDnsResolveId id);
 
     /**
-     * Stop all running resolving procedures.
+     * Stop all running resolving procedures on the queue.
      * May raise some callbacks.
+     * @param queue If nullopt, all pending resolves are cancelled.
      */
-    void stop_resolving();
+    void stop_resolving(std::optional<VpnDnsResolverQueue> queue);
 
 private:
     struct Resolve {
@@ -137,7 +138,6 @@ private:
     event_loop::AutoTaskId deferred_close_task;
     event_loop::AutoTaskId deferred_resolve_task;
     uint16_t next_connection_port = 1;
-    bool stopping = false;
     ag::Logger log{"VPN_DNS_RESOLVER"};
 
     void complete_connect_request(uint64_t id, ClientConnectResult result) override;
