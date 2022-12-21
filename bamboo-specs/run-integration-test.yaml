@@ -162,6 +162,46 @@ Run integration test:
                 kill -15 $(jobs -p) >/dev/null 2>&1
                 exit 0
             fi
+
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            #!/bin/bash
+
+            set -x -e
+
+            mkdir -p build_no_asan && cd build_no_asan
+
+            # Using DNS proxy in VPN libs leads to false-positive address sanitizer errors
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS='-stdlib=libc++ -DI_DO_WANT_TO_RUN_LIVE_TESTS' \
+            ..
+
+            make -j 4 test_vpn_client_live
+        description: Build vpn-libs without address sanitizer
+        working-dir: vpn-libs
+
+    - script:
+        interpreter: SHELL
+        description: Run live test
+        scripts:
+          - |-
+            #!/bin/bash
+
+            set -x -e
+
+            export SRC_ROOT=${PWD}
+
+            cd vpn-libs-endpoint/examples/my_vpn
+            ../../target/release/vpn_endpoint vpn.conf > /dev/null 2>&1 &
+            echo "Start endpoint"
+            sleep 3
+
+            $SRC_ROOT/vpn-libs/build_no_asan/core/test_vpn_client_live
+
   final-tasks:
     - script:
         interpreter: SHELL

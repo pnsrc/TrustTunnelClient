@@ -1047,7 +1047,7 @@ void Tunnel::on_before_endpoint_disconnect(ServerUpstream *upstream) {
     if (this->vpn->endpoint_upstream.get() != upstream) {
         return;
     }
-    this->dns_resolver->stop_resolving(std::nullopt);
+    this->dns_resolver->stop_resolving();
     this->repeat_exclusions_resolve_task.reset();
 
     std::vector<uint64_t> ids;
@@ -1094,7 +1094,7 @@ void Tunnel::on_after_endpoint_disconnect(ServerUpstream *upstream) { // NOLINT(
 
 void Tunnel::on_exclusions_updated() {
     // exclusions are resolved in background
-    this->dns_resolver->stop_resolving(VDRQ_BACKGROUND);
+    this->dns_resolver->stop_resolving_queues(1 << VDRQ_BACKGROUND);
 
     if (this->vpn->endpoint_upstream != nullptr) {
         std::vector<std::string_view> names = this->vpn->domain_filter.get_resolvable_exclusions();

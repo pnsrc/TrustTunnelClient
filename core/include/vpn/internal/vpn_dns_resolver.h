@@ -50,6 +50,7 @@ public:
     static constexpr size_t MAX_PARALLEL_BACKGROUND_RESOLVES = 32;
 
     using RecordTypeSet = std::bitset<magic_enum::enum_count<dns_utils::RecordType>()>;
+    using QueueTypeSet = std::bitset<magic_enum::enum_count<VpnDnsResolverQueue>()>;
 
     struct ResultHandler {
         /// Will be raised for each of the record type passed to `resolve()`
@@ -89,11 +90,18 @@ public:
     void cancel(VpnDnsResolveId id);
 
     /**
-     * Stop all running resolving procedures on the queue.
-     * May raise some callbacks.
-     * @param queue If nullopt, all pending resolves are cancelled.
+     * Stop all running resolving procedures on the queues.
+     * The `ResultHandler` callbacks of the cancelled queries are raised with errors.
+     * @param queues Bitset of queues to stop to resolve.
      */
-    void stop_resolving(std::optional<VpnDnsResolverQueue> queue);
+    void stop_resolving_queues(QueueTypeSet queues);
+
+    /**
+     * Stop all running resolving procedures.
+     * The `ResultHandler` callbacks of the cancelled queries are raised with errors.
+     * The `CLIENT_EVENT_CONNECTION_CLOSED` events for the fictive connections are raised as well.
+     */
+    void stop_resolving();
 
 private:
     struct Resolve {
@@ -116,6 +124,7 @@ private:
             VpnDnsResolveId id;
             dns_utils::RecordType record_type;
             ResultHandler result_handler;
+            VpnDnsResolverQueue queue_kind;
         };
 
         uint64_t connection_id = NON_ID;

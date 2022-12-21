@@ -123,14 +123,7 @@ void VpnDnsResolver::cancel(VpnDnsResolveId id) {
     }
 }
 
-void VpnDnsResolver::stop_resolving(std::optional<VpnDnsResolverQueue> queue) {
-    std::bitset<magic_enum::enum_count<VpnDnsResolverQueue>()> stopping_queues;
-    if (queue.has_value()) {
-        stopping_queues.set(queue.value());
-    } else {
-        stopping_queues.set();
-    }
-
+void VpnDnsResolver::stop_resolving_queues(QueueTypeSet stopping_queues) {
     for (VpnDnsResolverQueue q : magic_enum::enum_values<VpnDnsResolverQueue>()) {
         if (!stopping_queues.test(q)) {
             continue;
@@ -145,11 +138,29 @@ void VpnDnsResolver::stop_resolving(std::optional<VpnDnsResolverQueue> queue) {
         }
     }
 
-    if (std::any_of(this->queues.begin(), this->queues.end(), [](const auto &q) {
-            return !q.empty();
-        })) {
+    auto *resolve = std::get_if<ResolveState>(&this->state);
+    if (resolve == nullptr) {
         return;
     }
+
+    std::vector<ResolveState::Query> cancelled_queries;
+    cancelled_queries.reserve(resolve->queries.size());
+    for (auto it = resolve->queries.begin(); it != resolve->queries.end();) {
+        if (stopping_queues.test(it->second.queue_kind)) {
+            cancelled_queries.emplace_back(std::move(it->second));
+            it = resolve->queries.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (const auto &q : cancelled_queries) {
+        raise_result(q.result_handler, q.id, VpnDnsResolverFailure{q.record_type});
+    }
+}
+
+void VpnDnsResolver::stop_resolving() {
+    this->stop_resolving_queues(QueueTypeSet{}.set());
 
     std::vector<uint64_t> connections;
     if (auto *bootstrap = std::get_if<BootstrapState>(&this->state); bootstrap != nullptr) {
@@ -571,6 +582,7 @@ void VpnDnsResolver::resolve_queue(VpnDnsResolverQueue queue_type) {
                                 .id = entry_id,
                                 .record_type = dns_utils::RecordType(i),
                                 .result_handler = entry.handler,
+                                .queue_kind = queue_type,
                         });
             } else if (entry.record_types.test(i)) {
                 raise_result(entry.handler, entry_id, VpnDnsResolverFailure{dns_utils::RecordType(i)});
