@@ -7,9 +7,11 @@
 #endif // __APPLE__
 
 #ifdef __linux__
+// clang-format off
 #include <net/if.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
+// clang-format on
 #endif
 
 #ifdef _WIN32
@@ -21,6 +23,7 @@
 #include <atomic>
 #include <csignal>
 #include <fstream>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -125,7 +128,7 @@ struct Params {
     bool killswitch_enabled;
     std::string exclusions;
     VpnUpstreamProtocol upstream_protocol;
-    VpnUpstreamProtocol upstream_fallback_protocol;
+    std::optional<VpnUpstreamProtocol> upstream_fallback_protocol;
     VpnMode mode;
 
     void init(cxxopts::ParseResult &result, const std::string &config) {
@@ -157,8 +160,9 @@ struct Params {
         hostname = server_info["hostname"];
         auto json_addrs = server_info["addresses"];
         addresses.reserve(json_addrs.size());
-        std::transform(json_addrs.begin(), json_addrs.end(), std::back_inserter(addresses),
-                [](auto &json_addr) { return (std::string) json_addr; });
+        std::transform(json_addrs.begin(), json_addrs.end(), std::back_inserter(addresses), [](auto &json_addr) {
+            return (std::string) json_addr;
+        });
         username = server_info["username"];
         password = server_info["password"];
         skip_verify = server_info["skip_cert_verify"];
@@ -171,7 +175,8 @@ struct Params {
         }
     }
 
-    void parse_routes(nlohmann::json::reference &included_routes_info, nlohmann::json::reference &excluded_routes_info) {
+    void parse_routes(
+            nlohmann::json::reference &included_routes_info, nlohmann::json::reference &excluded_routes_info) {
         for (std::string route : included_routes_info) {
             included_routes.emplace_back(std::move(route));
         }
@@ -259,11 +264,7 @@ static std::atomic<Vpn *> g_vpn;
 static Params g_params;
 static std::unique_ptr<ag::VpnOsTunnel> g_tunnel;
 
-static bool g_waiting_connect_result = false;
-static std::optional<bool> g_connect_result;
-static std::mutex g_connect_result_guard;
 static std::mutex g_listener_runner_mutex;
-static std::condition_variable g_connect_barrier;
 static std::condition_variable g_listener_runner_barrier;
 static std::atomic_bool g_stop = false;
 #ifdef _WIN32
@@ -283,9 +284,6 @@ static void sighandler(int /*sig*/) {
 }
 
 static bool connect_to_server(Vpn *v, int line) {
-    std::unique_lock l(g_connect_result_guard);
-    g_waiting_connect_result = true;
-
     VpnConnectParameters parameters = {
             .upstream_config = g_vpn_server_config,
     };
@@ -293,23 +291,14 @@ static bool connect_to_server(Vpn *v, int line) {
     if (err.code != 0) {
         errlog(g_logger, "Failed to connect to server (line={}): {} ({})\n", line, safe_to_string_view(err.text),
                 err.code);
-    } else {
-        g_connect_barrier.wait(l, []() {
-            return g_stop || g_connect_result.has_value();
-        });
+        return false;
     }
 
-    bool result = err.code == VPN_EC_NOERROR && g_connect_result.value_or(false);
-
-    g_waiting_connect_result = false;
-    g_connect_result.reset();
-
-    return result;
+    return true;
 }
 
 static void vpn_runner(ListenerType type) {
     if (!connect_to_server(g_vpn, __LINE__)) {
-        vpn_stop(g_vpn);
         g_stop = true;
         return;
     }
@@ -369,7 +358,7 @@ static void vpn_runner(ListenerType type) {
                 AG_UNFILTERED_DNS_IPS_V4[0].data(),
                 AG_UNFILTERED_DNS_IPS_V4[1].data(),
                 AG_UNFILTERED_DNS_IPS_V6[0].data(),
-                AG_UNFILTERED_DNS_IPS_V6[1].data()
+                AG_UNFILTERED_DNS_IPS_V6[1].data(),
         };
         win_settings.dns_servers = {dns_servers, 4};
         auto res = g_tunnel->init(&common_settings, &win_settings);
@@ -418,7 +407,9 @@ static void listener_runner(ListenerType listener_type) {
 
     vpn_runner(listener_type);
     std::unique_lock<std::mutex> listener_runner_lock(g_listener_runner_mutex);
-    g_listener_runner_barrier.wait(listener_runner_lock, []() {return g_stop.load();});
+    g_listener_runner_barrier.wait(listener_runner_lock, []() {
+        return g_stop.load();
+    });
     listener_runner_lock.unlock();
     Vpn *vpn = g_vpn.exchange(nullptr);
     vpn_stop(vpn);
@@ -431,7 +422,6 @@ static void listener_runner(ListenerType listener_type) {
     FreeLibrary(g_wintun);
 #endif
 }
-
 
 static void vpn_protect_socket(SocketProtectEvent *event) {
 #ifdef __APPLE__
@@ -455,10 +445,8 @@ static void vpn_protect_socket(SocketProtectEvent *event) {
     bool protect_success = vpn_win_socket_protect(event->fd, event->peer);
     if (!protect_success) {
         event->result = -1;
-        return ;
     }
 #endif
-
 }
 
 static void vpn_handler(void *, VpnEvent what, void *data) {
@@ -496,12 +484,6 @@ static void vpn_handler(void *, VpnEvent what, void *data) {
             tracelog(g_logger, "Endpoint connection state changed: state={} err={} {}\n", event->state,
                     event->error.code, safe_to_string_view(event->error.text));
         }
-
-        std::scoped_lock l(g_connect_result_guard);
-        if (g_waiting_connect_result && (event->state == VPN_SS_CONNECTED || event->state == VPN_SS_DISCONNECTED)) {
-            g_connect_result = event->state == VPN_SS_CONNECTED;
-            g_connect_barrier.notify_one();
-        }
         break;
     }
     case VPN_EVENT_CONNECT_REQUEST: {
@@ -521,16 +503,18 @@ static void vpn_handler(void *, VpnEvent what, void *data) {
         info->appname = "standalone_client";
         vpn_event_loop_submit(g_extra_loop.get(),
                 {
-                        info,
-                        [](void *arg, TaskId) {
-                            auto info = (VpnConnectionInfo *) arg;
-                            if (g_vpn) {
-                                vpn_complete_connect_request(g_vpn, info);
-                            }
-                        },
-                        [](void *arg) {
-                            delete (VpnConnectionInfo *) arg;
-                        }
+                        .arg = info,
+                        .action =
+                                [](void *arg, TaskId) {
+                                    auto info = (VpnConnectionInfo *) arg;
+                                    if (g_vpn) {
+                                        vpn_complete_connect_request(g_vpn, info);
+                                    }
+                                },
+                        .finalize =
+                                [](void *arg) {
+                                    delete (VpnConnectionInfo *) arg;
+                                },
                 });
         break;
     }
@@ -562,7 +546,10 @@ void apply_vpn_settings() {
     g_vpn_server_config.username = g_params.username.c_str();
     g_vpn_server_config.password = g_params.password.c_str();
     g_vpn_server_config.protocol.type = g_params.upstream_protocol;
-    g_vpn_server_config.fallback.protocol.type = g_params.upstream_fallback_protocol;
+    if (g_params.upstream_fallback_protocol.has_value()) {
+        g_vpn_server_config.fallback.enabled = true;
+        g_vpn_server_config.fallback.protocol.type = g_params.upstream_fallback_protocol.value();
+    }
 
     switch (g_params.listener_type) {
     case LT_TUN:
@@ -592,7 +579,7 @@ static void setup_sighandler() {
     sigaddset(&sigset, SIGINT);
     sigaddset(&sigset, SIGTERM);
     pthread_sigmask(SIG_BLOCK, &sigset, nullptr);
-    std::thread([sigset]{
+    std::thread([sigset] {
         int signum = 0;
         sigwait(&sigset, &signum);
         sighandler(signum);
