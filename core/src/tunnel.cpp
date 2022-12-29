@@ -521,7 +521,7 @@ void Tunnel::upstream_handler(ServerUpstream *upstream, ServerEvent what, void *
                 conn->listener->turn_read(conn->client_id, false);
                 close_client_side_connection(this, conn, -1, true);
                 event->result = -1;
-                break;
+                return;
             }
         }
 
@@ -1281,7 +1281,7 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
                 conn->listener->turn_read(conn->client_id, false);
                 close_client_side_connection(this, conn, -1, true);
                 event->result = -1;
-                break;
+                return;
             }
 
             if (migrate_to_another_upstream) {
