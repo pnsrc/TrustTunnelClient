@@ -1,5 +1,8 @@
 # CHANGELOG
 
+* [Fix] Introduced an error code indicating that no connection attempts left 
+  after initial connect() call `VPN_EC_INITIAL_CONNECT_FAILED`.
+
 ## 0.91.45
 
 * [Changed] `Location unavailable` semantics:

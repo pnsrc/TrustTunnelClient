@@ -43,6 +43,7 @@ typedef enum {
     VPN_EC_AUTH_REQUIRED,        // Authorization error (in case user credentials are invalid or expired)
     VPN_EC_LOCATION_UNAVAILABLE, // None of the endpoints in a location are available
     VPN_EC_EVENT_LOOP_FAILURE,   // Failed to start the IO event loop, or it unexpectedly terminated
+    VPN_EC_INITIAL_CONNECT_FAILED,  // No connection attempts left after initial connect() call
 } VpnErrorCode;
 
 typedef struct Vpn Vpn;

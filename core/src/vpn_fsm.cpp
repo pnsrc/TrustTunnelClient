@@ -268,6 +268,9 @@ static void complete_connect(void *ctx, void *data) {
         vpn->disconnect();
         vpn->pending_error = *error;
     }
+    if (vpn->pending_error.has_value() && !is_fatal_error(ctx, data) && no_connect_attempts(ctx, nullptr)) {
+        vpn->pending_error = {VPN_EC_INITIAL_CONNECT_FAILED, "Number of connection attempts exceeded"};
+    }
 
     vpn->recovery = {};
 

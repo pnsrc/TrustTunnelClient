@@ -292,7 +292,7 @@ TEST_F(VpnManagerTest, FailOnAllConnectAttemptsUsed) {
         ASSERT_NO_FATAL_FAILURE(connect_client_fail(VPN_EC_ERROR, &endpoint));
     }
     ASSERT_TRUE(wait_state(VPN_SS_DISCONNECTED));
-    ASSERT_NO_FATAL_FAILURE(check_connect_result(VPN_EC_ERROR));
+    ASSERT_NO_FATAL_FAILURE(check_connect_result(VPN_EC_INITIAL_CONNECT_FAILED));
 }
 
 class ConnectedVpnManagerTest : public VpnManagerTest {
