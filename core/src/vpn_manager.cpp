@@ -619,10 +619,10 @@ VpnDnsUpstreamValidationStatus vpn_validate_dns_upstream(const char *address) {
             .address = address,
             .bootstrap = {"1.1.1.1"},
     };
-    std::optional err = dns::test_upstream(opts, true, nullptr, true);
-    if (err.has_value()) {
+    Error<dns::UpstreamUtilsError> err = dns::test_upstream(opts, true, nullptr, true);
+    if (err != nullptr) {
         ag::Logger log{__func__};
-        dbglog(log, "{}", *err);
+        dbglog(log, "{}", err->str());
         return VPN_DUVS_MALFORMED;
     }
 

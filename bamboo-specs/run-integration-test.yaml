@@ -127,13 +127,13 @@ Run integration test:
             check_error
             sleep 1
 
-            echo "HTTP request -> adguard.com, ipv4..."
-            curl -x socks5://127.0.0.1:7777 -4 http://adguard.com >/dev/null
+            echo "HTTP request -> example.com, ipv4..."
+            curl -x socks5://127.0.0.1:7777 -4 http://example.com >/dev/null
             check_error
             sleep 1
 
-            echo "HTTPs request -> adguard.com, ipv4..."
-            curl -x socks5://127.0.0.1:7777 -4 https://adguard.com >/dev/null
+            echo "HTTPs request -> example.com, ipv4..."
+            curl -x socks5://127.0.0.1:7777 -4 https://example.com >/dev/null
             check_error
             sleep 1
 

@@ -94,16 +94,14 @@ bool DnsProxyAccessor::start(std::chrono::milliseconds timeout) {
             });
 
     if (!ok) {
-        if (msg.has_value()) {
-            log_accessor(this, err, "Failed to initialize DNS proxy: {}", *msg);
-        }
+        log_accessor(this, err, "Failed to initialize DNS proxy: {}", msg->str());
         m_dns_proxy.reset();
         this->stop();
         return false;
     }
 
-    if (msg.has_value()) {
-        log_accessor(this, warn, "DNS proxy initialization warning: {}", *msg);
+    if (msg != nullptr) {
+        log_accessor(this, warn, "DNS proxy initialization warning: {}", msg->str());
     }
 
     const auto &settings = m_dns_proxy->get_settings();
