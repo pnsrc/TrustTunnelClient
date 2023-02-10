@@ -18,8 +18,6 @@
 #define log_stream(ups_, sid_, lvl_, fmt_, ...)                                                                        \
     lvl_##log((ups_)->m_log, "[{}] [SID:{}] " fmt_, (ups_)->id, (uint64_t) (sid_), ##__VA_ARGS__)
 
-namespace ag {
-
 static constexpr size_t LOCAL_CONN_ID_LEN = 16;
 // synchronized with the endpoint config
 static constexpr uint64_t QUIC_CONNECTION_WINDOW_SIZE = 100ul * 1024 * 1024;
@@ -102,9 +100,13 @@ bool Http3Upstream::open_session(std::optional<Millis>) {
     }
 
     const vpn_client::EndpointConnectionConfig &upstream_config = this->vpn->upstream_config;
-    UdpSocketParameters params = {this->vpn->parameters.ev_loop, {socket_handler, this},
-            upstream_config.timeout, upstream_config.endpoint->address,
-            this->vpn->parameters.network_manager->socket};
+    UdpSocketParameters params = {
+            .ev_loop = this->vpn->parameters.ev_loop,
+            .handler = {socket_handler, this},
+            .timeout = upstream_config.timeout,
+            .peer = upstream_config.endpoint->address,
+            .socket_manager = this->vpn->parameters.network_manager->socket,
+    };
     m_socket.reset(udp_socket_create(&params));
     if (m_socket == nullptr) {
         log_upstream(this, err, "Failed to create UDP socket for connection");
@@ -137,6 +139,8 @@ bool Http3Upstream::open_session(std::optional<Millis>) {
     quiche_config_set_max_recv_udp_payload_size(config, MAX_QUIC_UDP_PAYLOAD_SIZE);
     quiche_config_set_max_send_udp_payload_size(config, MAX_QUIC_UDP_PAYLOAD_SIZE);
     quiche_config_set_disable_active_migration(config, true);
+    quiche_config_set_max_connection_window(config, QUIC_CONNECTION_WINDOW_SIZE);
+    quiche_config_set_max_stream_window(config, STREAM_WINDOW_SIZE);
 
     uint8_t scid[LOCAL_CONN_ID_LEN];
     static_assert(std::size(scid) <= QUICHE_MAX_CONN_ID_LEN);
@@ -166,9 +170,10 @@ bool Http3Upstream::open_session(std::optional<Millis>) {
     }
 #endif
 
-    m_quic_conn.reset(
-            quiche_conn_new_with_tls(scid, sizeof(scid), nullptr, 0, (sockaddr *) &upstream_config.endpoint->address,
-                    sockaddr_get_size((sockaddr *) &upstream_config.endpoint->address), config, ssl.release(), false));
+    sockaddr_storage local_address = local_sockaddr_from_fd(udp_socket_get_fd(m_socket.get()));
+    m_quic_conn.reset(quiche_conn_new_with_tls(scid, sizeof(scid), nullptr, 0, (sockaddr *) &local_address,
+            sockaddr_get_size((sockaddr *) &local_address), (sockaddr *) &upstream_config.endpoint->address,
+            sockaddr_get_size((sockaddr *) &upstream_config.endpoint->address), config, ssl.release(), false));
     if (m_quic_conn == nullptr) {
         log_upstream(this, err, "Failed to create QUIC connection");
         return false;
@@ -275,16 +280,20 @@ void Http3Upstream::close_connection(uint64_t conn_id, bool graceful, bool async
     if (async) {
         m_closing_connections[conn_id] = graceful;
         if (!m_close_connections_task_id.has_value()) {
-            m_close_connections_task_id =
-                    event_loop::submit(this->vpn->parameters.ev_loop, {this, [](void *arg, TaskId) {
-                                                                   auto *self = (Http3Upstream *) arg;
-                                                                   self->m_close_connections_task_id.release();
-                                                                   std::unordered_map<uint64_t, bool> connections;
-                                                                   std::swap(connections, self->m_closing_connections);
-                                                                   for (const auto &[conn_id, graceful] : connections) {
-                                                                       self->close_connection(conn_id, graceful, false);
-                                                                   }
-                                                               }});
+            m_close_connections_task_id = event_loop::submit(this->vpn->parameters.ev_loop,
+                    {
+                            .arg = this,
+                            .action =
+                                    [](void *arg, TaskId) {
+                                        auto *self = (Http3Upstream *) arg;
+                                        self->m_close_connections_task_id.release();
+                                        std::unordered_map<uint64_t, bool> connections;
+                                        std::swap(connections, self->m_closing_connections);
+                                        for (const auto &[conn_id_, graceful_] : connections) {
+                                            self->close_connection(conn_id_, graceful_, false);
+                                        }
+                                    },
+                    });
         }
         return;
     }
@@ -448,7 +457,18 @@ VpnError Http3Upstream::do_health_check() {
 VpnConnectionStats Http3Upstream::get_connection_stats() const {
     quiche_stats stats = {};
     quiche_conn_stats(m_quic_conn.get(), &stats);
-    return {(uint32_t) (stats.rtt / 1000), (stats.sent > 0) ? (double) stats.lost / stats.sent : 0};
+
+    uint64_t rtt_ns = 0;
+    for (size_t i = 0; i < stats.paths_count; ++i) {
+        quiche_path_stats path_stats = {};
+        quiche_conn_path_stats(m_quic_conn.get(), i, &path_stats);
+        rtt_ns = std::max(rtt_ns, path_stats.rtt);
+    }
+
+    return {
+            .rtt_us = uint32_t(rtt_ns / 1000),
+            .packet_loss_ratio = (stats.sent > 0) ? (double) stats.lost / stats.sent : 0,
+    };
 }
 
 void Http3Upstream::on_icmp_request(IcmpEchoRequestEvent &event) {
@@ -514,11 +534,15 @@ bool Http3Upstream::flush_pending_quic_data() {
 
         // Switch context since `close_session` should not be called in listener context,
         // and to avoid recursion since `close_session_inner` will call this function again
-        m_close_on_idle_task_id =
-                event_loop::submit(this->vpn->parameters.ev_loop, {.arg = this, .action = [](void *arg, TaskId) {
-                                                               auto *upstream = (Http3Upstream *) arg;
-                                                               upstream->close_session_inner();
-                                                           }});
+        m_close_on_idle_task_id = event_loop::submit(this->vpn->parameters.ev_loop,
+                {
+                        .arg = this,
+                        .action =
+                                [](void *arg, TaskId) {
+                                    auto *upstream = (Http3Upstream *) arg;
+                                    upstream->close_session_inner();
+                                },
+                });
 
         return false;
     }
@@ -587,9 +611,13 @@ bool Http3Upstream::flush_pending_quic_data() {
 
 void Http3Upstream::handle_socket_data(U8View data) {
     quiche_conn *quic_conn = m_quic_conn.get();
-    quiche_recv_info info{};
-    info.from = (sockaddr *) &this->vpn->upstream_config.endpoint->address;
-    info.from_len = sockaddr_get_size((sockaddr *) &this->vpn->upstream_config.endpoint->address);
+    sockaddr_storage local_address = local_sockaddr_from_fd(udp_socket_get_fd(m_socket.get()));
+    quiche_recv_info info{
+            .from = (sockaddr *) &this->vpn->upstream_config.endpoint->address,
+            .from_len = socklen_t(sockaddr_get_size((sockaddr *) &this->vpn->upstream_config.endpoint->address)),
+            .to = (sockaddr *) &local_address,
+            .to_len = socklen_t(sockaddr_get_size((sockaddr *) &local_address)),
+    };
     if (ssize_t r = quiche_conn_recv(quic_conn, (uint8_t *) data.data(), data.size(), &info); r < 0) {
         log_upstream(this, err, "Failed to process packet: {}", magic_enum::enum_name((quiche_error) r));
         return;
@@ -656,14 +684,18 @@ void Http3Upstream::handle_socket_data(U8View data) {
         // do some things here as they may now be available
         // (for example, connection or stream windows could have been slid)
         if (!m_post_receive_task_id.has_value()) {
-            m_post_receive_task_id =
-                    event_loop::submit(this->vpn->parameters.ev_loop, {this, [](void *arg, TaskId) {
-                                                                   auto *self = (Http3Upstream *) arg;
-                                                                   self->m_post_receive_task_id.release();
-                                                                   self->retry_connect_requests();
-                                                                   self->poll_tcp_connections();
-                                                                   self->m_udp_mux.report_sent_bytes();
-                                                               }});
+            m_post_receive_task_id = event_loop::submit(this->vpn->parameters.ev_loop,
+                    {
+                            .arg = this,
+                            .action =
+                                    [](void *arg, TaskId) {
+                                        auto *self = (Http3Upstream *) arg;
+                                        self->m_post_receive_task_id.release();
+                                        self->retry_connect_requests();
+                                        self->poll_tcp_connections();
+                                        self->m_udp_mux.report_sent_bytes();
+                                    },
+                    });
         }
 
         break;
@@ -722,7 +754,7 @@ static int collect_header(uint8_t *name, size_t name_len, uint8_t *value, size_t
 }
 
 void Http3Upstream::handle_h3_event(quiche_h3_event *h3_event, uint64_t stream_id) {
-    switch (quiche_h3_event_type(h3_event)) {
+    switch (enum quiche_h3_event_type event_type = quiche_h3_event_type(h3_event); event_type) {
     case QUICHE_H3_EVENT_HEADERS: {
         HttpHeaders headers{.version = HTTP_VER_3_0};
         quiche_h3_event_for_each_header(h3_event, collect_header, &headers);
@@ -767,14 +799,15 @@ void Http3Upstream::handle_h3_event(quiche_h3_event *h3_event, uint64_t stream_i
         break;
     }
 
-    case QUICHE_H3_EVENT_DATAGRAM:
-        log_stream(this, stream_id, err, "Unexpected datagram frame");
-        assert(0);
-        break;
-
     case QUICHE_H3_EVENT_GOAWAY:
         log_upstream(this, dbg, "Got GOAWAY");
         // session will be closed after `is_closed` returns true
+        break;
+
+    case QUICHE_H3_EVENT_DATAGRAM:
+    case QUICHE_H3_EVENT_PRIORITY_UPDATE:
+        log_stream(this, stream_id, warn, "Unexpected event: {}", magic_enum::enum_name(event_type));
+        assert(0);
         break;
     }
 }
@@ -978,7 +1011,8 @@ Http3Upstream::SendConnectRequestResult Http3Upstream::send_connect_request(
         return {i.name.data(), i.name.size(), i.value.data(), i.value.size()};
     });
 
-    int64_t stream_id = quiche_h3_send_request(m_h3_conn.get(), m_quic_conn.get(), h3_headers.data(), h3_headers.size(), false);
+    int64_t stream_id =
+            quiche_h3_send_request(m_h3_conn.get(), m_quic_conn.get(), h3_headers.data(), h3_headers.size(), false);
     if (stream_id >= 0) {
         log_headers(m_log, stream_id, &headers, "Sending connect request");
         if (!this->flush_pending_quic_data()) {
@@ -992,9 +1026,7 @@ Http3Upstream::SendConnectRequestResult Http3Upstream::send_connect_request(
 
     return {
             (stream_id >= 0) ? std::make_optional(stream_id) : std::nullopt,
-            // Due to a bug, Quiche may also return QUICHE_H3_ERR_DONE when sending is blocked.
-            // TODO: this was fixed in later versions of Quiche, so remove when Quiche is updated.
-            stream_id == QUICHE_H3_ERR_STREAM_BLOCKED || stream_id == QUICHE_H3_ERR_DONE,
+            stream_id == QUICHE_H3_ERR_STREAM_BLOCKED,
     };
 }
 
@@ -1102,15 +1134,13 @@ void Http3Upstream::poll_tcp_connections() {
         auto next = std::next(i);
 
         auto &[conn_id, conn] = *i;
-        if (conn.flags.test(TcpConnection::TCF_ESTABLISHED)
-                && conn.flags.test(TcpConnection::TCF_READ_ENABLED)
+        if (conn.flags.test(TcpConnection::TCF_ESTABLISHED) && conn.flags.test(TcpConnection::TCF_READ_ENABLED)
                 && !conn.flags.test(TcpConnection::TCF_STREAM_CLOSED)
                 && (conn.has_unread_data() || quiche_conn_stream_readable(m_quic_conn.get(), conn.stream_id))) {
             this->process_pending_data(conn.stream_id);
         }
 
-        if (conn.flags.test(TcpConnection::TCF_ESTABLISHED)
-                && !conn.flags.test(TcpConnection::TCF_STREAM_CLOSED)
+        if (conn.flags.test(TcpConnection::TCF_ESTABLISHED) && !conn.flags.test(TcpConnection::TCF_STREAM_CLOSED)
                 && conn.flags.test(TcpConnection::TCF_NEED_NOTIFY_SENT_BYTES)
                 && 0 < quiche_conn_stream_capacity(m_quic_conn.get(), conn.stream_id)) {
             conn.flags.reset(TcpConnection::TCF_NEED_NOTIFY_SENT_BYTES);
@@ -1239,5 +1269,3 @@ void Http3Upstream::handle_wake() {
 
     log_upstream(this, dbg, "Done");
 }
-
-} // namespace ag
