@@ -373,7 +373,7 @@ static VpnError start_dns_proxy(VpnClient *self) {
             .ipv6_available = self->ipv6_available,
     });
 
-    if (!self->dns_proxy->start(self->upstream_config.timeout)) {
+    if (!self->dns_proxy->start(std::nullopt)) {
         self->dns_proxy.reset();
         return {VPN_EC_ERROR, "Failed to start DNS proxy"};
     }

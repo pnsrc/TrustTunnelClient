@@ -17,7 +17,7 @@
 
 namespace ag {
 
-static dns::DnsProxySettings make_dns_proxy_settings(const DnsProxyAccessor::Parameters &parameters, Millis timeout) {
+static dns::DnsProxySettings make_dns_proxy_settings(const DnsProxyAccessor::Parameters &parameters, std::optional<Millis> timeout) {
     dns::DnsProxySettings settings = dns::DnsProxySettings::get_default();
     settings.upstreams.clear();
     settings.upstreams.reserve(parameters.upstreams.size());
@@ -41,7 +41,7 @@ static dns::DnsProxySettings make_dns_proxy_settings(const DnsProxyAccessor::Par
                 return dns::UpstreamOptions{
                         .address = upstream.address,
                         .bootstrap = {std::begin(AG_UNFILTERED_DNS_IPS_V4), std::end(AG_UNFILTERED_DNS_IPS_V4)},
-                        .timeout = timeout,
+                        .timeout = timeout.value_or(Millis{0}),
                         .resolved_server_ip = resolved_host,
                         .id = id++,
                         .outbound_interface =
@@ -80,7 +80,7 @@ DnsProxyAccessor::DnsProxyAccessor(Parameters p)
 
 DnsProxyAccessor::~DnsProxyAccessor() = default;
 
-bool DnsProxyAccessor::start(std::chrono::milliseconds timeout) {
+bool DnsProxyAccessor::start(std::optional<std::chrono::milliseconds> timeout) {
     if (m_dns_proxy != nullptr) {
         log_accessor(this, err, "Already started");
         return false;

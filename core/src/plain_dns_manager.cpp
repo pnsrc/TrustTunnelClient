@@ -862,7 +862,7 @@ bool ag::PlainDnsManager::start_dns_proxy(SystemDnsServers servers) {
             .ipv6_available = this->ag::ServerUpstream::vpn->ipv6_available,
     });
 
-    return m_system_dns_proxy->start(Millis{VPN_DEFAULT_UDP_TIMEOUT_MS});
+    return m_system_dns_proxy->start(std::nullopt);
 }
 
 std::optional<sockaddr_storage> ag::PlainDnsManager::get_redirect_address(uint64_t cs_conn_id,

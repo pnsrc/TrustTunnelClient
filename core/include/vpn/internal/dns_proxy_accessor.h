@@ -51,7 +51,7 @@ public:
      * Start the DNS proxy
      * @param timeout queries expiration time
      */
-    bool start(std::chrono::milliseconds timeout);
+    bool start(std::optional<std::chrono::milliseconds> timeout);
 
     /**
      * Stop the DNS proxy
