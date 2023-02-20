@@ -693,7 +693,12 @@ void Http3Upstream::handle_socket_data(U8View data) {
                                         self->m_post_receive_task_id.release();
                                         self->retry_connect_requests();
                                         self->poll_tcp_connections();
-                                        self->m_udp_mux.report_sent_bytes();
+                                        if (std::optional stream_id = self->m_udp_mux.get_stream_id();
+                                                stream_id.has_value()
+                                                && 0 < quiche_conn_stream_capacity(
+                                                           self->m_quic_conn.get(), stream_id.value())) {
+                                            self->m_udp_mux.report_sent_bytes();
+                                        }
                                     },
                     });
         }

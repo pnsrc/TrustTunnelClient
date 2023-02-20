@@ -89,8 +89,7 @@ void UpstreamMultiplexer::close_session() {
     m_connections.clear();
 
     for (const auto &[conn_id, _] : std::exchange(m_pending_connections, {})) {
-        // @todo: use AG_ECONNRESET after upgrading NLC to 2.0.35+
-        ServerError err_event = {conn_id, {ag::utils::AG_ECONNREFUSED, "Session closed"}};
+        ServerError err_event = {conn_id, {utils::AG_ECONNRESET, "Session closed"}};
         this->handler.func(this->handler.arg, SERVER_EVENT_ERROR, &err_event);
     }
 

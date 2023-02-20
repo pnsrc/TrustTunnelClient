@@ -1,7 +1,6 @@
 #include "http_udp_multiplexer.h"
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <cassert>
 #include <string_view>
@@ -225,10 +224,10 @@ ssize_t HttpUdpMultiplexer::send(uint64_t id, U8View data) {
     if (r == 0) {
         conn->timeout = steady_clock::now() + milliseconds(VPN_DEFAULT_UDP_TIMEOUT_MS);
         conn->sent_bytes_since_flush += data.size();
-        r = data.size();
+        return data.size();
     }
 
-    return r;
+    return -1;
 }
 
 HttpUdpMultiplexer::PacketInfo HttpUdpMultiplexer::read_prefix(const std::vector<uint8_t> &data) const {

@@ -28,7 +28,7 @@ enum Http2Upstream::TcpConnection::Flag : int {
     TCF_STREAM_CLOSED, // stream closed gracefully, but we're waiting until all data is sent
 };
 
-struct close_ctx_t {
+struct CloseCtx {
     Http2Upstream *upstream;
     uint64_t id;
     bool graceful;
@@ -45,10 +45,12 @@ Http2Upstream::Http2Upstream(
         , m_udp_mux({this, send_connect_request_callback, send_data_callback, consume_callback})
         , m_icmp_mux({this, send_connect_request_callback, send_data_callback, consume_callback})
         , m_credentials(make_credentials(vpn->upstream_config.username, vpn->upstream_config.password)) {
-    // static logger_ptr_t ngh2_logger{ logger_open("NGH2", LOG_LEVEL_DEFAULT) };
-    // nghttp2_set_debug_vprintf_callback([] (const char *format, va_list args) {
-    //     logger_vlog(ngh2_logger.get(), LOG_LEVEL_DEBUG, format, args);
-    // });
+#if 0
+    nghttp2_set_debug_vprintf_callback([](const char *format, va_list args) {
+        static Logger log{"NGH2"};
+        tracelog(log, "{}", str_format(format, args));
+    });
+#endif
 }
 
 Http2Upstream::~Http2Upstream() {
@@ -400,7 +402,10 @@ void Http2Upstream::net_handler(void *arg, TcpSocketEvent what, void *data) {
             upstream->handler.func(upstream->handler.arg, SERVER_EVENT_DATA_SENT, &serv_event);
         }
 
-        upstream->m_udp_mux.report_sent_bytes();
+        if (std::optional stream_id = upstream->m_udp_mux.get_stream_id(); stream_id.has_value()
+                && 0 < http_session_available_to_write(upstream->m_session.get(), stream_id.value())) {
+            upstream->m_udp_mux.report_sent_bytes();
+        }
 
         break;
     }
@@ -598,9 +603,9 @@ void Http2Upstream::close_connection(uint64_t id, bool graceful, bool async) {
     TcpConnection *conn = &it->second;
     conn->close_task_id = event_loop::submit(this->vpn->parameters.ev_loop,
             {
-                    new close_ctx_t{this, id, graceful},
+                    new CloseCtx{this, id, graceful},
                     [](void *arg, TaskId task_id) {
-                        close_ctx_t *ctx = (close_ctx_t *) arg;
+                        CloseCtx *ctx = (CloseCtx *) arg;
                         auto *self = ctx->upstream;
 
                         auto i = self->m_tcp_connections.find(ctx->id);
@@ -612,7 +617,7 @@ void Http2Upstream::close_connection(uint64_t id, bool graceful, bool async) {
                         ctx->upstream->close_tcp_connection(ctx->id, ctx->graceful);
                     },
                     [](void *arg) {
-                        delete (close_ctx_t *) arg;
+                        delete (CloseCtx *) arg;
                     },
             });
 }
@@ -805,11 +810,10 @@ std::optional<uint64_t> Http2Upstream::send_connect_request_callback(
 }
 
 int Http2Upstream::send_data_callback(ServerUpstream *upstream, uint64_t stream_id, U8View data) {
-    Http2Upstream *self = (Http2Upstream *) upstream;
+    auto *self = (Http2Upstream *) upstream;
     int r = http_session_send_data(self->m_session.get(), (int32_t) stream_id, data.data(), data.size(), false);
-    if (r == NGHTTP2_ERR_BUFFER_ERROR) {
+    if (r != 0) {
         log_upstream(self, dbg, "Failed to send data: {} ({})", nghttp2_strerror(r), r);
-        r = 0;
     }
     return r;
 }
