@@ -478,14 +478,10 @@ static void send_pending_udp_data(void *arg, TaskId task_id) {
         Connection *conn = kh_value(listener->connections, i);
         Socks5ReadEvent event = {};
         event.id = conn->id;
-        for (const auto &pkt : conn->udp.pending_udp_packets) {
+        for (const auto &pkt : std::exchange(conn->udp.pending_udp_packets, {})) {
             event.data = pkt.data();
             event.length = pkt.size();
             listener->handler.func(listener->handler.arg, SOCKS5L_EVENT_READ, &event);
-            if (event.result < 0) {
-                destroy_connection(listener, conn);
-                break;
-            }
         }
     }
 }
