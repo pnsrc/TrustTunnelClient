@@ -35,9 +35,15 @@ namespace ag {
 
 #define TIMER_PERIOD_S (TCPIP_DEFAULT_CONNECTION_TIMEOUT_S / 10)
 
+/**
+ * Read at most this much packets from TUN fd
+ * before deferring until the next event loop iteration.
+ */
+static constexpr size_t TUN_READ_BUDGET = 64;
+
 static constexpr int DEFAULT_PACKET_POOL_SIZE = 25;
-static const char *NETIF_NAME = "tn";
-static const TimerTickNotifyFn TIMER_TICK_NOTIFIERS[] = {
+static constexpr const char *NETIF_NAME = "tn";
+static constexpr TimerTickNotifyFn TIMER_TICK_NOTIFIERS[] = {
         tcp_cm_timer_tick,
         udp_cm_timer_tick,
 };
@@ -156,8 +162,9 @@ static err_t netif_init_cb(struct netif *netif) {
     return ERR_OK;
 }
 
+// Return `true` if there may be more to read, `false` if there's definitely no more to read.
 #ifdef __MACH__
-static void process_data_from_utun(TcpipCtx *ctx) {
+static bool process_data_from_utun(TcpipCtx *ctx) {
     VpnPacket packet = ctx->pool->get_packet();
 
     struct UtunHdr hdr;
@@ -170,19 +177,20 @@ static void process_data_from_utun(TcpipCtx *ctx) {
         if (EWOULDBLOCK != errno) {
             errlog(ctx->logger, "data from UTUN: read failed (errno={})", strerror(errno));
         }
-        return;
+        return false;
     }
     if (bytes_read < HDR_SIZE) {
         errlog(ctx->logger, "data from UTUN: read less than header size bytes");
-        return;
+        return true;
     }
 
     tracelog(ctx->logger, "data from UTUN: {} bytes", bytes_read);
     packet.size = bytes_read - HDR_SIZE;
     process_input_packet(ctx, &packet);
+    return true;
 }
 #else  /* __MACH__ */
-static void process_data_from_tun(TcpipCtx *ctx) {
+static bool process_data_from_tun(TcpipCtx *ctx) {
     VpnPacket packet = ctx->pool->get_packet();
 
     ssize_t bytes_read = read(ctx->parameters.tun_fd, packet.data, ctx->parameters.mtu_size);
@@ -190,12 +198,13 @@ static void process_data_from_tun(TcpipCtx *ctx) {
         if (EWOULDBLOCK != errno) {
             errlog(ctx->logger, "data from TUN: read failed (errno={})", strerror(errno));
         }
-        return;
+        return false;
     }
     packet.size = bytes_read;
     tracelog(ctx->logger, "data from TUN: {} bytes", bytes_read);
 
     process_input_packet(ctx, &packet);
+    return true;
 }
 #endif /* else of __MACH__ */
 
@@ -257,11 +266,17 @@ static void tun_event_callback(evutil_socket_t fd, short ev_flag, void *arg) {
             (ev_flag & EV_READ) ? " read" : "", (ev_flag & EV_WRITE) ? " write" : "",
             (ev_flag & EV_SIGNAL) ? " signal" : "");
 
+    for (size_t i = 0; i < TUN_READ_BUDGET; ++i) {
+        bool ret;
 #ifdef __MACH__
-    process_data_from_utun(ctx);
+        ret = process_data_from_utun(ctx);
 #else
-    process_data_from_tun(ctx);
+        ret = process_data_from_tun(ctx);
 #endif
+        if (!ret) {
+            break;
+        }
+    }
 }
 
 static void timer_callback(evutil_socket_t, short, void *arg) {
