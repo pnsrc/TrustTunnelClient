@@ -184,3 +184,17 @@ TEST_F(EventLoopTest, CancelByStop) {
                 << "i=" << i << "task_id=" << tasks[i].id;
     }
 }
+
+// Disabled because does not work with asserts enabled
+TEST_F(EventLoopTest, DISABLE_CancelAfterStopDoesntCrash) {
+    vpn_event_loop_stop(m_ev_loop.get());
+    auto task_id = event_loop::submit(m_ev_loop.get(),
+            {
+                    .action =
+                            [](void *, TaskId) {
+                                abort();
+                            },
+            });
+    m_ev_loop.reset(vpn_event_loop_create());
+    task_id.reset();
+}

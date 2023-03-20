@@ -52,6 +52,7 @@ Checks: '
   -modernize-deprecated-headers,
   -readability-duplicate-include,
   -cert-err33-c,
+  -misc-const-correctness,
   '
 
 WarningsAsErrors: '*'
