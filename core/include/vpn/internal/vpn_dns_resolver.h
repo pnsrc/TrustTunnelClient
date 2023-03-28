@@ -15,6 +15,8 @@
 #include "common/clock.h"
 #include "common/defs.h"
 #include "common/logger.h"
+#include "common/socket_address.h"
+#include "net/dns_manager.h"
 #include "net/dns_utils.h"
 #include "vpn/event_loop.h"
 #include "vpn/internal/client_listener.h"
@@ -72,6 +74,7 @@ public:
     VpnDnsResolver(VpnDnsResolver &&) = delete;
     VpnDnsResolver &operator=(VpnDnsResolver &&) = delete;
 
+    ClientListener::InitResult init(VpnClient *vpn, ClientHandler handler) override;
     void deinit() override;
 
     /**
@@ -101,7 +104,7 @@ public:
      * @param name the domain name contained in the query
      * @return Some ID if found
      */
-    std::optional<VpnDnsResolveId> lookup_resolve_id(uint16_t query_id, std::string_view name) const;
+    [[nodiscard]] std::optional<VpnDnsResolveId> lookup_resolve_id(uint16_t query_id, std::string_view name) const;
 
     /**
      * Stop the specified resolving procedure silently
@@ -158,6 +161,8 @@ private:
     event_loop::AutoTaskId deferred_accept_task;
     event_loop::AutoTaskId deferred_close_task;
     event_loop::AutoTaskId deferred_resolve_task;
+    std::optional<DnsChangeSubscriptionId> m_dns_change_subscription_id;
+    TunnelAddress m_resolver_address;
     uint16_t next_connection_port = 1;
     ag::Logger log{"VPN_DNS_RESOLVER"};
 
@@ -170,7 +175,7 @@ private:
     int process_client_packets(VpnPackets packets) override;
 
     void accept_connection();
-    std::optional<std::pair<uint16_t, std::vector<uint8_t>>> make_request(
+    [[nodiscard]] std::optional<std::pair<uint16_t, std::vector<uint8_t>>> make_request(
             dns_utils::RecordType record_type, std::string_view name) const;
     std::optional<uint16_t> send_request(dns_utils::RecordType record_type, uint64_t conn_id, std::string_view name);
     std::array<std::optional<uint16_t>, 2> send_request(
@@ -182,6 +187,7 @@ private:
 
     static void on_connection_timeout(void *arg, TaskId);
     static void on_periodic_queries_check(void *arg, TaskId);
+    static void on_dns_updated(void *arg, DnsManagerServersKind kind);
 };
 
 } // namespace ag

@@ -14,21 +14,25 @@ using namespace ag;
 
 class VpnDnsResolverTest : public testing::Test {
 public:
-    VpnDnsResolverTest()
-            : vpn(vpn_client::Parameters{this->ev_loop.get()}) {
+    VpnDnsResolverTest() {
         ag::Logger::set_log_level(ag::LOG_LEVEL_TRACE);
     }
 
     DeclPtr<VpnEventLoop, &vpn_event_loop_destroy> ev_loop{vpn_event_loop_create()};
-    VpnClient vpn;
     std::unique_ptr<ClientListener> resolver;
     std::vector<uint64_t> raised_connection_requests;
     std::vector<std::pair<uint64_t, std::vector<uint8_t>>> raised_reads;
     std::optional<std::pair<VpnDnsResolveId, VpnDnsResolverResult>> raised_result;
+    ag::DeclPtr<ag::VpnNetworkManager, &ag::vpn_network_manager_destroy> network_manager{ag::vpn_network_manager_get()};
+    ag::vpn_client::Parameters parameters = {
+            .ev_loop = this->ev_loop.get(),
+            .network_manager = this->network_manager.get(),
+    };
+    std::unique_ptr<ag::VpnClient> vpn = std::make_unique<ag::VpnClient>(this->parameters);
 
     void SetUp() override {
         this->resolver = std::make_unique<VpnDnsResolver>();
-        ASSERT_EQ(ClientListener::InitResult::SUCCESS, this->resolver->init(&this->vpn, {resolver_handler, this}));
+        ASSERT_EQ(ClientListener::InitResult::SUCCESS, this->resolver->init(this->vpn.get(), {resolver_handler, this}));
     }
 
     static void resolver_handler(void *arg, ClientEvent what, void *data) {
@@ -287,7 +291,7 @@ TEST_F(VpnDnsResolverTest, QueryTimeout) {
 }
 
 TEST_F(VpnDnsResolverTest, ConnectionTimeout) {
-    this->vpn.upstream_config.timeout = Millis{1};
+    this->vpn->upstream_config.timeout = Millis{1};
 
     ((VpnDnsResolver *) this->resolver.get())
             ->resolve(VDRQ_BACKGROUND, "example.org", 1 << dns_utils::RT_A, {result_handler, this});

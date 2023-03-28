@@ -20,7 +20,7 @@ enum ClientEvent {
     CLIENT_EVENT_READ,      /**< Called when some data needs to be sent via connection (raised with `ClientRead`) */
     CLIENT_EVENT_DATA_SENT, /**< Called when some data was sent to client (raised with `ClientDataSentEvent`) */
     CLIENT_EVENT_OUTPUT, /**< Called when some data from server is ready to be sent to client application (raised with
-                            `ClientOutputEvent`) */
+                            `VpnClientOutputEvent`) */
     CLIENT_EVENT_ICMP_ECHO_REQUEST, /**< Called when ICMP echo request is received (raised with
                                        `icmp_echo_request_event_t`) */
 };
@@ -60,12 +60,6 @@ struct ClientRead {
 struct ClientDataSentEvent {
     uint64_t id;   /**< connection identifier */
     size_t length; /**< sent bytes number (if 0, then connection polls for send resuming) */
-};
-
-struct ClientOutputEvent {
-    int family;              // ip family
-    size_t iovlen;           // message vector size
-    const struct iovec *iov; // message vector
 };
 
 struct ClientHandler {

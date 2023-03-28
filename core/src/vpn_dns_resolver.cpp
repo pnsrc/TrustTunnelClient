@@ -14,7 +14,8 @@ namespace ag {
 
 static const sockaddr_storage CUSTOM_SRC_IP = sockaddr_from_str("127.0.0.11");
 static constexpr std::string_view CUSTOM_APP_NAME = "__vpn_dns_resolver__";
-static const TunnelAddress RESOLVER_ADDRESS = sockaddr_from_str(AG_FMT("{}:53", AG_UNFILTERED_DNS_IPS_V4[0]).c_str());
+static const TunnelAddress FALLBACK_RESOLVER_ADDRESS =
+        sockaddr_from_str(AG_FMT("{}:53", AG_UNFILTERED_DNS_IPS_V4[0]).c_str());
 static constexpr size_t RESOLVE_CAPACITIES[magic_enum::enum_count<VpnDnsResolverQueue>()] = {
         /** VDRQ_BACKGROUND */ VpnDnsResolver::MAX_PARALLEL_BACKGROUND_RESOLVES,
         /** VDRQ_FOREGROUND */ std::numeric_limits<size_t>::max(),
@@ -124,7 +125,32 @@ void VpnDnsResolver::stop_resolving() {
     this->deinit();
 }
 
+ClientListener::InitResult VpnDnsResolver::init(VpnClient *vpn, ClientHandler handler) {
+    if (ClientListener::InitResult x = ClientListener::init(vpn, handler); x != ClientListener::InitResult::SUCCESS) {
+        return x;
+    }
+
+    for (DnsManagerServersKind kind : magic_enum::enum_values<DnsManagerServersKind>()) {
+        on_dns_updated(this, kind);
+    }
+
+    m_dns_change_subscription_id = dns_manager_subscribe_servers_change(
+            vpn->parameters.network_manager->dns, vpn->parameters.ev_loop, on_dns_updated, this);
+    if (!m_dns_change_subscription_id.has_value()) {
+        log_resolver(this, warn, "Failed to subscribe to DNS servers updates");
+        this->deinit();
+        return ClientListener::InitResult::FAILURE;
+    }
+
+    return ClientListener::InitResult::SUCCESS;
+}
+
 void VpnDnsResolver::deinit() {
+    if (std::optional dns_change_id = std::exchange(m_dns_change_subscription_id, std::nullopt);
+            dns_change_id.has_value()) {
+        dns_manager_unsubscribe_servers_change(this->vpn->parameters.network_manager->dns, dns_change_id.value());
+    }
+
     this->queues = {};
     this->state = ResolveState{};
     this->deferred_accept_task.reset();
@@ -352,7 +378,7 @@ void VpnDnsResolver::resolve_pending_domains() {
                 this->state.connection_id,
                 IPPROTO_UDP,
                 (sockaddr *) &src,
-                &RESOLVER_ADDRESS,
+                &m_resolver_address,
                 CUSTOM_APP_NAME,
         };
         this->handler.func(this->handler.arg, CLIENT_EVENT_CONNECT_REQUEST, &event);
@@ -471,6 +497,62 @@ void VpnDnsResolver::on_periodic_queries_check(void *arg, TaskId) {
 
     self->state.deadlines.erase(self->state.deadlines.begin(), first_nonexpired);
     self->resolve_pending_domains();
+}
+
+void VpnDnsResolver::on_dns_updated(void *arg, DnsManagerServersKind kind) {
+    auto *self = (VpnDnsResolver *) arg;
+
+    static constexpr auto server_address_from_str = [](std::string_view str) {
+        auto [host, port] = utils::split_host_port(str).value();
+        return sockaddr_to_storage(
+                SocketAddress(host, utils::to_integer<uint16_t>(port).value_or(dns_utils::PLAIN_DNS_PORT_NUMBER))
+                        .c_sockaddr());
+    };
+
+    switch (kind) {
+    case DMSK_SYSTEM: {
+        self->m_resolver_address = std::monostate{};
+
+        SystemDnsServers servers = dns_manager_get_system_servers(self->vpn->parameters.network_manager->dns);
+        for (const SystemDnsServer &x : servers.main) {
+            sockaddr_storage address = server_address_from_str(x.address);
+            if (address.ss_family == AF_UNSPEC || (!self->m_ipv6_available && address.ss_family == AF_INET6)) {
+                continue;
+            }
+
+            self->m_resolver_address = address;
+            log_resolver(self, dbg, "Chosen resolver from main system servers: {}",
+                    tunnel_addr_to_str(&self->m_resolver_address));
+            break;
+        }
+
+        if (!std::holds_alternative<std::monostate>(self->m_resolver_address)) {
+            break;
+        }
+
+        for (std::string_view x : servers.fallback) {
+            sockaddr_storage address = server_address_from_str(x);
+            if (address.ss_family == AF_UNSPEC || (!self->m_ipv6_available && address.ss_family == AF_INET6)) {
+                continue;
+            }
+
+            self->m_resolver_address = address;
+            log_resolver(self, dbg, "Chosen resolver from fallback system servers: {}",
+                    tunnel_addr_to_str(&self->m_resolver_address));
+            break;
+        }
+
+        if (std::holds_alternative<std::monostate>(self->m_resolver_address)) {
+            self->m_resolver_address = FALLBACK_RESOLVER_ADDRESS;
+            log_resolver(self, dbg, "Couldn't choose resolver from system servers, using fallback: {}",
+                    tunnel_addr_to_str(&self->m_resolver_address));
+        }
+
+        break;
+    }
+    case DMSK_TUN_INTERFACE:
+        break;
+    }
 }
 
 } // namespace ag
