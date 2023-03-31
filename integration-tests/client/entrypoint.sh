@@ -26,15 +26,27 @@ COMMON_CONFIG=$(
     "killswitch_enabled": true,
     "vpn_mode": "general",
     "loglevel": "trace",
+    "exclusions": [
+      "example.org",
+      "cloudflare-dns.com"
+    ],
 END
 )
 
-DNS_IP=$(grep nameserver /etc/resolv.conf | awk '{print $2}')
+for ip in $(grep nameserver /etc/resolv.conf | awk '{print $2}'); do
+  iptables -I OUTPUT -o eth0 -d "$ip" -j ACCEPT || true
+  ip6tables -I OUTPUT -o eth0 -d "$ip" -j ACCEPT || true
+done
+
+# for test exclusions
+iptables -I OUTPUT -o eth0 -d "1.1.1.1" -j ACCEPT
+iptables -I OUTPUT -o eth0 -d "example.org" -j ACCEPT
 
 iptables -I OUTPUT -o eth0 -d "$ENDPOINT_IP" -j ACCEPT
-iptables -I OUTPUT -o eth0 -d "$DNS_IP" -j ACCEPT
-ip6tables -I OUTPUT -o eth0 -d "$ENDPOINT_IPV6" -j ACCEPT
 iptables -A OUTPUT -o eth0 -j DROP
+
+ip6tables -I OUTPUT -o eth0 -d "$ENDPOINT_IPV6" -j ACCEPT
+ip6tables -A OUTPUT -o eth0 -j DROP
 
 if [[ "$MODE" == "tun" ]]; then
   {
@@ -53,7 +65,8 @@ if [[ "$MODE" == "tun" ]]; then
             \"0.0.0.0/0\",
             \"2000::/3\"
         ],
-        \"mtu_size\": 1500
+        \"mtu_size\": 1500,
+        \"bound_if\": \"eth0\"
     }"
     echo "}"
   } >>standalone_client.conf

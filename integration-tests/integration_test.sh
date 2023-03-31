@@ -18,7 +18,6 @@ ENDPOINT_HOSTNAME="endpoint.test"
 ENDPOINT_IP=""
 ENDPOINT_IPV6=""
 
-NETWORK_NAME="test-network"
 MODE="tun"
 SOCKS_PORT="7777"
 
@@ -70,6 +69,8 @@ run_client_tun() {
     --cap-add=SYS_MODULE \
     --device=/dev/net/tun \
     --add-host="$ENDPOINT_HOSTNAME":"$ENDPOINT_IP" \
+    --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+    --sysctl net.ipv6.conf.default.disable_ipv6=0 \
     "$CLIENT_IMAGE" \
     "$ENDPOINT_HOSTNAME" "$ENDPOINT_IP" "$ENDPOINT_IPV6" "$PROTOCOL" "$MODE")
   echo "Client container run: $CLIENT_CONTAINER"
@@ -90,6 +91,7 @@ run_endpoint() {
   ENDPOINT_CONTAINER=$(docker run -d --rm \
     --cap-add=NET_ADMIN \
     --cap-add=SYS_MODULE \
+    -v $HOME/.cargo:/root/.cargo \
     "$ENDPOINT_IMAGE")
   ENDPOINT_IP=("$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$ENDPOINT_CONTAINER")")
   ENDPOINT_IPV6=("$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.GlobalIPv6Address}}{{end}}' "$ENDPOINT_CONTAINER")")
@@ -127,7 +129,7 @@ run_socks_test() {
   for protocol in http2 http3; do
     run_endpoint
     run_client_socks $protocol
-    docker exec -w /test "$CLIENT_CONTAINER" ./socks_tests.sh "$SOCKS_PORT" || RESULT=1
+    docker exec -w /test "$CLIENT_CONTAINER" ./socks_tests.sh "$ENDPOINT_IP" "$SOCKS_PORT" || RESULT=1
     stop_containers
   done
   exit "$RESULT"

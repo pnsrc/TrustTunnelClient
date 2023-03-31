@@ -7,6 +7,8 @@ ARG CONFIG_FILE="vpn.conf"
 ARG TLS_HOSTS_SETTINGS_FILE="tls_hosts.conf"
 ARG LOG_LEVEL="info"
 
+VOLUME ${HOME}/.cargo:/root/.cargo
+
 RUN apt install -y openssl
 
 COPY $ENDPOINT_DIR /test/$ENDPOINT_DIR
