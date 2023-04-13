@@ -59,11 +59,23 @@ Run integration test:
 
             set -x -e
 
+            pushd logs
+            gzip -f vpn_tun_http2.log
+            gzip -f vpn_tun_http3.log
+            gzip -f vpn_socks_http2.log
+            gzip -f vpn_socks_http3.log
+            popd
+
             ./integration_test.sh clean
         description: Cleanup
         working-dir: test
   requirements:
     - adg-privileged-docker
+  artifacts:
+    - name: Vpn-Libs Log
+      location: test/logs
+      pattern: '*.gz'
+      shared: false
   artifact-subscriptions: [ ]
 Run live test:
   key: JOB2

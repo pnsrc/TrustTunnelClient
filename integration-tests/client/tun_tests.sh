@@ -45,43 +45,43 @@ curl 1.1.1.1 >/dev/null
 check_error
 
 echo "HTTP request -> http://1.1.1.1..."
-curl http://1.1.1.1 >/dev/null
+curl -sS http://1.1.1.1 >/dev/null
 check_error
 
 echo "HTTP request to exclusion -> example.org,  ipv4..."
 timeout 10 tcpdump -i eth0 host example.org -c 1 > tcp.log &
 TCPDUMP_PID=$!
-curl example.org -4 --max-time 10 >/dev/null
+curl -sS example.org -4 --max-time 10 >/dev/null
 check_error
 check_dump $TCPDUMP_PID
 
 # The case when we get a domain name from server hello.
 # The first request should be terminated, and an exclusion is applied when the request is repeated
 echo "HTTPS request to exclusion -> https://1.1.1.1 (cloudflare-dns.com)..."
-curl https://1.1.1.1 --tlsv1.2 --tls-max 1.2 --max-time 10 >/dev/null
+curl -sS https://1.1.1.1 --tlsv1.2 --tls-max 1.2 --max-time 10 >/dev/null
 expected_error $CURL_SSL_CONNECT_ERRCODE
 
 echo "HTTPS request to exclusion -> https://1.1.1.1 (cloudflare-dns.com)... (directly)"
 timeout 10 tcpdump -i eth0 host 1.1.1.1 -c 1 > tcp.log &
 TCPDUMP_PID=$!
-curl https://1.1.1.1 --tlsv1.2 --tls-max 1.2 --max-time 10 >/dev/null
+curl -sS https://1.1.1.1 --tlsv1.2 --tls-max 1.2 --max-time 10 >/dev/null
 check_error
 check_dump $TCPDUMP_PID
 
 echo "HTTPS request -> https://www.cloudflare.com, ipv4..."
-curl https://www.cloudflare.com -4 >/dev/null
+curl -sS https://www.cloudflare.com -4 >/dev/null
 check_error
 
 echo "HTTP request -> ipv6.google.com, ipv6..."
-curl -6 http://ipv6.google.com >/dev/null
+curl -6 -sS http://ipv6.google.com >/dev/null
 check_error
 
 echo "HTTPS request -> ipv6.google.com, ipv6..."
-curl -6 https://ipv6.google.com >/dev/null
+curl -6 -sS https://ipv6.google.com >/dev/null
 check_error
 
 echo "Download 100MB file..."
-curl -O https://speed.hetzner.de/100MB.bin >/dev/null
+curl -O -sS https://speed.hetzner.de/100MB.bin >/dev/null
 check_error
 
 echo "Check ICMP - ping 1.1.1.1 ..."

@@ -20,6 +20,7 @@ ENDPOINT_IPV6=""
 
 MODE="tun"
 SOCKS_PORT="7777"
+LOG_FILE_NAME="vpn.log"
 
 ENDPOINT_CONTAINER=""
 CLIENT_CONTAINER=""
@@ -64,7 +65,9 @@ build_all() {
 
 run_client_tun() {
   PROTOCOL=$1
+  LOG_FILE_NAME="vpn_tun_$PROTOCOL.log"
   CLIENT_CONTAINER=$(docker run -d --rm \
+    -v $SELF_DIR_PATH/logs:/output \
     --cap-add=NET_ADMIN \
     --cap-add=SYS_MODULE \
     --device=/dev/net/tun \
@@ -72,18 +75,20 @@ run_client_tun() {
     --sysctl net.ipv6.conf.all.disable_ipv6=0 \
     --sysctl net.ipv6.conf.default.disable_ipv6=0 \
     "$CLIENT_IMAGE" \
-    "$ENDPOINT_HOSTNAME" "$ENDPOINT_IP" "$ENDPOINT_IPV6" "$PROTOCOL" "$MODE")
+    "$ENDPOINT_HOSTNAME" "$ENDPOINT_IP" "$ENDPOINT_IPV6" "$PROTOCOL" "$MODE" "$LOG_FILE_NAME")
   echo "Client container run: $CLIENT_CONTAINER"
 }
 
 run_client_socks() {
   PROTOCOL=$1
+  LOG_FILE_NAME="vpn_socks_$PROTOCOL.log"
   CLIENT_CONTAINER=$(docker run -d --rm \
+    -v $SELF_DIR_PATH/logs:/output \
     --cap-add=NET_ADMIN \
     --cap-add=SYS_MODULE \
     --add-host="$ENDPOINT_HOSTNAME":"$ENDPOINT_IP" \
     "$CLIENT_IMAGE" \
-    "$ENDPOINT_HOSTNAME" "$ENDPOINT_IP" "$ENDPOINT_IPV6" "$PROTOCOL" "$MODE" "$SOCKS_PORT")
+    "$ENDPOINT_HOSTNAME" "$ENDPOINT_IP" "$ENDPOINT_IPV6" "$PROTOCOL" "$MODE" "$LOG_FILE_NAME" "$SOCKS_PORT")
   echo "Client container run: $CLIENT_CONTAINER"
 }
 
@@ -118,6 +123,7 @@ run_tun_test() {
     run_client_tun $protocol
     docker exec -w /test "$ENDPOINT_CONTAINER" iperf3 --server &
     docker exec -w /test "$CLIENT_CONTAINER" ./tun_tests.sh "$ENDPOINT_IP" || RESULT=1
+    docker exec "$CLIENT_CONTAINER" chmod -R 777 /output/
     stop_containers
   done
   exit "$RESULT"
@@ -130,6 +136,7 @@ run_socks_test() {
     run_endpoint
     run_client_socks $protocol
     docker exec -w /test "$CLIENT_CONTAINER" ./socks_tests.sh "$ENDPOINT_IP" "$SOCKS_PORT" || RESULT=1
+    docker exec "$CLIENT_CONTAINER" chmod -R 777 /output/
     stop_containers
   done
   exit "$RESULT"

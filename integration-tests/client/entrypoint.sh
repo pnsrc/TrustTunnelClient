@@ -7,8 +7,9 @@ ENDPOINT_IP="$2"
 ENDPOINT_IPV6="$3"
 PROTOCOL="$4"
 MODE="$5"
+LOG_FILE_NAME="$6"
 if [[ "$MODE" == "socks" ]]; then
-  SOCKS_PORT="$6"
+  SOCKS_PORT="$7"
 fi
 
 COMMON_CONFIG=$(
@@ -70,7 +71,7 @@ if [[ "$MODE" == "tun" ]]; then
     }"
     echo "}"
   } >>standalone_client.conf
-  ./standalone_client >> /tmp/vpn.log 2>&1
+  ./standalone_client >> /output/$LOG_FILE_NAME 2>&1
 else
     {
       echo "{"
@@ -84,5 +85,5 @@ else
     }"
       echo "}"
     } >>"standalone_client.conf"
-    ./standalone_client >> /tmp/vpn.log 2>&1
+    ./standalone_client >> /output/$LOG_FILE_NAME 2>&1
 fi
