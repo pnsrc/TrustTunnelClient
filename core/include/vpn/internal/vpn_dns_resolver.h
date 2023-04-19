@@ -187,7 +187,7 @@ private:
 
     static void on_connection_timeout(void *arg, TaskId);
     static void on_periodic_queries_check(void *arg, TaskId);
-    static void on_dns_updated(void *arg, DnsManagerServersKind kind);
+    static void on_dns_updated(void *arg);
 };
 
 } // namespace ag

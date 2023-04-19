@@ -12,20 +12,7 @@ namespace ag {
 struct DnsManager;
 using DnsChangeSubscriptionId = uint32_t;
 
-enum DnsManagerServersKind {
-    /**
-     * The original system DNS servers
-     */
-    DMSK_SYSTEM,
-    /**
-     * The servers set to the virtual TUN interface set up by an application.
-     * Needed to distinct the DNS queries routed to the default peer from the queries
-     * routed to arbitrary ones.
-     */
-    DMSK_TUN_INTERFACE,
-};
-
-using DnsChangeNotification = void (*)(void *arg, DnsManagerServersKind);
+using DnsChangeNotification = void (*)(void *arg);
 
 /**
  * Create a DNS manager
@@ -45,21 +32,9 @@ void dns_manager_destroy(DnsManager *manager);
 bool dns_manager_set_system_servers(DnsManager *manager, SystemDnsServers servers);
 
 /**
- * Set DNS servers set to tunnel interface
- * @param servers the servers
- * @return true if set successfully, false otherwise
- */
-bool dns_manager_set_tunnel_interface_servers(DnsManager *manager, std::vector<std::string> servers);
-
-/**
  * Get the system DNS servers used by the manager
  */
 SystemDnsServers dns_manager_get_system_servers(const DnsManager *manager);
-
-/**
- * Get the tunnel interface DNS servers used by the manager
- */
-std::vector<std::string> dns_manager_get_tunnel_interface_servers(const DnsManager *manager);
 
 /**
  * Subscribe to DNS servers change event.

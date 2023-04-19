@@ -182,6 +182,12 @@ public:
     }
 
     void SetUp() override {
+        vpn_network_manager_update_system_dns({
+                .main = {SystemDnsServer{
+                        .address = "127.0.0.53",
+                }},
+        });
+
         vpn.parameters.handler = {&vpn_handler, this};
         vpn.parameters.network_manager = network_manager.get();
 
@@ -332,9 +338,10 @@ TEST_F(AppInitiatedDnsRouting, MatchingDomain) {
     uint64_t upstream_id = bypass_upstream->connections.back();
     tun.upstream_handler(bypass_upstream, SERVER_EVENT_CONNECTION_OPENED, &upstream_id);
 
-    ASSERT_EQ(bypass_upstream->last_destination, dst)
-            << "Last destination: " << tunnel_addr_to_str(&bypass_upstream->last_destination) << std::endl
-            << "Expected: " << tunnel_addr_to_str(&dst);
+    const auto *last_destination = std::get_if<sockaddr_storage>(&bypass_upstream->last_destination);
+    ASSERT_NE(last_destination, nullptr);
+    ASSERT_TRUE(sockaddr_is_loopback((sockaddr *) last_destination))
+            << "Last destination: " << tunnel_addr_to_str(&bypass_upstream->last_destination) << std::endl;
 }
 
 TEST_F(AppInitiatedDnsRouting, NonMatchingDomain) {

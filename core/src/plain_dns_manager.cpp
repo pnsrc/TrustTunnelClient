@@ -213,9 +213,7 @@ bool ag::PlainDnsManager::init(VpnClient *vpn, ClientHandler upstream_side_handl
             .dns_resolver = dns_resolver,
     });
 
-    for (DnsManagerServersKind kind : magic_enum::enum_values<DnsManagerServersKind>()) {
-        on_dns_updated(this, kind);
-    }
+    on_dns_updated(this);
 
     if (!m_system_dns_servers.empty() && m_system_dns_proxy == nullptr) {
         this->deinit();
@@ -254,7 +252,6 @@ void ag::PlainDnsManager::deinit() {
     }
 
     m_system_dns_servers.clear();
-    m_tun_interface_dns_servers.clear();
 }
 
 bool ag::PlainDnsManager::open_session(std::optional<Millis>) {
@@ -598,7 +595,7 @@ void ag::PlainDnsManager::on_async_task(void *arg, TaskId) {
     log_manager(self, trace, "Done");
 }
 
-void ag::PlainDnsManager::on_dns_updated(void *arg, DnsManagerServersKind kind) {
+void ag::PlainDnsManager::on_dns_updated(void *arg) {
     auto *self = (PlainDnsManager *) arg;
 
     static constexpr auto server_address_from_str = [](std::string_view str) {
@@ -609,52 +606,34 @@ void ag::PlainDnsManager::on_dns_updated(void *arg, DnsManagerServersKind kind) 
                         .c_sockaddr());
     };
 
-    switch (kind) {
-    case DMSK_SYSTEM: {
-        SystemDnsServers servers =
-                dns_manager_get_system_servers(self->ag::ServerUpstream::vpn->parameters.network_manager->dns);
-        self->m_system_dns_servers.clear();
-        self->m_system_dns_servers.reserve(servers.main.size() + servers.fallback.size());
-        std::transform(servers.main.begin(), servers.main.end(),
-                std::inserter(self->m_system_dns_servers, self->m_system_dns_servers.begin()), [](SystemDnsServer &s) {
-                    if (s.resolved_host.has_value()) {
-                        return sockaddr_to_storage(s.resolved_host->c_sockaddr());
-                    }
-                    return server_address_from_str(s.address);
-                });
-        std::transform(servers.fallback.begin(), servers.fallback.end(),
-                std::inserter(self->m_system_dns_servers, self->m_system_dns_servers.begin()),
-                [](const std::string &s) {
-                    return server_address_from_str(s);
-                });
-        for (sockaddr_storage &a : self->m_system_dns_servers) {
-            if (0 == sockaddr_get_port((sockaddr *) &a)) {
-                sockaddr_set_port((sockaddr *) &a, dns_utils::PLAIN_DNS_PORT_NUMBER);
-            }
+    SystemDnsServers servers =
+            dns_manager_get_system_servers(self->ag::ServerUpstream::vpn->parameters.network_manager->dns);
+    self->m_system_dns_servers.clear();
+    self->m_system_dns_servers.reserve(servers.main.size() + servers.fallback.size());
+    std::transform(servers.main.begin(), servers.main.end(),
+            std::inserter(self->m_system_dns_servers, self->m_system_dns_servers.begin()), [](SystemDnsServer &s) {
+                if (s.resolved_host.has_value()) {
+                    return sockaddr_to_storage(s.resolved_host->c_sockaddr());
+                }
+                return server_address_from_str(s.address);
+            });
+    std::transform(servers.fallback.begin(), servers.fallback.end(),
+            std::inserter(self->m_system_dns_servers, self->m_system_dns_servers.begin()), [](const std::string &s) {
+                return server_address_from_str(s);
+            });
+    for (sockaddr_storage &a : self->m_system_dns_servers) {
+        if (0 == sockaddr_get_port((sockaddr *) &a)) {
+            sockaddr_set_port((sockaddr *) &a, dns_utils::PLAIN_DNS_PORT_NUMBER);
         }
-
-        if (self->m_system_dns_proxy != nullptr) {
-            self->m_system_dns_proxy->stop();
-            self->m_system_dns_proxy.reset();
-        }
-
-        if (!self->start_dns_proxy(std::move(servers))) {
-            log_manager(self, err, "Failed to start DNS proxy");
-        }
-        break;
     }
-    case DMSK_TUN_INTERFACE: {
-        std::vector<std::string> servers = dns_manager_get_tunnel_interface_servers(
-                self->ag::ServerUpstream::vpn->parameters.network_manager->dns);
-        self->m_tun_interface_dns_servers.clear();
-        self->m_tun_interface_dns_servers.reserve(servers.size());
-        std::transform(servers.begin(), servers.end(),
-                std::inserter(self->m_tun_interface_dns_servers, self->m_tun_interface_dns_servers.begin()),
-                [](const std::string &s) {
-                    return server_address_from_str(s);
-                });
-        break;
+
+    if (self->m_system_dns_proxy != nullptr) {
+        self->m_system_dns_proxy->stop();
+        self->m_system_dns_proxy.reset();
     }
+
+    if (!self->start_dns_proxy(std::move(servers))) {
+        log_manager(self, err, "Failed to start DNS proxy");
     }
 }
 
@@ -896,15 +875,12 @@ std::optional<sockaddr_storage> ag::PlainDnsManager::get_redirect_address(uint64
         });
     };
 
-    if (routed_directly && m_system_dns_proxy != nullptr
-            && contains_address(m_tun_interface_dns_servers, (sockaddr *) dst)) {
+    if (routed_directly && m_system_dns_proxy != nullptr) {
         log_cs_conn(this, cs_conn_id, dbg, "Redirecting query targeted default server to system DNS proxy");
         return m_system_dns_proxy->get_listen_address(cs_conn.protocol);
     }
 
-    if (!routed_directly
-            && (contains_address(m_system_dns_servers, (sockaddr *) dst)
-                    || contains_address(m_tun_interface_dns_servers, (sockaddr *) dst))) {
+    if (!routed_directly && contains_address(m_system_dns_servers, (sockaddr *) dst)) {
         log_cs_conn(this, cs_conn_id, dbg, "Redirecting query routed through VPN endpoint to public DNS resolver");
 
         constexpr auto make_redirect_addr = [](const char *str) {

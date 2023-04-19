@@ -1,5 +1,7 @@
 # CHANGELOG
 
+* Removed `vpn_network_manager_update_tun_interface_dns()` as redundant.
+
 ## 0.92.23
 
 * The library now accepts a list of DNS upstreams instead of a single one.

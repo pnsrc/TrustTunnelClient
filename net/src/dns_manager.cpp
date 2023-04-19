@@ -5,8 +5,6 @@
 #include <set>
 #include <unordered_map>
 
-#include <magic_enum.hpp>
-
 #include "common/logger.h"
 #include "net/dns_manager.h"
 
@@ -33,19 +31,15 @@ static constexpr std::string_view EXTRA_FALLBACK_SYSTEM_DNS[] = {
 };
 
 struct DnsChangeSubscription {
-    using PendingNotifications = std::bitset<magic_enum::enum_count<DnsManagerServersKind>()>;
-
     VpnEventLoop *event_loop = nullptr;
     DnsChangeNotification notification = nullptr;
     void *notification_arg = nullptr;
     event_loop::AutoTaskId notification_task;
-    PendingNotifications pending_notifications;
 };
 
 struct DnsManager {
     mutable std::mutex mutex;
     SystemDnsServers system_servers;
-    std::set<std::string> tun_interface_servers;
     DnsChangeSubscriptionId next_dns_change_subscription_id = 0;
     std::unordered_map<DnsChangeSubscriptionId, DnsChangeSubscription> dns_change_subscriptions;
 };
@@ -59,14 +53,13 @@ void dns_manager_destroy(DnsManager *manager) {
     delete manager;
 }
 
-static void engage_notifications(DnsManager *self, DnsManagerServersKind kind) {
+static void engage_notifications(DnsManager *self) {
     struct NotificationTaskContext {
         DnsManager *self;
         DnsChangeSubscriptionId subscription_id;
     };
 
     for (auto &[subscription_id, subscription] : self->dns_change_subscriptions) {
-        subscription.pending_notifications.set(kind);
         if (subscription.notification_task.has_value()) {
             continue;
         }
@@ -84,7 +77,6 @@ static void engage_notifications(DnsManager *self, DnsManagerServersKind kind) {
                                     auto *ctx = (NotificationTaskContext *) arg;
                                     DnsChangeNotification notification = nullptr;
                                     void *notification_arg = nullptr;
-                                    DnsChangeSubscription::PendingNotifications pending_notifications;
 
                                     {
                                         std::unique_lock l(ctx->self->mutex);
@@ -93,18 +85,11 @@ static void engage_notifications(DnsManager *self, DnsManagerServersKind kind) {
                                             iter->second.notification_task.release();
                                             notification = iter->second.notification;
                                             notification_arg = iter->second.notification_arg;
-                                            pending_notifications = iter->second.pending_notifications;
-                                            iter->second.pending_notifications.reset();
                                         }
                                     }
 
                                     if (notification != nullptr) {
-                                        for (DnsManagerServersKind kind :
-                                                magic_enum::enum_values<DnsManagerServersKind>()) {
-                                            if (pending_notifications.test(kind)) {
-                                                notification(notification_arg, kind);
-                                            }
-                                        }
+                                        notification(notification_arg);
                                     }
                                 },
                         .finalize =
@@ -115,26 +100,7 @@ static void engage_notifications(DnsManager *self, DnsManagerServersKind kind) {
     }
 }
 
-static SystemDnsServers filter_out_tun_interface_servers(
-        SystemDnsServers servers, const std::set<std::string> &tun_interface_servers) {
-    std::erase_if(servers.main, [&](const SystemDnsServer &s) {
-        return tun_interface_servers.contains(s.address)
-                || (s.resolved_host.has_value() && tun_interface_servers.contains(s.resolved_host->str()));
-    });
-    std::erase_if(servers.fallback, [&](const std::string &s) {
-        return tun_interface_servers.contains(s);
-    });
-    return servers;
-}
-
-struct PrepareResult {
-    SystemDnsServers servers;
-    bool changed = false;
-};
-
-static PrepareResult prepare_system_servers(const DnsManager *self, SystemDnsServers servers) {
-    servers = filter_out_tun_interface_servers(std::move(servers), self->tun_interface_servers);
-
+static SystemDnsServers prepare_system_servers(SystemDnsServers servers) {
     std::set<std::string> filtered_servers;
     std::transform(servers.main.begin(), servers.main.end(), std::inserter(filtered_servers, filtered_servers.begin()),
             [](const SystemDnsServer &s) {
@@ -164,45 +130,20 @@ static PrepareResult prepare_system_servers(const DnsManager *self, SystemDnsSer
                 servers.fallback.end(), std::begin(EXTRA_FALLBACK_SYSTEM_DNS), std::end(EXTRA_FALLBACK_SYSTEM_DNS));
     }
 
-    return {
-            .servers = std::move(servers),
-            .changed = add_extra_fallbacks,
-    };
+    return servers;
 }
 
 bool dns_manager_set_system_servers(DnsManager *self, SystemDnsServers servers) {
     std::unique_lock l(self->mutex);
     dbglog(logger, "{}", servers);
-    self->system_servers = std::move(prepare_system_servers(self, servers).servers);
-    engage_notifications(self, DMSK_SYSTEM);
-    return true;
-}
-
-bool dns_manager_set_tunnel_interface_servers(DnsManager *self, std::vector<std::string> servers) {
-    std::unique_lock l(self->mutex);
-
-    dbglog(logger, "{}", servers);
-
-    self->tun_interface_servers = {std::make_move_iterator(servers.begin()), std::make_move_iterator(servers.end())};
-    engage_notifications(self, DMSK_TUN_INTERFACE);
-
-    auto [system_servers, changed] = prepare_system_servers(self, std::move(self->system_servers));
-    self->system_servers = std::move(system_servers);
-    if (changed) {
-        engage_notifications(self, DMSK_SYSTEM);
-    }
-
+    self->system_servers = prepare_system_servers(std::move(servers));
+    engage_notifications(self);
     return true;
 }
 
 SystemDnsServers dns_manager_get_system_servers(const DnsManager *self) {
     std::unique_lock l(self->mutex);
     return self->system_servers;
-}
-
-std::vector<std::string> dns_manager_get_tunnel_interface_servers(const DnsManager *self) {
-    std::unique_lock l(self->mutex);
-    return {self->tun_interface_servers.begin(), self->tun_interface_servers.end()};
 }
 
 DnsChangeSubscriptionId dns_manager_subscribe_servers_change(

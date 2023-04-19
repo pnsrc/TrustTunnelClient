@@ -127,7 +127,6 @@ private:
     std::optional<DnsChangeSubscriptionId> m_dns_change_subscription_id;
     std::unique_ptr<DnsProxyAccessor> m_system_dns_proxy;
     std::vector<sockaddr_storage> m_system_dns_servers;
-    std::vector<sockaddr_storage> m_tun_interface_dns_servers;
     Logger m_log{"PLAIN_DNS_MANAGER"};
 
     bool init(VpnClient *vpn, ServerHandler handler) override;
@@ -149,7 +148,7 @@ private:
     void turn_read(uint64_t id, bool on) override;
 
     static void on_async_task(void *arg, TaskId);
-    static void on_dns_updated(void *arg, DnsManagerServersKind);
+    static void on_dns_updated(void *arg);
     void complete_read(uint64_t id);
     void close_connection_sync(uint64_t id, ClientSideConnection &conn, bool closed_by_opposite);
     void close_connection_sync(uint64_t id, UpstreamSideConnection &conn, bool closed_by_opposite);

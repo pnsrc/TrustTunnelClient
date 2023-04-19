@@ -44,15 +44,6 @@ bool vpn_network_manager_update_system_dns(SystemDnsServers servers) {
     return dns_manager_set_system_servers(g_network_manager_holder.manager.dns, std::move(servers));
 }
 
-bool vpn_network_manager_update_tun_interface_dns(VpnDnsServers servers) {
-    // not using reserve as it leads to false-positive container-overflow error with apple asan
-    std::vector<std::string> v(servers.size);
-    for (size_t i = 0; i < servers.size; ++i) {
-        v[i] = servers.data[i];
-    }
-    return dns_manager_set_tunnel_interface_servers(g_network_manager_holder.manager.dns, std::move(v));
-}
-
 void vpn_network_manager_notify_app_request_domain(const char *domain, int timeout_ms) {
     std::scoped_lock l(g_network_manager_holder.guard);
     if (timeout_ms >= 0) {

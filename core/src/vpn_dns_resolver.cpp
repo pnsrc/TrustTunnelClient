@@ -130,9 +130,7 @@ ClientListener::InitResult VpnDnsResolver::init(VpnClient *vpn, ClientHandler ha
         return x;
     }
 
-    for (DnsManagerServersKind kind : magic_enum::enum_values<DnsManagerServersKind>()) {
-        on_dns_updated(this, kind);
-    }
+    on_dns_updated(this);
 
     m_dns_change_subscription_id = dns_manager_subscribe_servers_change(
             vpn->parameters.network_manager->dns, vpn->parameters.ev_loop, on_dns_updated, this);
@@ -499,7 +497,7 @@ void VpnDnsResolver::on_periodic_queries_check(void *arg, TaskId) {
     self->resolve_pending_domains();
 }
 
-void VpnDnsResolver::on_dns_updated(void *arg, DnsManagerServersKind kind) {
+void VpnDnsResolver::on_dns_updated(void *arg) {
     auto *self = (VpnDnsResolver *) arg;
 
     static constexpr auto server_address_from_str = [](std::string_view str) {
@@ -509,49 +507,40 @@ void VpnDnsResolver::on_dns_updated(void *arg, DnsManagerServersKind kind) {
                         .c_sockaddr());
     };
 
-    switch (kind) {
-    case DMSK_SYSTEM: {
-        self->m_resolver_address = std::monostate{};
+    self->m_resolver_address = std::monostate{};
 
-        SystemDnsServers servers = dns_manager_get_system_servers(self->vpn->parameters.network_manager->dns);
-        for (const SystemDnsServer &x : servers.main) {
-            sockaddr_storage address = server_address_from_str(x.address);
-            if (address.ss_family == AF_UNSPEC || (!self->m_ipv6_available && address.ss_family == AF_INET6)) {
-                continue;
-            }
-
-            self->m_resolver_address = address;
-            log_resolver(self, dbg, "Chosen resolver from main system servers: {}",
-                    tunnel_addr_to_str(&self->m_resolver_address));
-            break;
+    SystemDnsServers servers = dns_manager_get_system_servers(self->vpn->parameters.network_manager->dns);
+    for (const SystemDnsServer &x : servers.main) {
+        sockaddr_storage address = server_address_from_str(x.address);
+        if (address.ss_family == AF_UNSPEC || (!self->m_ipv6_available && address.ss_family == AF_INET6)) {
+            continue;
         }
 
-        if (!std::holds_alternative<std::monostate>(self->m_resolver_address)) {
-            break;
+        self->m_resolver_address = address;
+        log_resolver(self, dbg, "Chosen resolver from main system servers: {}",
+                tunnel_addr_to_str(&self->m_resolver_address));
+    }
+
+    if (!std::holds_alternative<std::monostate>(self->m_resolver_address)) {
+        return;
+    }
+
+    for (std::string_view x : servers.fallback) {
+        sockaddr_storage address = server_address_from_str(x);
+        if (address.ss_family == AF_UNSPEC || (!self->m_ipv6_available && address.ss_family == AF_INET6)) {
+            continue;
         }
 
-        for (std::string_view x : servers.fallback) {
-            sockaddr_storage address = server_address_from_str(x);
-            if (address.ss_family == AF_UNSPEC || (!self->m_ipv6_available && address.ss_family == AF_INET6)) {
-                continue;
-            }
-
-            self->m_resolver_address = address;
-            log_resolver(self, dbg, "Chosen resolver from fallback system servers: {}",
-                    tunnel_addr_to_str(&self->m_resolver_address));
-            break;
-        }
-
-        if (std::holds_alternative<std::monostate>(self->m_resolver_address)) {
-            self->m_resolver_address = FALLBACK_RESOLVER_ADDRESS;
-            log_resolver(self, dbg, "Couldn't choose resolver from system servers, using fallback: {}",
-                    tunnel_addr_to_str(&self->m_resolver_address));
-        }
-
+        self->m_resolver_address = address;
+        log_resolver(self, dbg, "Chosen resolver from fallback system servers: {}",
+                tunnel_addr_to_str(&self->m_resolver_address));
         break;
     }
-    case DMSK_TUN_INTERFACE:
-        break;
+
+    if (std::holds_alternative<std::monostate>(self->m_resolver_address)) {
+        self->m_resolver_address = FALLBACK_RESOLVER_ADDRESS;
+        log_resolver(self, dbg, "Couldn't choose resolver from system servers, using fallback: {}",
+                tunnel_addr_to_str(&self->m_resolver_address));
     }
 }
 

@@ -407,14 +407,6 @@ static void vpn_runner(ListenerType type) {
                 .data = (const char **) DNS_SERVERS,
                 .size = uint32_t(std::size(DNS_SERVERS)),
         };
-        if (!vpn_network_manager_update_tun_interface_dns(
-                    {win_settings.dns_servers.data, win_settings.dns_servers.size})) {
-            errlog(g_logger, "Failed to notify of TUN interface DNS servers");
-            g_tunnel->deinit();
-            g_tunnel.reset();
-            g_stop = true;
-            return;
-        }
         auto res = g_tunnel->init(&common_settings, &win_settings);
 #else
         auto res = g_tunnel->init(&common_settings);

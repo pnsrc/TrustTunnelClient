@@ -17,8 +17,6 @@ struct VpnNetworkManager {
     SocketManager *socket; // Socket manager
 };
 
-using VpnDnsServers = AG_ARRAY_OF(const char *);
-
 /**
  * Get a network manager
  */
@@ -33,13 +31,6 @@ void vpn_network_manager_destroy(VpnNetworkManager *m);
  * Update system DNS servers
  */
 bool vpn_network_manager_update_system_dns(SystemDnsServers servers);
-
-/**
- * The servers set to the virtual TUN interface set up by an application.
- * Needed to distinct the DNS queries routed to the default peer from the queries
- * routed to arbitrary ones.
- */
-extern "C" WIN_EXPORT bool vpn_network_manager_update_tun_interface_dns(VpnDnsServers servers);
 
 /**
  * Notify that a domain is about to be queried by an application

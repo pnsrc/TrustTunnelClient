@@ -379,13 +379,6 @@ bool ag::VpnWinTunnel::setup_dns() {
         }
     }
 
-    if (!vpn_network_manager_update_tun_interface_dns({
-                .data = m_win_settings->dns_servers.data,
-                .size = m_win_settings->dns_servers.size,
-        })) {
-        return false;
-    }
-
     return true;
 }
 
