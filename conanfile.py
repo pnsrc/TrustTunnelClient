@@ -7,6 +7,7 @@ class VpnLibsConan(ConanFile):
     license = "GPL-3.0-or-later"
     author = "AdguardTeam"
     url = "https://github.com/AdguardTeam/VpnLibs"
+    vcs_url = "https://github.com/AdguardTeam/VpnLibs.git"
     description = "A VPN client library that provides client network traffic tunnelling to an AdGuard VPN server"
     settings = "os", "compiler", "build_type", "arch"
     options = {
@@ -18,6 +19,11 @@ class VpnLibsConan(ConanFile):
         "sanitize": None,  # None means none
     }
     generators = "cmake"
+    # A list of paths to patches. The paths must be relative to the conanfile directory.
+    # They are applied in case of the version equals 777 and mostly intended to be used
+    # for testing.
+    patch_files = []
+    exports_sources = patch_files
 
     def requirements(self):
         for req in self.conan_data["requirements"]:
@@ -44,11 +50,16 @@ class VpnLibsConan(ConanFile):
         # self.options["native_libs_common"].commit_hash = "72731a36771d550ffae8c1223e0a129fefc2384c"
 
     def source(self):
-        self.run("git init . && git remote add origin https://github.com/AdguardTeam/VpnLibs.git && git fetch")
+        self.run(f"git init . && git remote add origin {self.vcs_url} && git fetch")
 
         if self.version == "777":
             if self.options.commit_hash:
                 self.run("git checkout -f %s" % self.options.commit_hash)
+            else:
+                self.run("git checkout -f master")
+
+            for p in self.patch_files:
+                tools.patch(patch_file=p)
         else:
             version_hash = self.conan_data["commit_hash"][self.version]["hash"]
             self.run("git checkout -f %s" % version_hash)

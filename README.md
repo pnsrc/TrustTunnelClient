@@ -54,6 +54,22 @@ Root project consists of the following directories and files:
 
 The public API is in `core/include/vpn.h`.
 
+## Testing changes as a dependency
+
+To test local changes in the library in case it is used as a conan package dependency,
+do the following:
+
+1) Create patch files: e.g., execute `git diff > 1.patch` in the project root.
+2) Add paths to the patch files in `<root>/conanfile.py`, see the `patch_files` field.
+3) Change the `vcs_url` field in `<root>/conanfile.py` if the default one is not suitable.
+4) Export the conan package with the special version number: `conan export . /777@AdguardTeam/NativeLibsCommon`.
+5) In the project that uses `vpn-libs` as a dependency, change the version to `777`
+   (e.g. `vpn-libs/1.0.0@AdguardTeam/NativeLibsCommon` -> `vpn-libs/777@AdguardTeam/NativeLibsCommon`).
+6) Re-run cmake command.  
+   Notes:
+     * if one has already exported vpn-libs in such way, the cached version must be purged: `conan remove -f vpn-libs/777`,
+     * by default the patches are applied to the `master` branch, specify the `commit_hash` option to test changes against the specific commit.
+
 ## License
 
 Copyright (C) AdGuard Software Ltd.
