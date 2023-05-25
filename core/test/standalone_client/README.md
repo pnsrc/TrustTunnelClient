@@ -16,6 +16,7 @@ The config file contains the following fields:
   * `username` - Server config username
   * `password` - Server config password
   * `skip_cert_verify` - Skip certificate verify
+  * `cert` - Path to the PEM-formatted endpoint certificate (ignored if `skip_cert_verify` is `true`)
   * `upstream_protocol` - VPN upstream protocol (`"http2"` or `"http3"`)
   * `upstream_fallback_protocol` - VPN fallback protocol (`"http2"` or `"http3"`)
 
@@ -71,4 +72,3 @@ To set logging level:
 To skip certificate verify:
 
     -s
-

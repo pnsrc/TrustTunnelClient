@@ -32,6 +32,7 @@
 #include <cxxopts.hpp>
 #include <magic_enum.hpp>
 #include <nlohmann/json.hpp>
+#include <openssl/pem.h>
 
 #include "common/file.h"
 #include "common/logger.h"
@@ -95,7 +96,7 @@ static const std::unordered_map<std::string_view, TestingMode> TESTING_MODE_MAP 
         {"restart", TM_RESTART},
 };
 
-static cxxopts::Options g_options("Standalone client", "Simple macOS/Linux console client");
+static cxxopts::Options g_options("Standalone client", "Simple console client");
 
 static std::optional<std::string> read_file_to_str(const std::string &filename) {
     std::string file_str;
@@ -128,6 +129,7 @@ struct Params {
     ag::LogLevel loglevel = ag::LOG_LEVEL_INFO;
     ListenerType listener_type = LT_SOCKS;
     bool skip_verify = false;
+    DeclPtr<X509_STORE, &X509_STORE_free> ca_store;
     uint32_t mtu_size = DEFAULT_MTU_SIZE;
     std::vector<std::string> included_routes;
     std::vector<std::string> excluded_routes;
@@ -185,6 +187,13 @@ struct Params {
         username = server_info["username"];
         password = server_info["password"];
         skip_verify = server_info["skip_cert_verify"];
+        if (!skip_verify && server_info.contains("cert") && !server_info["cert"].is_null()) {
+            std::string cert_path = server_info["cert"];
+            ca_store = parse_certificate(cert_path.c_str());
+            if (ca_store == nullptr) {
+                exit(1);
+            }
+        }
         if (server_info.contains("upstream_protocol")) {
             upstream_protocol = UPSTREAM_PROTO_MAP.at(server_info["upstream_protocol"]);
         }
@@ -269,7 +278,7 @@ struct Params {
 #endif
 
         if (config_file.contains("dns_upstreams")) {
-            dns_upstreams = { config_file["dns_upstreams"].begin(), config_file["dns_upstreams"].end() };
+            dns_upstreams = {config_file["dns_upstreams"].begin(), config_file["dns_upstreams"].end()};
         }
         if (config_file.contains("killswitch_enabled")) {
             killswitch_enabled = config_file["killswitch_enabled"];
@@ -289,6 +298,30 @@ struct Params {
             errlog(g_logger, "Unknown logger type, pass --help to see possible values");
             exit(1);
         }
+    }
+
+    DeclPtr<X509_STORE, &X509_STORE_free> parse_certificate(const char *path) {
+        DeclPtr<FILE, &std::fclose> file{std::fopen(path, "r")};
+        if (file == nullptr) {
+            errlog(g_logger, "Cannot open certificate file: {}", strerror(errno));
+            return nullptr;
+        }
+
+        DeclPtr<X509, &X509_free> cert{PEM_read_X509(file.get(), nullptr, nullptr, nullptr)};
+        if (cert == nullptr) {
+            errlog(g_logger, "Couldn't parse certificate");
+            return nullptr;
+        }
+
+        DeclPtr<X509_STORE, &X509_STORE_free> store{tls_create_ca_store()};
+        if (store == nullptr) {
+            errlog(g_logger, "Couldn't create store");
+            return nullptr;
+        }
+
+        X509_STORE_add_cert(store.get(), cert.get());
+
+        return store;
     }
 };
 
@@ -539,7 +572,7 @@ static void vpn_handler(void *, VpnEvent what, void *data) {
         break;
     case VPN_EVENT_VERIFY_CERTIFICATE: {
         auto *event = (VpnVerifyCertificateEvent *) data;
-        const char *err = g_params.skip_verify ? nullptr : tls_verify_cert(event->ctx, nullptr);
+        const char *err = g_params.skip_verify ? nullptr : tls_verify_cert(event->ctx, g_params.ca_store.get());
         if (err == nullptr) {
             tracelog(g_logger, "Certificate verified successfully\n");
             event->result = 0;
@@ -639,7 +672,7 @@ void apply_vpn_settings() {
     }
 
     if (!g_params.dns_upstreams.empty()) {
-        g_vpn_common_listener_config.dns_upstreams.data = new const char*[g_params.dns_upstreams.size()];
+        g_vpn_common_listener_config.dns_upstreams.data = new const char *[g_params.dns_upstreams.size()];
         g_vpn_common_listener_config.dns_upstreams.size = g_params.dns_upstreams.size();
         for (size_t i = 0; i < g_params.dns_upstreams.size(); ++i) {
             g_vpn_common_listener_config.dns_upstreams.data[i] = g_params.dns_upstreams[i].c_str();
