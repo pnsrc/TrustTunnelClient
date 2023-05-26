@@ -347,12 +347,6 @@ static void clean_up_events(TcpipCtx *ctx) {
     }
 }
 
-static void clean_up_connections(TcpipCtx *ctx) {
-    tcp_cm_clean_up(ctx);
-    udp_cm_clean_up(ctx);
-    icmp_rm_clean_up(ctx);
-}
-
 TcpipCtx *tcpip_init_internal(const TcpipParameters *params) {
     auto *ctx = (TcpipCtx *) calloc(1, sizeof(TcpipCtx));
     if (nullptr == ctx) {
@@ -397,15 +391,6 @@ TcpipCtx *tcpip_init_internal(const TcpipParameters *params) {
 error:
     tcpip_close_internal(ctx);
     return nullptr;
-}
-
-static void clean_up_connections_callback(void *arg, TaskId) {
-    auto *ctx = (TcpipCtx *) arg;
-    clean_up_connections(ctx);
-}
-
-void tcpip_close_connections(TcpipCtx *ctx) {
-    vpn_event_loop_submit(ctx->parameters.event_loop, {ctx, clean_up_connections_callback, nullptr});
 }
 
 static void release_lwip_resources(TcpipCtx *ctx) {

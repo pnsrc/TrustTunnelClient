@@ -157,13 +157,6 @@ void tcpip_close(TcpipCtx *ctx);
 void *tcpip_get_arg(const TcpipCtx *ctx);
 
 /**
- * Closes all opened connections
- *
- * @param ctx context of TCP/IP stack returned by `tcpip_open`
- */
-void tcpip_reset(TcpipCtx *ctx);
-
-/**
  * Send data from remote host to local client (caller will be notified with
  * `TCPIP_CBID_SENT_TO_CLIENT` callback, when data is actually sent)
  *

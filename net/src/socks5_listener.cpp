@@ -1,4 +1,5 @@
-#include <net/socks5_listener.h>
+#include <cassert>
+#include <list>
 
 #include <event2/listener.h>
 #include <event2/util.h>
@@ -7,11 +8,10 @@
 
 #include "common/logger.h"
 #include "common/net_utils.h"
+#include "net/socks5_listener.h"
 #include "net/tcp_socket.h"
 #include "net/utils.h"
 #include "vpn/utils.h"
-
-#include <cassert>
 
 static const char *conn_proto_to_str(int p) {
     switch (p) {
@@ -33,7 +33,7 @@ static ag::Logger g_logger{"SOCKS5_LISTENER"};
 static const uint32_t SOCKS5_VER = 0x05;
 static const uint32_t USERNAME_PASSWORD_VER = 0x01;
 
-typedef enum {
+enum Socks5AuthMethod {
     S5AM_NO_AUTHENTICATION_REQUIRED = 0x00,
     S5AM_GSSAPI = 0x01,
     S5AM_USERNAME_PASSWORD = 0x02,
@@ -44,15 +44,15 @@ typedef enum {
     S5AM_USERNAME_PASSWORD_APPNAME = 0x82,
 
     S5AM_NO_ACCEPTABLE_METHODS = 0xff,
-} Socks5AuthMethod;
+};
 
-typedef enum {
+enum Socks5Command {
     S5CMD_CONNECT = 0x01,
     S5CMD_BIND = 0x02,
     S5CMD_UDP_ASSOCIATE = 0x03,
-} Socks5Command;
+};
 
-typedef enum {
+enum Socks5AddressType {
     S5AT_IPV4 = 0x01,       // a version-4 IP address, with a length of 4 octets
     S5AT_DOMAINNAME = 0x03, // a fully-qualified domain name, first octet of the address field
                             // contains the number of octets of name that follow
@@ -64,9 +64,9 @@ typedef enum {
     S5AT_IPV4_APPNAME = 0xf1,
     S5AT_DOMAINNAME_APPNAME = 0xf3,
     S5AT_IPV6_APPNAME = 0xf4,
-} Socks5AddressType;
+};
 
-typedef enum {
+enum Socks5ReplyStatus {
     S5RS_SUCCEEDED,                         // succeeded
     S5RS_SOCKS_SERVER_FAILURE,              // general SOCKS server failure
     S5RS_CONNECTION_NOT_ALLOWED_BY_RULESET, // connection not allowed by ruleset
@@ -76,7 +76,7 @@ typedef enum {
     S5RS_TTL_EXPIRED,                       // TTL expired
     S5RS_COMMAND_NOT_SUPPORTED,             // Command not supported
     S5RS_ADDRESS_TYPE_NOT_SUPPORTED,        // Address type not supported
-} Socks5ReplyStatus;
+};
 
 static const Socks5ReplyStatus CONNECT_RESULT_TO_STATUS[] = {
         /** S5LCR_SUCCESS */ S5RS_SUCCEEDED,
@@ -87,60 +87,60 @@ static const Socks5ReplyStatus CONNECT_RESULT_TO_STATUS[] = {
 
 #pragma pack(push, 1)
 
-typedef struct {
+struct Socks5AuthRequest {
     uint8_t ver;       // set to X'05' for this version of the protocol
     uint8_t nmethods;  // number of method identifier octets
     uint8_t methods[]; // methods
-} Socks5AuthRequest;
+};
 
-typedef struct {
+struct Socks5AuthResponse {
     uint8_t ver;    // set to X'05' for this version of the protocol
     uint8_t method; // method
-} Socks5AuthResponse;
+};
 
-typedef struct {
+struct Socks5UsernamePasswordRequest {
     uint8_t ver;           // set to X`01` for this version of the protocol
     uint8_t ulen;          // length of username
     const uint8_t *uname;  // username
     uint8_t plen;          // length of password
     const uint8_t *passwd; // password
-} Socks5UsernamePasswordRequest;
+};
 
-typedef struct {
+struct Socks5UsernamePasswordResponse {
     uint8_t ver;    // set to X`01` for this version of the protocol
     uint8_t status; // set to X`00` for success, any other value for failure
-} Socks5UsernamePasswordResponse;
+};
 
-typedef struct {
+struct Socks5Request {
     uint8_t ver;        // set to X'05' for this version of the protocol
     uint8_t cmd;        // command id
     uint8_t rsv;        // reserved
     uint8_t atyp;       // address type of following address
     uint8_t dst_addr[]; // desired destination address
     // desired destination port in network octet order
-} Socks5Request;
+};
 
-typedef struct {
+struct Socks5Reply {
     uint8_t ver;        // set to X'05' for this version of the protocol
     uint8_t rep;        // reply status
     uint8_t rsv;        // reserved
     uint8_t atyp;       // address type of following address
     uint8_t bnd_addr[]; // server bound address
     // server bound port in network octet order
-} Socks5Reply;
+};
 
-typedef struct {
+struct Socks5UdpHeader {
     uint16_t rsv;       // reserved
     uint8_t frag;       // current fragment number
     uint8_t atyp;       // address type of following addresses:
     uint8_t dst_addr[]; // desired destination address
     // desired destination port
     // user data
-} Socks5UdpHeader;
+};
 
 #pragma pack(pop)
 
-typedef enum {
+enum ConnectionState {
     S5CONNS_IDLE,
     S5CONNS_WAITING_USERNAME_PASSWORD,
     S5CONNS_WAITING_REQUEST,
@@ -148,12 +148,12 @@ typedef enum {
     S5CONNS_WAITING_ACCEPT,
     S5CONNS_ESTABLISHED,
     S5CONNS_FAILED,
-} ConnectionState;
+};
 
-typedef struct {
+struct AddressPair {
     struct sockaddr_storage src;
     ag::Socks5ConnectionAddress dst;
-} AddressPair;
+};
 
 namespace ag {
 static uint64_t socks_addr_hash(const ag::Socks5ConnectionAddress *addr);
@@ -163,43 +163,46 @@ static bool socks_addr_pair_equals(const AddressPair *lh, const AddressPair *rh)
 } // namespace ag
 
 struct Connection;
-KHASH_MAP_INIT_INT(connections_by_id, Connection *);
-KHASH_INIT(connections_by_addr, AddressPair *, Connection *, 1, ag::socks_addr_pair_hash, ag::socks_addr_pair_equals)
+KHASH_MAP_INIT_INT(connections_by_id, Connection *)             // NOLINT(hicpp-use-auto,modernize-use-auto)
+KHASH_INIT(connections_by_addr, AddressPair *, Connection *, 1, // NOLINT(hicpp-use-auto,modernize-use-auto)
+        ag::socks_addr_pair_hash, ag::socks_addr_pair_equals)
 
-typedef struct {
+struct SocketArg {
     ag::Socks5Listener *listener;
     uint32_t id;
-} SocketArg;
+};
 
-typedef struct {
+struct UdpRelay {
     struct event *udp_event;
     Connection *tcp_conn;
     khash_t(connections_by_addr) * connections_by_addr;
     uint8_t *packet_buffer;
     SocketArg *event_arg;
-} UdpRelay;
+};
 
-KHASH_MAP_INIT_INT(udp_relays_by_id, UdpRelay *);
+KHASH_MAP_INIT_INT(udp_relays_by_id, UdpRelay *) // NOLINT(hicpp-use-auto,modernize-use-auto)
 
-typedef struct ag::Socks5Listener {
+struct ag::Socks5Listener {
     khash_t(connections_by_id) * connections;
     khash_t(udp_relays_by_id) * udp_relays;
     struct evconnlistener *evconn_listener;
     ag::Socks5ListenerConfig config;
     ag::Socks5ListenerHandler handler;
     std::string upbuffer;
-} Socks5Listener;
+    event_loop::AutoTaskId async_task;
+    std::list<uint64_t> conns_with_pending_udp;
+};
 
-typedef struct {
+struct UdpSpecific {
     bool readable;
     size_t sent_bytes_since_flush;
     std::vector<std::vector<uint8_t>> pending_udp_packets;
     UdpRelay *relay;
-} UdpSpecific;
+};
 
-typedef struct {
+struct TcpSpecific {
     SocketArg *sock_arg;
-} TcpSpecific;
+};
 
 struct Connection {
     ConnectionState state;
@@ -212,12 +215,7 @@ struct Connection {
     UdpSpecific udp;
 };
 
-typedef struct {
-    Socks5Listener *listener;
-    uint64_t id;
-} CompleteCtx;
-
-extern "C" int evutil_sockaddr_is_loopback_(const struct sockaddr *sa);
+extern "C" int evutil_sockaddr_is_loopback_(const struct sockaddr *sa); // NOLINT(readability-identifier-naming)
 
 namespace ag {
 
@@ -346,6 +344,7 @@ void socks5_listener_stop(Socks5Listener *listener) {
     if (listener->evconn_listener != nullptr) {
         evconnlistener_disable(listener->evconn_listener);
     }
+    listener->async_task.reset();
 
     for (khiter_t i = kh_begin(listener->udp_relays); i != kh_end(listener->udp_relays); ++i) {
         if (!kh_exist(listener->udp_relays, i)) {
@@ -469,19 +468,22 @@ static void complete_tcp_connection(Socks5Listener *listener, Connection *conn, 
     }
 }
 
-static void send_pending_udp_data(void *arg, TaskId task_id) {
-    CompleteCtx *ctx = (CompleteCtx *) arg;
-    Socks5Listener *listener = ctx->listener;
+static void send_pending_udp_data(void *arg, TaskId) {
+    auto *self = (Socks5Listener *) arg;
+    self->async_task.release();
 
-    khiter_t i = kh_get(connections_by_id, listener->connections, ctx->id);
-    if (i != kh_end(listener->connections)) {
-        Connection *conn = kh_value(listener->connections, i);
+    for (uint64_t conn_id : std::exchange(self->conns_with_pending_udp, {})) {
+        khiter_t i = kh_get(connections_by_id, self->connections, conn_id);
+        if (i == kh_end(self->connections)) {
+            continue;
+        }
+        Connection *conn = kh_value(self->connections, i);
         Socks5ReadEvent event = {};
         event.id = conn->id;
         for (const auto &pkt : std::exchange(conn->udp.pending_udp_packets, {})) {
             event.data = pkt.data();
             event.length = pkt.size();
-            listener->handler.func(listener->handler.arg, SOCKS5L_EVENT_READ, &event);
+            self->handler.func(self->handler.arg, SOCKS5L_EVENT_READ, &event);
         }
     }
 }
@@ -491,10 +493,14 @@ static void complete_udp_connection(Socks5Listener *listener, Connection *conn, 
         listener->handler.func(listener->handler.arg, SOCKS5L_EVENT_CONNECTION_ACCEPTED, &conn->id);
         conn->state = S5CONNS_ESTABLISHED;
 
-        auto *ctx = (CompleteCtx *) malloc(sizeof(CompleteCtx));
-        ctx->listener = listener;
-        ctx->id = conn->id;
-        vpn_event_loop_submit(listener->config.ev_loop, {ctx, send_pending_udp_data, free});
+        listener->conns_with_pending_udp.push_back(conn->id);
+        if (!listener->async_task.has_value()) {
+            listener->async_task = event_loop::submit(listener->config.ev_loop,
+                    {
+                            .arg = listener,
+                            .action = send_pending_udp_data,
+                    });
+        }
     } else {
         Socks5ConnectionClosedEvent event = {conn->id, {}};
         listener->handler.func(listener->handler.arg, SOCKS5L_EVENT_CONNECTION_CLOSED, &event);

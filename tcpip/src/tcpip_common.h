@@ -60,13 +60,6 @@ TcpipCtx *tcpip_init_internal(const TcpipParameters *params);
 void tcpip_close_internal(TcpipCtx *ctx);
 
 /**
- * Closes all opened connections
- *
- * @param ctx pointer to TCP/IP context
- */
-void tcpip_close_connections(TcpipCtx *ctx);
-
-/**
  * Updates timeout for connection
  *
  * @param ctx pointer to TCP/IP context

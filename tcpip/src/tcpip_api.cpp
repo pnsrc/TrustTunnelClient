@@ -63,17 +63,6 @@ void tcpip_close(TcpipCtx *ctx) {
     infolog(g_logger, "close: OK");
 }
 
-void tcpip_reset(TcpipCtx *ctx) {
-    if (nullptr == ctx) {
-        errlog(g_logger, "reset: nullptr context pointer");
-        return;
-    }
-
-    tcpip_close_connections(ctx);
-
-    infolog(g_logger, "reset");
-}
-
 void tcpip_complete_connect_request(TcpipCtx *ctx, uint64_t id, TcpipAction action) {
     auto *tcp_conn = (TcpConnDescriptor *) tcpip_get_connection_by_id(&ctx->tcp.connections, id);
     if (tcp_conn != nullptr) {

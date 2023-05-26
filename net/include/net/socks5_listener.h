@@ -14,13 +14,13 @@
 
 namespace ag {
 
-typedef enum {
+enum Socks5ListenerStartResult {
     SOCKS5L_START_SUCCESS = 0,
     SOCKS5L_START_ADDR_IN_USE,
     SOCKS5L_START_FAILURE,
-} Socks5ListenerStartResult;
+};
 
-typedef enum {
+enum Socks5ListenerEvent {
     SOCKS5L_EVENT_GENERATE_CONN_ID, /**< Called before registering a new incoming connection (raised with a pointer to
                                        buffer to store the ID) */
     SOCKS5L_EVENT_CONNECT_REQUEST,  /** Called when new incoming connection is appeared (raised with
@@ -33,62 +33,62 @@ typedef enum {
                                         `socks5l_connection_closed_event_t`) */
     SOCKS5L_EVENT_PROTECT_SOCKET, /**< Called when socket needs to be protected (raised with `SocketProtectEvent`)
                                    */
-} Socks5ListenerEvent;
+};
 
-typedef enum {
+enum Socks5ConnectionAddressType {
     S5CAT_SOCKADDR,    /**< either ipv4 or ipv6 address + port */
     S5CAT_DOMAIN_NAME, /**< domain name + port */
-} Socks5ConnectionAddressType;
+};
 
-typedef struct {
+struct Socks5ConnectionAddress {
     Socks5ConnectionAddressType type;
     struct sockaddr_storage ip;
     struct {
         std::string name;
         uint16_t port;
     } domain;
-} Socks5ConnectionAddress;
+};
 
-typedef struct {
+struct Socks5ConnectRequestEvent {
     uint64_t id;                        /**< connection identifier */
     int proto;                          /**< connection protocol */
     const struct sockaddr *src;         /**< source address of connection */
     const Socks5ConnectionAddress *dst; /**< destination address */
     std::string_view app_name;          /**< name of application that initiated this request */
-} Socks5ConnectRequestEvent;
+};
 
-typedef struct {
+struct Socks5ReadEvent {
     uint64_t id;         /**< connection identifier */
     const uint8_t *data; /**< data buffer */
     size_t length;       /**< data length */
     int result;          /**< FILLED BY HANDLER: operation result (0 in case of success, non-zero otherwise) */
-} Socks5ReadEvent;
+};
 
-typedef struct {
+struct Socks5DataSentEvent {
     uint64_t id;   /**< connection identifier */
     size_t length; /**< sent bytes number */
-} Socks5DataSentEvent;
+};
 
-typedef struct {
+struct Socks5ConnectionClosedEvent {
     uint64_t id;    /**< connection identifier */
     VpnError error; /**< error if connection closed unexpectedly */
-} Socks5ConnectionClosedEvent;
+};
 
-typedef struct Socks5Listener Socks5Listener;
+struct Socks5Listener;
 
-typedef struct {
+struct Socks5ListenerHandler {
     void (*func)(void *arg, Socks5ListenerEvent what, void *data);
     void *arg;
-} Socks5ListenerHandler;
+};
 
-typedef enum {
+enum Socks5ConnectResult {
     S5LCR_SUCCESS,
     S5LCR_REJECT,
     S5LCR_TIMEOUT,
     S5LCR_UNREACHABLE,
-} Socks5ConnectResult;
+};
 
-typedef struct {
+struct Socks5ListenerConfig {
     /** Event loop */
     VpnEventLoop *ev_loop;
     /**
@@ -118,7 +118,7 @@ typedef struct {
      * Must be set if `username` is set.
      */
     std::string_view password;
-} Socks5ListenerConfig;
+};
 
 /**
  * Create socks5 listener
