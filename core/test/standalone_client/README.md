@@ -1,12 +1,18 @@
-## Standalone VPN client
+# Standalone VPN client
 
-The VPN client works in two modes:
-* SOCKS5 proxy server
-* TUN device
+## Configuration
 
-See the [example configuration file](./standalone_client.toml) for the set of available options.
+Use the [setup_wizard](./setup_wizard) for the guided client configuration.
 
-### Command line arguments
+It is executed automatically as a dependency for the `standalone_client` client.
+To run it manually, execute the following commands in the Terminal:
+
+```shell
+cd <path/to/standalone_client>/setup_wizard
+cargo run --bin setup_wizard
+```
+
+## Command line arguments
 
 To select a configuration file other than the default one, pass its name in the command line arguments:
 

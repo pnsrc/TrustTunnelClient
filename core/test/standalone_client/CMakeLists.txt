@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project(core C CXX)
 
+include(ExternalProject)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
@@ -35,7 +37,35 @@ target_link_libraries(standalone_client CONAN_PKG::magic_enum)
 target_link_libraries(standalone_client CONAN_PKG::native_libs_common)
 target_link_libraries(standalone_client CONAN_PKG::tomlplusplus)
 
-configure_file(standalone_client.toml ${CMAKE_CURRENT_BINARY_DIR}/standalone_client.toml COPYONLY)
+if (WIN32)
+    set(WIZARD_EXE_NAME setup_wizard.exe)
+else (WIN32)
+    set(WIZARD_EXE_NAME setup_wizard)
+endif (WIN32)
+
+ExternalProject_Add(setup_wizard
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/setup_wizard
+        BUILD_IN_SOURCE TRUE
+        BUILD_ALWAYS TRUE
+        UPDATE_COMMAND ""
+        PATCH_COMMAND ""
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ${CMAKE_COMMAND} -E env cargo build --bin setup_wizard
+        TEST_COMMAND ""
+        INSTALL_COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/setup_wizard/target/debug/${WIZARD_EXE_NAME} ${CMAKE_CURRENT_BINARY_DIR}
+        )
+
+add_custom_target(run_setup_wizard)
+add_custom_command(
+        TARGET run_setup_wizard
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${WIZARD_EXE_NAME}
+        USES_TERMINAL TRUE
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_dependencies(run_setup_wizard setup_wizard)
 
 enable_testing()
-add_dependencies(tests standalone_client)
+add_dependencies(tests
+        standalone_client
+        setup_wizard
+        )

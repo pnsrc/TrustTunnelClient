@@ -133,7 +133,7 @@ void set_loglevel(Config *self, std::string_view x) {
 DeclPtr<X509_STORE, &X509_STORE_free> load_certificate(const char *path) {
     DeclPtr<FILE, &std::fclose> file{std::fopen(path, "r")};
     if (file == nullptr) {
-        FAIL("Cannot open certificate file: {}", strerror(errno));
+        FAIL("Cannot open certificate file ({}): {}", path, strerror(errno));
     }
 
     DeclPtr<X509, &X509_free> cert{PEM_read_X509(file.get(), nullptr, nullptr, nullptr)};
