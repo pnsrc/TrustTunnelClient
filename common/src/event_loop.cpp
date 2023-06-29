@@ -155,6 +155,9 @@ int vpn_event_loop_run(VpnEventLoop *loop) {
     log_loop(loop, dbg, "Running event base...");
     int r = event_base_loop(loop->ev_base.get(), EVLOOP_NO_EXIT_ON_EMPTY);
     log_loop(loop, dbg, "Exited from event base ({})", r);
+    if (r == -1) {
+        log_loop(loop, err, "Error in event base: {}", evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+    }
 
     loop->guard.lock();
     loop->state = (loop->stopping_externally) ? ELS_BASE_EXITED : ELS_STOPPED;
