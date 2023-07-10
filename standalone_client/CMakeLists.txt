@@ -6,7 +6,7 @@ include(ExternalProject)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-set(VPN_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
+set(VPN_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
 set(VPN_CORE_DIR ${VPN_LIB_DIR}/core)
 
 if (MSVC)

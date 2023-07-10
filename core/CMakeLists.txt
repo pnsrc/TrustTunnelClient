@@ -89,8 +89,6 @@ endif()
 
 enable_testing()
 
-add_subdirectory(test/standalone_client ${CMAKE_BINARY_DIR}/standalone_client)
-
 link_libraries(CONAN_PKG::gtest)
 
 add_library(module_vpncore_mocked STATIC EXCLUDE_FROM_ALL

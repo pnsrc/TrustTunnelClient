@@ -32,5 +32,6 @@ add_subdirectory(common)
 add_subdirectory(net)
 add_subdirectory(tcpip)
 add_subdirectory(core)
+add_subdirectory(standalone_client)
 
 enable_testing()

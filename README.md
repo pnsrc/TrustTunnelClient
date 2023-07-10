@@ -1,81 +1,237 @@
-# AdGuard VPN libs
+# AdGuard VPN Libraries
 
-A VPN client library that provides client network traffic tunnelling to an AdGuard VPN server.
+[![AdGuardVPN.com](https://img.shields.io/badge/AdGuardVPN.com-Visit-007BFF)](https://adguard-vpn.com/)
 
-## Build instructions
+AdGuard VPN Libraries is a collection of C++ libraries that provide client network traffic
+tunneling through an AdGuard VPN endpoint.
+It supports Linux, macOS, and Windows platforms.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Build Instructions](#build-instructions)
+    - [Prerequisites](#prerequisites)
+    - [Building](#building)
+- [Quick Start the Standalone VPN Client](#quick-start-the-standalone-vpn-client)
+- [Testing Changes as a Conan Dependency](#testing-changes-as-a-conan-dependency)
+- [Companion Endpoint Repository](#companion-endpoint-repository)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+---
+
+## Features
+
+- **AdGuard VPN Protocol**: The library implements the AdGuard VPN protocol, which is compatible
+  with HTTP/1.1, HTTP/2, and QUIC.
+  By mimicking regular network traffic, it becomes more difficult for government regulators to
+  detect and block.
+
+- **Traffic Tunneling**: The library is capable of tunneling TCP, UDP, and ICMP traffic from the
+  client to the endpoint and back.
+
+- **Cross-Platform Support**: It supports Linux, macOS, and Windows platforms, providing a
+  consistent experience across different operating systems.
+
+- **System-Wide Tunnel and SOCKS5 Proxy**: It can be set up as a system-wide tunnel, utilizing a
+  virtual network interface, as well as a SOCKS5 proxy.
+
+- **Split Tunneling**: The library supports split tunneling, allowing users to exclude connections
+  to certain domains or hosts from routing through the VPN endpoint, or vice versa, only routing
+  connections to specific domains or hosts through the endpoint based on an exclusion list.
+
+- **Custom DNS Upstream**: Users can specify a custom DNS upstream, which is used for DNS queries
+  routed through the VPN endpoint.
+
+---
+
+## Build Instructions
 
 ### Prerequisites
 
-* CMake 3.7 or higher
-* Clang 8 or higher
-* Conan 1.38 or higher
+- [CMake](https://cmake.org/download/) 3.18 or higher
+- [LLVM](https://releases.llvm.org/) 14 or higher
+- [Conan](https://github.com/conan-io/conan/releases) 1.51 up to 1.60
+- [Rust](https://www.rust-lang.org/tools/install) 1.66 or higher
+- [Go](https://go.dev/dl/) 1.18.3 or higher
+- Windows-specific
+    - A recent version of Perl,
+      either [Active State Perl](https://www.activestate.com/products/perl/)
+      or [Strawberry Perl](https://strawberryperl.com/).
+      But the latter one adds GCC to `PATH`, which can confuse some build tools when identifying
+      the compiler (removing `C:\Strawberry\c\bin` from `PATH` should resolve any problems).
+    - [NASM](https://www.nasm.us/)
+    - [Visual Studio](https://visualstudio.microsoft.com/vs/older-downloads/) 2019
 
 ### Building
 
-If it is a clean build, export custom conan packages to the local conan repository.
-See https://github.com/AdguardTeam/NativeLibsCommon/blob/master/README.md for details.
+#### Using Makefile
+
+This command builds and exports required binaries to the `bin` directory:
+
+```shell
+EXPORT_DIR=bin make build_and_export_standalone_client
+```
+
+`EXPORT_DIR=bin` can be omitted. `bin` is the default value for `EXPORT_DIR`.
+You can change the output directory path by specifying other value.
+
+#### Manually
+
+If it's a clean build, export custom Conan packages to the local Conan repository.
+Refer to the [details here](https://github.com/AdguardTeam/NativeLibsCommon/blob/master/README.md),
+or run the helper script:
+
+```shell
+./scripts/bootstrap_conan_deps.py conandata.yml \
+  https://github.com/AdguardTeam/NativeLibsCommon.git \
+  https://github.com/AdguardTeam/DnsLibs.git
+```
 
 To build the main library:
-```
-mkdir build && cd build
-cmake ..
-make vpnlibs_core
-```
+
+* Windows:
+
+    ```shell
+    mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
+      -DCMAKE_C_FLAGS_DEBUG=/MT ^
+      -DCMAKE_CXX_FLAGS_DEBUG=/MT ^
+      -G "Visual Studio 16 2019" ^
+      ..
+    cmake --build . --target vpnlibs_core
+    ```
+
+* Others:
+
+    ```shell
+    mkdir build && cd build
+    cmake -DCMAKE_BUILD_TYPE=ReleaseWithDebInfo \
+      -DCMAKE_C_COMPILER="clang" \
+      -DCMAKE_CXX_COMPILER="clang++" \
+      -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+      ..
+    cmake --build . --target vpnlibs_core
+    ```
 
 To run tests:
+
+```shell
+cmake --build . --target tests && ctest
 ```
-make tests && ctest
+
+To build the standalone client application, run:
+
+```shell
+cmake --build . --target standalone_client
 ```
 
-To build a minimal working example application, run:
+To build the setup wizard tool, run:
+
+```shell
+cmake --build . --target setup_wizard
 ```
-make standalone_client
-```
-Refer to `core/test/standalone_client/README.md`
 
-## Project structure
+For more information, refer to the [client's README](./standalone_client/README.md) file.
 
-Every subproject consists of the following directories and files:
-- `include/<module_name>/` - public headers (add the `include` directory to includes only, so that include header
-from other module would look like `#include "module/header.h"`)
-- `include/<module_name>/internal` - not so public headers (they are not part of the public API,
-but may be needed by other modules, or to extend the library)
-- `src/` - source code files and private headers
-- `test/` - tests and their data
-- `CMakeLists.txt` - cmake build config
+---
 
-Root project consists of the following directories and files:
-- `common/` - Set of useful general-purpose utilities
-- `core/` - VPN client core module (configuration, traffic tunnelling, etc.)
-- `net/` - network communication
-- `tcpip/` - L3 and L4 protocols handling (the network and transport layers)
-- `third-party/` - third-party libraries (this is not a subproject, so subproject's rules are not enforced)
-- `CMakeLists.txt` - main cmake build config.
+## Quick Start the Standalone VPN Client
 
-The public API is in `core/include/vpn.h`.
+To quickly configure and launch the VPN client, follow these steps:
 
-## Testing changes as a dependency
+1. [Build](#building) the wizard and client libraries.
 
-To test local changes in the library in case it is used as a conan package dependency,
-do the following:
+2. Generate the minimal working configuration file using the setup wizard tool:
 
-1) Create patch files: e.g., execute `git diff > 1.patch` in the project root.
-2) Add paths to the patch files in `<root>/conanfile.py`, see the `patch_files` field.
-3) Change the `vcs_url` field in `<root>/conanfile.py` if the default one is not suitable.
-4) Export the conan package with the special version number: `conan export . /777@AdguardTeam/NativeLibsCommon`.
-5) In the project that uses `vpn-libs` as a dependency, change the version to `777`
-   (e.g. `vpn-libs/1.0.0@AdguardTeam/NativeLibsCommon` -> `vpn-libs/777@AdguardTeam/NativeLibsCommon`).
-6) Re-run cmake command.  
-   Notes:
-     * if one has already exported vpn-libs in such way, the cached version must be purged: `conan remove -f vpn-libs/777`,
-     * by default the patches are applied to the `master` branch, specify the `commit_hash` option to test changes against the specific commit.
+   ```shell
+   ./setup_wizard --mode non-interactive \
+     --address "127.0.0.1:443" --address "[::]:443" \
+     --hostname example.org \
+     --creds premium:premium \
+     --cert cert.pem \
+     --settings standalone_client.toml
+   ```
+
+   This results in the following configuration:
+
+    * The endpoint is expected to listen to the port number 443 on the local host.
+    * `example.com` is used as the hostname during TLS handshakes.
+    * `premium` and `premium` are used as the username and password correspondingly.
+    * `cert.pem` certificate is used to verify endpoint's TLS certificate during the handshake.
+      It can be obtained after the [endpoint](#companion-endpoint-repository) setup procedure.
+    * Implicitly, the outbound traffic listener method is set to the TUN device.
+    * The configuration file is named `standalone_client.toml`.
+
+3. Start the client:
+
+   ```shell
+   # sudo is required because TUN device is used by default
+   sudo ./standalone_client --config standalone_client.toml
+   ```
+
+For detailed explanations, see the [client README](./standalone_client/README.md).
+
+---
+
+## Testing Changes as a Conan Dependency
+
+To test local changes in the library when used as a Conan package dependency, follow these steps:
+
+1. Create patch files by executing `git diff > 1.patch` in the project root.
+
+2. Add the paths to the patch files in `<root>/conanfile.py` using the `patch_files` field.
+
+3. If the default `vcs_url` field in `<root>/conanfile.py` is not suitable, change it accordingly.
+
+4. Export the Conan package with a special version number, for example:
+
+   ```shell
+   conan export . /777@AdguardTeam/NativeLibsCommon
+   ```
+
+5. In the project that uses `vpn-libs` as a dependency, change the version to `777`.
+   For example, `vpn-libs/1.0.0@AdguardTeam/NativeLibsCommon` ->
+   `vpn-libs/777@AdguardTeam/NativeLibsCommon`.
+
+6. Re-run the CMake command.
+
+> Notes:
+>
+> - If you have already exported `vpn-libs` in this manner, you must purge the cached version
+    using `conan remove -f vpn-libs/777`.
+> - By default, patches are applied to the `master` branch. Specify the `commit_hash` option to
+    test changes against a specific commit.
+
+---
+
+## Companion Endpoint Repository
+
+Complementary endpoint implementation for the AdGuard VPN Libraries can be found in
+the [AdGuard VPN Endpoint repository](https://github.com/AdguardTeam/VpnEndpoint).
+
+---
+
+## Roadmap
+
+While the library currently does not support peer-to-peer communication between clients, we have
+plans to add this feature in future releases. Stay tuned for updates.
+
+---
 
 ## License
 
 Copyright (C) AdGuard Software Ltd.
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along with this program. If not, see https://www.gnu.org/licenses/.
+You should have received a copy of the GNU General Public License along with this program.
+If not, see https://www.gnu.org/licenses/.

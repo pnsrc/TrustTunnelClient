@@ -15,6 +15,7 @@ const MODE_INTERACTIVE: &str = "interactive";
 const ENDPOINT_ADDRESS_PARAM_NAME: &str = "address";
 const HOSTNAME_PARAM_NAME: &str = "host";
 const CREDENTIALS_PARAM_NAME: &str = "creds";
+const CERTIFICATE_FILE_PARAM_NAME: &str = "cert";
 const SETTINGS_FILE_PARAM_NAME: &str = "settings";
 
 #[derive(Clone, Copy, Debug, Ord, PartialOrd, Eq, PartialEq)]
@@ -34,6 +35,7 @@ pub struct PredefinedParameters {
     endpoint_addresses: Option<Vec<String>>,
     hostname: Option<String>,
     credentials: Option<(String, String)>,
+    certificate: Option<String>,
     settings_file: Option<String>,
 }
 
@@ -84,6 +86,11 @@ Required in non-interactive mode."#,
                 .required_if_eq(MODE_PARAM_NAME, MODE_NON_INTERACTIVE)
                 .help(r#"A user credentials formatted as: <username>:<password>.
 Required in non-interactive mode."#),
+            clap::Arg::new(CERTIFICATE_FILE_PARAM_NAME)
+                .long("cert")
+                .action(clap::ArgAction::Set)
+                .value_parser(clap::builder::NonEmptyStringValueParser::new())
+                .help(Endpoint::doc_certificate()),
             clap::Arg::new(SETTINGS_FILE_PARAM_NAME)
                 .long("settings")
                 .action(clap::ArgAction::Set)
@@ -112,6 +119,7 @@ Required in non-interactive mode."#),
             .map(|x| x.splitn(2, ':'))
             .and_then(|mut x| x.next().zip(x.next()))
             .map(|(a, b)| (a.to_string(), b.to_string())),
+        certificate: args.get_one::<String>(CERTIFICATE_FILE_PARAM_NAME).cloned(),
         settings_file: args.get_one::<String>(SETTINGS_FILE_PARAM_NAME).cloned(),
     };
 

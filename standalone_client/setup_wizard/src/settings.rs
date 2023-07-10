@@ -320,7 +320,7 @@ fn build_endpoint(template: Option<&Endpoint>) -> Endpoint {
     };
 
     let (hostname, certificate) = if crate::get_mode() == Mode::NonInteractive {
-        (None, None)
+        (predefined_params.hostname.clone(), predefined_params.certificate)
     } else if let Some(cert) = opt_field!(template, certificate).cloned().flatten()
         .and_then(parse_cert)
         .or_else(lookup_existent_cert)
