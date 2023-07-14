@@ -60,13 +60,27 @@ Run integration test:
             set -x -e
 
             pushd logs
-            gzip -f vpn_tun_http2.log || true
-            gzip -f vpn_tun_http3.log || true
-            gzip -f vpn_socks_http2.log || true
-            gzip -f vpn_socks_http3.log || true
+            timeout 10s gzip -f vpn_tun_http2.log || true
+            timeout 10s gzip -f vpn_tun_http3.log || true
+            timeout 10s gzip -f vpn_socks_http2.log || true
+            timeout 10s gzip -f vpn_socks_http3.log || true
             popd
 
             ./integration_test.sh clean
+        description: Gzip logs
+        working-dir: test
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            #!/bin/bash
+
+            pushd logs
+            rm -f vpn_tun_http2.log
+            rm -f vpn_tun_http3.log
+            rm -f vpn_socks_http2.log
+            rm -f vpn_socks_http3.log
+            popd
         description: Cleanup
         working-dir: test
   requirements:
