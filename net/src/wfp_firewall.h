@@ -11,6 +11,7 @@ namespace ag {
 enum WfpFirewallErrorCode {
     FE_NOT_INITIALIZED,
     FE_WFP_ERROR,
+    FE_WINAPI_ERROR,
 };
 
 template <>
@@ -20,7 +21,9 @@ struct ErrorCodeToString<WfpFirewallErrorCode> {
         case FE_NOT_INITIALIZED:
             return "The firewall failed to initialize";
         case FE_WFP_ERROR:
-            return "A WFP function failed";
+            return "A WFP function call failed";
+        case FE_WINAPI_ERROR:
+            return "A Windows API function call failed";
         }
     }
 };

@@ -59,7 +59,7 @@ ag::WfpFirewall::WfpFirewall()
         return;
     }
 
-    auto register_base_objects = [&]() -> WfpFirewallError {
+    auto register_base_objects = [&]() -> WfpFirewallError { // NOLINT(cppcoreguidelines-avoid-capture-default-when-capturing-this)
         std::wstring name = L"AdGuard VPN provider";
 
         FWPM_PROVIDER0 provider{
@@ -107,7 +107,7 @@ ag::WfpFirewallError ag::WfpFirewall::restrict_dns_to(std::basic_string_view<soc
     if (m_impl->engine_handle == INVALID_HANDLE_VALUE) {
         return make_error(FE_NOT_INITIALIZED);
     }
-    return run_transaction(m_impl->engine_handle, [&]() -> WfpFirewallError {
+    return run_transaction(m_impl->engine_handle, [&]() -> WfpFirewallError { // NOLINT(cppcoreguidelines-avoid-capture-default-when-capturing-this)
         FWPM_FILTER_CONDITION0 deny_conditions[] = {
                 {
                         .fieldKey = FWPM_CONDITION_IP_REMOTE_PORT,
@@ -239,6 +239,42 @@ ag::WfpFirewallError ag::WfpFirewall::restrict_dns_to(std::basic_string_view<soc
             }
         }
 
+        // Allow any DNS traffic for our process. Required for, e.g., resolving exclusions through the system DNS.
+        wchar_t module_name[4096]{}; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+        if (!GetModuleFileNameW(nullptr, &module_name[0], std::size(module_name))) {
+            return make_error(FE_WINAPI_ERROR, AG_FMT("GetModuleFileNameW failed with code {:#x}", GetLastError()));
+        }
+        FWP_BYTE_BLOB *app_id_blob = nullptr;
+        if (DWORD error = FwpmGetAppIdFromFileName(&module_name[0], &app_id_blob); error != ERROR_SUCCESS) {
+            return make_error(FE_WFP_ERROR, AG_FMT("FwpmGetAppIdFromFileName failed with code {:#x}", error));
+        }
+        std::shared_ptr<FWP_BYTE_BLOB> app_id_blob_guard(app_id_blob, [](FWP_BYTE_BLOB *blob) {
+            FwpmFreeMemory((void **) &blob);
+        });
+        std::vector<FWPM_FILTER_CONDITION0> allow_self_conditions;
+        allow_self_conditions.reserve(std::size(deny_conditions) + 1);
+        allow_self_conditions.insert(
+                allow_self_conditions.end(), std::begin(deny_conditions), std::end(deny_conditions));
+        allow_self_conditions.emplace_back(FWPM_FILTER_CONDITION0{
+                .fieldKey = FWPM_CONDITION_ALE_APP_ID,
+                .matchType = FWP_MATCH_EQUAL,
+                .conditionValue =
+                        {
+                                .type = FWP_BYTE_BLOB_TYPE,
+                                .byteBlob = app_id_blob,
+                        },
+        });
+        filter.numFilterConditions = allow_self_conditions.size();
+        filter.filterCondition = allow_self_conditions.data();
+        for (GUID layer_key : {FWPM_LAYER_ALE_AUTH_CONNECT_V4, FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4,
+                     FWPM_LAYER_ALE_AUTH_CONNECT_V6, FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6}) {
+            filter.layerKey = layer_key;
+            if (DWORD error = FwpmFilterAdd0(m_impl->engine_handle, &filter, nullptr, nullptr);
+                    error != ERROR_SUCCESS) {
+                return make_error(FE_WFP_ERROR, AG_FMT("FwpmFilterAdd0 failed with code {:#x}", error));
+            }
+        }
+
         return nullptr;
     });
 }
@@ -247,7 +283,7 @@ ag::WfpFirewallError ag::WfpFirewall::block_ipv6() {
     if (m_impl->engine_handle == INVALID_HANDLE_VALUE) {
         return make_error(FE_NOT_INITIALIZED);
     }
-    return run_transaction(m_impl->engine_handle, [&]() -> WfpFirewallError {
+    return run_transaction(m_impl->engine_handle, [&]() -> WfpFirewallError { // NOLINT(cppcoreguidelines-avoid-capture-default-when-capturing-this)
         std::wstring name = L"AdGuard VPN block IPv6";
         FWPM_FILTER0 filter{
                 .displayData =
