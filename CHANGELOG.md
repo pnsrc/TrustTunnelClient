@@ -1,5 +1,7 @@
 # CHANGELOG
 
+## 0.92.74
+
 * [Feature] The library now notifies an application about the amount of traffic passed through
   connections that have been routed through an endpoint.
   For this purpose, two events were introduced in `VpnEvent`:
