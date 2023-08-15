@@ -1223,18 +1223,10 @@ int Http3Upstream::mux_send_data_callback(ServerUpstream *upstream, uint64_t str
     auto *self = (Http3Upstream *) upstream;
     assert(self->m_udp_mux.get_stream_id() == stream_id || self->m_icmp_mux.get_stream_id() == stream_id);
 
-    // @todo: revert after investigation
-    if (stream_id != self->m_udp_mux.get_stream_id()) {
-        log_upstream(self, trace, "Trying to send packet of {} bytes on {} stream", data.size(),
-                stream_id == self->m_udp_mux.get_stream_id() ? "UDP" : "ICMP");
-    }
+    log_upstream(self, trace, "Trying to send packet of {} bytes on {} stream", data.size(),
+            stream_id == self->m_udp_mux.get_stream_id() ? "UDP" : "ICMP");
 
     ssize_t stream_cap = quiche_conn_stream_capacity(self->m_quic_conn.get(), stream_id);
-    // @todo: revert after investigation
-    if (stream_id == self->m_udp_mux.get_stream_id()) {
-        log_upstream(
-                self, dbg, "Trying to send packet of {} bytes on UDP stream (stream_cap={})", data.size(), stream_cap);
-    }
     if (stream_cap < 0) {
         log_upstream(self, dbg, "Failed to send packet on {} stream: quiche_conn_stream_capacity: {}",
                 stream_id == self->m_udp_mux.get_stream_id() ? "UDP" : "ICMP",
