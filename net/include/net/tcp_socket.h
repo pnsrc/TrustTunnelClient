@@ -58,6 +58,7 @@ typedef struct {
     const sockaddr *peer; // should be null if `tcp_socket_acquire_fd` was called before
     SSL *ssl; // SSL context in case of the traffic needs to be encrypted (should be null if `socket_acquire_ssl` was
               // called before)
+    bool anti_dpi; // Enable anti-DPI protection
 } TcpSocketConnectParameters;
 
 /**

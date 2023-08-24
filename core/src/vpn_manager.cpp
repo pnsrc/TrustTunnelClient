@@ -106,6 +106,7 @@ vpn_client::EndpointConnectionConfig Vpn::make_client_upstream_config() const {
                                         }));
                         return ret;
                     }(),
+            .anti_dpi = this->upstream_config->anti_dpi,
     };
 }
 

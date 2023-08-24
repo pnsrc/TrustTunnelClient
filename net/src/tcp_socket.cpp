@@ -70,7 +70,7 @@ static void on_read(struct bufferevent *, void *);
 static void on_write_flush(struct bufferevent *, TcpSocket *ctx);
 static void on_event(struct bufferevent *, short, void *);
 static void on_sent_event(struct evbuffer *buf, const struct evbuffer_cb_info *info, void *arg);
-static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sockaddr *dst, SSL *ssl);
+static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sockaddr *dst, SSL *ssl, bool anti_dpi);
 
 #ifdef _WIN32
 
@@ -440,7 +440,7 @@ static void on_rate_limited_write(struct evbuffer *, const struct evbuffer_cb_in
     }
 }
 
-static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sockaddr *dst, SSL *ssl) {
+static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sockaddr *dst, SSL *ssl, bool anti_dpi) {
     struct bufferevent *bev = nullptr;
     SocketProtectEvent event;
     const TcpSocketHandler *callbacks = &sock->parameters.handler;
@@ -485,8 +485,10 @@ static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sock
     }
 
     if (ssl != nullptr) {
-        bufferevent_set_rate_limit(bev, RATE_LIMIT_ANTIDPI.get());
-        evbuffer_add_cb(bufferevent_get_output(bev), on_rate_limited_write, (void *) bev);
+        if (anti_dpi) {
+            bufferevent_set_rate_limit(bev, RATE_LIMIT_ANTIDPI.get());
+            evbuffer_add_cb(bufferevent_get_output(bev), on_rate_limited_write, (void *) bev);
+        }
         bufferevent *ssl_bev = bufferevent_openssl_filter_new(base, bev, ssl, BUFFEREVENT_SSL_CONNECTING, options);
         if (ssl_bev == nullptr) {
             log_sock(sock, err, "Failed to create SSL bufferevent");
@@ -529,7 +531,7 @@ VpnError tcp_socket_connect(TcpSocket *socket, const TcpSocketConnectParameters 
         sockaddr_to_str(param->peer, buf, sizeof(buf));
         snprintf(socket->log_id, sizeof(socket->log_id), LOG_ID_PREADDR_FMT "%s", socket->id, buf);
 
-        socket->bev = create_bufferevent(socket, param->peer, param->ssl);
+        socket->bev = create_bufferevent(socket, param->peer, param->ssl, param->anti_dpi);
         if (socket->bev != nullptr) {
             socket->ssl = nullptr;
         } else {

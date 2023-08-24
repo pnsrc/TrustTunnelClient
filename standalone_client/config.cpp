@@ -171,6 +171,7 @@ static void apply_endpoint_config(Config *self, const toml::table &config) {
     self->endpoint.username = Field<std::string>(config, "username").unwrap("Username is not specified");
     self->endpoint.password = Field<std::string>(config, "password").unwrap("Password is not specified");
     self->endpoint.skip_verification = Field<bool>(config, "skip_verification").unwrap_or(false);
+    self->endpoint.anti_dpi = Field<bool>(config, "anti_dpi").unwrap_or(false);
 
     if (std::optional x = get_field<std::string>(config, "certificate");
             !self->endpoint.skip_verification && x.has_value() && !x->empty()) {

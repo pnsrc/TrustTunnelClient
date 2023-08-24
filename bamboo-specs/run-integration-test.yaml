@@ -147,14 +147,14 @@ Run live test:
 
             ENDPOINT_HOSTNAME="localhost"
 
-            cargo run --release --bin setup_wizard -- --mode non-interactive  \
+            cargo run --config net.git-fetch-with-cli=true --release --bin setup_wizard -- --mode non-interactive  \
               --address "0.0.0.0:4433" \
               --creds premium:premium  \
               --hostname "$ENDPOINT_HOSTNAME"  \
               --lib-settings vpn.toml  \
               --hosts-settings tls_hosts.toml
 
-            cargo build --release --bin vpn_endpoint
+            cargo build --config net.git-fetch-with-cli=true --release --bin vpn_endpoint
         description: Build vpn-libs-endpoint
         working-dir: vpn-libs-endpoint
     - script:

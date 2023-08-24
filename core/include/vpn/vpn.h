@@ -213,6 +213,8 @@ typedef struct {
     VpnUpstreamSessionRecoverySettings recovery;
     /** Fall back configuration */
     VpnUpstreamFallbackConfig fallback;
+    /** Enable anti-dpi measures */
+    bool anti_dpi;
 } VpnUpstreamConfig;
 
 /**

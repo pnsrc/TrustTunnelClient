@@ -71,6 +71,8 @@ certificate = ""
 upstream_protocol = "{}"
 {}
 upstream_fallback_protocol = ""
+{}
+anti_dpi = false
 "#,
     Endpoint::doc().to_toml_comment(),
     Endpoint::doc_hostname().to_toml_comment(),
@@ -82,6 +84,7 @@ upstream_fallback_protocol = ""
     Endpoint::doc_upstream_protocol().to_toml_comment(),
     Endpoint::default_upstream_protocol(),
     Endpoint::doc_upstream_fallback_protocol().to_toml_comment(),
+    Endpoint::doc_anti_dpi().to_toml_comment(),
 ));
 
 pub const COMMON_LISTENER_TABLE: &str = r#"

@@ -68,6 +68,7 @@ struct EndpointConnectionConfig {
     std::string password;
     std::chrono::milliseconds endpoint_pinging_period{VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS};
     IpVersionSet ip_availability;
+    bool anti_dpi = false;
 };
 
 static constexpr const char *LOG_NAME = "VPNCLIENT";

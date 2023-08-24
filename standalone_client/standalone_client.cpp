@@ -217,6 +217,7 @@ static bool connect_to_server(Vpn *v) {
                                     },
                             .username = g_config.endpoint.username.c_str(),
                             .password = g_config.endpoint.password.c_str(),
+                            .anti_dpi = g_config.endpoint.anti_dpi,
                     },
     };
 

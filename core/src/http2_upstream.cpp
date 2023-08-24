@@ -474,6 +474,7 @@ bool Http2Upstream::open_session(std::optional<Millis> timeout) {
     TcpSocketConnectParameters param = {
             .peer = (sockaddr *) &config->endpoint->address,
             .ssl = ssl.release(),
+            .anti_dpi = config->anti_dpi,
     };
 
     VpnError error = tcp_socket_connect(m_socket.get(), &param);

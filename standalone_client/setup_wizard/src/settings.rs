@@ -136,6 +136,9 @@ If not specified, the endpoint certificate is verfied using the system storage."
         pub upstream_protocol: String,
         #{doc("Fallback protocol to be used in case the main one fails [<none>, http2, http3]")}
         pub upstream_fallback_protocol: Option<String>,
+        #{doc("Is anti-DPI measures should be enabled")}
+        #[serde(default)]
+        pub anti_dpi: bool,
     }
 }
 
@@ -318,6 +321,7 @@ fn build_endpoint(template: Option<&Endpoint>) -> Endpoint {
             .unwrap_or_else(Endpoint::default_upstream_protocol),
         upstream_fallback_protocol: opt_field!(template, upstream_fallback_protocol).cloned()
             .unwrap_or_default(),
+        anti_dpi: opt_field!(template, anti_dpi).cloned().unwrap_or(false),
         ..Default::default()
     };
 

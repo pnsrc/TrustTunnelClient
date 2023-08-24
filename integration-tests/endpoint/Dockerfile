@@ -15,7 +15,7 @@ COPY $ENDPOINT_DIR /test/$ENDPOINT_DIR
 
 WORKDIR /test/
 RUN cd "$ENDPOINT_DIR" && \
-    cargo build --release --bin vpn_endpoint && \
+    cargo build --config net.git-fetch-with-cli=true --release --bin vpn_endpoint && \
     mv ./target/release/vpn_endpoint /test/ && \
     openssl req -new -x509 -sha256 -newkey rsa:2048 -nodes -days 1000 \
         -keyout /test/key.pem -out /test/cert.pem \
