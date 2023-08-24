@@ -270,7 +270,7 @@ HttpUdpMultiplexer::PacketInfo HttpUdpMultiplexer::read_prefix(const std::vector
 
     info.payload_length = length - (UDPPKT_IN_PREFIX_SIZE - UDPPKT_LENGTH_SIZE);
 
-    auto i = m_addr_to_id.find({(sockaddr *) &dst_addr, (sockaddr *) &src_addr});
+    auto i = m_addr_to_id.find({dst_addr, src_addr});
     if (i != m_addr_to_id.end()) {
         info.id = i->second;
         log_conn(this, info.id, trace, "Payload length: {}", info.payload_length);

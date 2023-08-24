@@ -94,7 +94,7 @@ struct TunnelAddressPair {
 };
 
 inline bool operator==(const TunnelAddressPair &lh, const TunnelAddressPair &rh) {
-    if (0 != memcmp(&lh.src, &rh.src, sizeof(lh.src))) {
+    if (!sockaddr_equals((sockaddr *) &lh.src, (sockaddr *) &rh.src)) {
         return false;
     }
     if (lh.dst.index() != rh.dst.index()) {
