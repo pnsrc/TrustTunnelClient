@@ -116,8 +116,8 @@ bool HttpUdpMultiplexer::open_connection(uint64_t conn_id, const TunnelAddressPa
         return false;
     }
 
-    auto [iter, inserted] = m_connections.try_emplace(conn_id);
-    if (!inserted) {
+    auto i = m_connections.find(conn_id);
+    if (i != m_connections.end()) {
         log_conn(this, conn_id, err, "Connection with such id already exists");
         assert(0);
         return false;
@@ -138,18 +138,22 @@ bool HttpUdpMultiplexer::open_connection(uint64_t conn_id, const TunnelAddressPa
         [[fallthrough]];
     }
     case MS_ESTABLISHED:
-        Connection *conn = &iter->second;
-        conn->timeout = steady_clock::now() + milliseconds(VPN_DEFAULT_UDP_TIMEOUT_MS);
-        conn->open_task_id = event_loop::submit(upstream->vpn->parameters.ev_loop,
-                {new CompleteCtx{this, conn_id}, complete_udp_connection, [](void *arg) {
-                     delete (CompleteCtx *) arg;
-                 }});
+        m_connections.emplace(conn_id,
+                Connection{
+                        .addr = *addr,
+                        .app_name = std::string{app_name},
+                        .timeout = steady_clock::now() + milliseconds(VPN_DEFAULT_UDP_TIMEOUT_MS),
+                        .open_task_id = event_loop::submit(upstream->vpn->parameters.ev_loop,
+                                {
+                                        new CompleteCtx{this, conn_id},
+                                        complete_udp_connection,
+                                        [](void *arg) {
+                                            delete (CompleteCtx *) arg;
+                                        },
+                                }),
+                });
         break;
     }
-
-    Connection *conn = &iter->second;
-    conn->addr = *addr;
-    conn->app_name = app_name;
 
     if (m_timer_event == nullptr) {
         m_timer_event.reset(event_new(
@@ -328,7 +332,7 @@ int HttpUdpMultiplexer::process_read_event(U8View data) {
             break;
         }
         case RCS_PAYLOAD: {
-            m_connections[rconn->id].timeout = steady_clock::now() + milliseconds(VPN_DEFAULT_UDP_TIMEOUT_MS);
+            m_connections.at(rconn->id).timeout = steady_clock::now() + milliseconds(VPN_DEFAULT_UDP_TIMEOUT_MS);
 
             size_t to_read = std::min(rconn->bytes_left, data.length());
             rconn->buffer.insert(rconn->buffer.end(), data.data(), data.data() + to_read);

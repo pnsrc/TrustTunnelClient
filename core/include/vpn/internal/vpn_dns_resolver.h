@@ -66,7 +66,7 @@ public:
         void *arg;
     };
 
-    VpnDnsResolver() = default;
+    VpnDnsResolver();
     ~VpnDnsResolver() override = default;
 
     VpnDnsResolver(const VpnDnsResolver &) = delete;

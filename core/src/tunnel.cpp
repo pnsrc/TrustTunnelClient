@@ -1273,8 +1273,8 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
     case CLIENT_EVENT_CONNECT_REQUEST: {
         const ClientConnectRequest *client_event = (ClientConnectRequest *) data;
 
-        TunnelAddressPair client_event_addr = {client_event->src, client_event->dst};
-        if (const auto addr = std::get_if<NamePort>(client_event->dst); addr != nullptr) {
+        TunnelAddressPair client_event_addr = {client_event->src, *client_event->dst};
+        if (const auto *addr = std::get_if<NamePort>(client_event->dst); addr != nullptr) {
             if (utils::is_valid_ip4(addr->name)) {
                 auto dst = sockaddr_from_str(AG_FMT("{}:{}", addr->name, addr->port).c_str());
                 client_event_addr = {client_event->src, (sockaddr *) &dst};
@@ -1291,7 +1291,7 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
         conn->flags.set(CONNF_FIRST_PACKET);
 
         log_conn(this, conn, dbg, "New client connection request: {}->{} (proto: {})",
-                sockaddr_to_str(client_event->src), tunnel_addr_to_str(client_event->dst), client_event->protocol);
+                sockaddr_to_str(client_event->src), tunnel_addr_to_str(&client_event_addr.dst), client_event->protocol);
 
         add_connection(this, conn);
 
@@ -1315,7 +1315,7 @@ void Tunnel::listener_handler(ClientListener *listener, ClientEvent what, void *
             }
         }
 
-        VpnAddress dst = tunnel_to_vpn_address(client_event->dst);
+        VpnAddress dst = tunnel_to_vpn_address(&client_event_addr.dst);
         VpnConnectRequestEvent vpn_event = {
                 client_event->id, client_event->protocol, client_event->src, &dst, conn->app_name.c_str()};
         // result will come in `complete_connect_request`

@@ -21,6 +21,10 @@ static constexpr size_t RESOLVE_CAPACITIES[magic_enum::enum_count<VpnDnsResolver
         /** VDRQ_FOREGROUND */ std::numeric_limits<size_t>::max(),
 };
 
+VpnDnsResolver::VpnDnsResolver()
+        : m_resolver_address(FALLBACK_RESOLVER_ADDRESS) {
+}
+
 std::optional<VpnDnsResolveId> VpnDnsResolver::resolve(
         VpnDnsResolverQueue queue, std::string name, RecordTypeSet record_types, ResultHandler result_handler) {
     log_resolver(this, trace, "{}", name);
@@ -495,7 +499,7 @@ void VpnDnsResolver::on_dns_updated(void *arg) {
                         .c_sockaddr());
     };
 
-    self->m_resolver_address = std::monostate{};
+    std::optional<sockaddr_storage> selected_address;
 
     SystemDnsServers servers = dns_manager_get_system_servers(self->vpn->parameters.network_manager->dns);
     for (const SystemDnsServer &x : servers.main) {
@@ -504,13 +508,14 @@ void VpnDnsResolver::on_dns_updated(void *arg) {
             continue;
         }
 
-        self->m_resolver_address = address;
+        selected_address = address;
         log_resolver(self, dbg, "Chosen resolver from main system servers: {}",
                 tunnel_addr_to_str(&self->m_resolver_address));
         break;
     }
 
-    if (!std::holds_alternative<std::monostate>(self->m_resolver_address)) {
+    if (selected_address.has_value()) {
+        self->m_resolver_address = selected_address.value();
         return;
     }
 
@@ -520,13 +525,15 @@ void VpnDnsResolver::on_dns_updated(void *arg) {
             continue;
         }
 
-        self->m_resolver_address = address;
+        selected_address = address;
         log_resolver(self, dbg, "Chosen resolver from fallback system servers: {}",
                 tunnel_addr_to_str(&self->m_resolver_address));
         break;
     }
 
-    if (std::holds_alternative<std::monostate>(self->m_resolver_address)) {
+    if (selected_address.has_value()) {
+        self->m_resolver_address = selected_address.value();
+    } else {
         self->m_resolver_address = FALLBACK_RESOLVER_ADDRESS;
         log_resolver(self, dbg, "Couldn't choose resolver from system servers, using fallback: {}",
                 tunnel_addr_to_str(&self->m_resolver_address));

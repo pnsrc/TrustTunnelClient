@@ -3,13 +3,27 @@
 
 namespace ag {
 
+VpnConnection::VpnConnection(TunnelAddressPair addr)
+        : addr(std::move(addr)) {
+}
+
+UdpVpnConnection::UdpVpnConnection(TunnelAddressPair addr)
+        : VpnConnection(std::move(addr)) {
+}
+
+TcpVpnConnection::TcpVpnConnection(TunnelAddressPair addr)
+        : VpnConnection(std::move(addr)) {
+}
+
 VpnConnection *VpnConnection::make(uint64_t client_id, TunnelAddressPair addr, int proto) {
-    VpnConnection *self; // NOLINT(cppcoreguidelines-init-variables)
-    if (proto == IPPROTO_TCP) {
-        self = new TcpVpnConnection{};
-    } else {
-        assert(proto == IPPROTO_UDP);
-        self = new UdpVpnConnection{};
+    VpnConnection *self;                                    // NOLINT(cppcoreguidelines-init-variables)
+    switch (ipproto_to_transport_protocol(proto).value()) { // NOLINT(bugprone-unchecked-optional-access)
+    case utils::TP_TCP:
+        self = new TcpVpnConnection{addr};
+        break;
+    case utils::TP_UDP:
+        self = new UdpVpnConnection{addr};
+        break;
     }
 
     self->client_id = client_id;

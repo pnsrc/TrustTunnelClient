@@ -119,7 +119,7 @@ public:
     }
 
     uint64_t initiate_connection() { // NOLINT(readability-make-member-function-const)
-        TunnelAddressPair addr;
+        TunnelAddressPair addr = {sockaddr_from_str("1.1.1.1:1"), sockaddr_from_str("2.2.2.2:2")};
         uint64_t conn_id = this->vpn.endpoint_upstream->open_connection(&addr, IPPROTO_TCP, "");
         return conn_id;
     }

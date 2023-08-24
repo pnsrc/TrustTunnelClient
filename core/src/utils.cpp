@@ -11,17 +11,13 @@
 namespace ag {
 
 std::string tunnel_addr_to_str(const TunnelAddress *tun_addr) {
-    std::string out = {};
+    std::string out;
 
-    if (const sockaddr_storage *addr = std::get_if<sockaddr_storage>(tun_addr)) {
+    if (const auto *addr = std::get_if<sockaddr_storage>(tun_addr)) {
         out = sockaddr_to_str((sockaddr *) addr);
-    } else if (const NamePort *domain = std::get_if<NamePort>(tun_addr)) {
-        out.reserve(domain->name.length() + 6);
-        out += domain->name;
-        if (domain->port > 0) {
-            out += ":";
-            out += std::to_string(domain->port);
-        }
+    } else {
+        const auto &domain = std::get<NamePort>(*tun_addr);
+        out = (domain.port == 0) ? domain.name : AG_FMT("{}:{}", domain.name, domain.port);
     }
 
     return out;

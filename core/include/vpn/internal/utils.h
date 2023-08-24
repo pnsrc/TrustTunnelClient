@@ -10,10 +10,10 @@
 #include <event2/event.h>
 #include <magic_enum.hpp>
 
+#include "common/net_utils.h"
 #include "common/utils.h"
 #include "net/tcp_socket.h"
 #include "net/udp_socket.h"
-#include "common/net_utils.h"
 #include "vpn/platform.h"
 #include "vpn/utils.h"
 #include "vpn/vpn.h"
@@ -64,22 +64,32 @@ inline bool operator!=(const NamePort &lh, const NamePort &rh) {
     return !(lh == rh);
 }
 
-using TunnelAddress = std::variant<std::monostate, sockaddr_storage, NamePort>;
+using TunnelAddress = std::variant<sockaddr_storage, NamePort>;
 
 struct TunnelAddressPair {
-    sockaddr_storage src = {};
-    TunnelAddress dst = {};
+    sockaddr_storage src;
+    TunnelAddress dst;
 
-    TunnelAddressPair() = default;
+    TunnelAddressPair() = delete;
 
-    TunnelAddressPair(const sockaddr *s, const TunnelAddress *d)
+    TunnelAddressPair(const sockaddr *s, TunnelAddress d)
             : src(ag::sockaddr_to_storage(s))
-            , dst(*d) {
+            , dst(std::move(d)) {
+    }
+
+    TunnelAddressPair(const sockaddr_storage &s, TunnelAddress d)
+            : src(s)
+            , dst(std::move(d)) {
     }
 
     TunnelAddressPair(const sockaddr *s, const sockaddr *d)
             : src(ag::sockaddr_to_storage(s))
             , dst(ag::sockaddr_to_storage(d)) {
+    }
+
+    TunnelAddressPair(const sockaddr_storage &s, const sockaddr_storage &d)
+            : src(s)
+            , dst(d) {
     }
 };
 
@@ -218,10 +228,11 @@ template <>
 struct hash<ag::TunnelAddress> {
     size_t operator()(const ag::TunnelAddress &addr) const {
         size_t hash = 0;
-        if (const sockaddr_storage *a = std::get_if<sockaddr_storage>(&addr); a != nullptr) {
+        if (const auto *a = std::get_if<sockaddr_storage>(&addr); a != nullptr) {
             hash = size_t(ag::sockaddr_hash((sockaddr *) a));
-        } else if (const ag::NamePort *np = std::get_if<ag::NamePort>(&addr); np != nullptr) {
-            hash = size_t(ag::hash_pair_combine(ag::str_hash32(np->name.c_str(), np->name.length()), np->port));
+        } else {
+            const auto &np = std::get<ag::NamePort>(addr);
+            hash = size_t(ag::hash_pair_combine(ag::str_hash32(np.name.c_str(), np.name.length()), np.port));
         }
         return hash;
     }
@@ -230,14 +241,16 @@ struct hash<ag::TunnelAddress> {
 template <>
 struct hash<ag::TunnelAddressPair> {
     size_t operator()(const ag::TunnelAddressPair &addr) const {
-        return size_t(ag::hash_pair_combine(ag::sockaddr_hash((sockaddr *) &addr.src), hash<ag::TunnelAddress>{}(addr.dst)));
+        return size_t(
+                ag::hash_pair_combine(ag::sockaddr_hash((sockaddr *) &addr.src), hash<ag::TunnelAddress>{}(addr.dst)));
     }
 };
 
 template <>
 struct hash<ag::SockAddrTag> {
     size_t operator()(const ag::SockAddrTag &k) const {
-        return size_t(ag::hash_pair_combine(ag::sockaddr_hash((sockaddr *) &k.addr), std::hash<std::string>()(k.appname)));
+        return size_t(
+                ag::hash_pair_combine(ag::sockaddr_hash((sockaddr *) &k.addr), std::hash<std::string>()(k.appname)));
     }
 };
 

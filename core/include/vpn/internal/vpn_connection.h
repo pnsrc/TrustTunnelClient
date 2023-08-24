@@ -88,13 +88,20 @@ struct VpnConnection {
     VpnConnection &operator=(const VpnConnection &) = delete;
     VpnConnection &operator=(VpnConnection &&) = delete;
 
-    VpnConnection() = default;
+    VpnConnection() = delete;
     virtual ~VpnConnection() = default;
     [[nodiscard]] SockAddrTag make_tag() const;
+
+protected:
+    explicit VpnConnection(TunnelAddressPair);
 };
 
-struct UdpVpnConnection : public VpnConnection {};
+struct UdpVpnConnection : public VpnConnection {
+    explicit UdpVpnConnection(TunnelAddressPair);
+};
 
-struct TcpVpnConnection : public VpnConnection {};
+struct TcpVpnConnection : public VpnConnection {
+    explicit TcpVpnConnection(TunnelAddressPair);
+};
 
 } // namespace ag

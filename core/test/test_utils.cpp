@@ -12,11 +12,6 @@ using namespace ag;
 
 class TunnelAddressTest : public testing::TestWithParam<std::pair<TunnelAddress, TunnelAddress>> {
 protected:
-    void SetUp() override {
-        const auto &param = GetParam();
-        ASSERT_EQ(std::get_if<std::monostate>(&param.first), nullptr);
-        ASSERT_EQ(std::get_if<std::monostate>(&param.second), nullptr);
-    }
 };
 
 class Equal : public TunnelAddressTest {};
