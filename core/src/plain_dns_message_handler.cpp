@@ -12,6 +12,9 @@ void PlainDnsMessageHandler::init(const Parameters &p) {
 }
 
 PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::on_outgoing_message(U8View data) const {
+// On iOS, exceptional DNS routing can not use DnsLibs since system DNS servers can not exactly be determined
+// TODO(s.fionov): implement this instead: https://developer.apple.com/documentation/dnssd/1804747-dnsservicequeryrecord?language=objc
+#if !defined(__APPLE__) || !TARGET_OS_IPHONE
     dns_utils::DecodeResult r = dns_utils::decode_packet(data);
     if (const auto *e = std::get_if<dns_utils::Error>(&r); e != nullptr) {
         log_handler(this, dbg, "Failed to parse reply: {}", e->description);
@@ -64,6 +67,9 @@ PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::on_outgoing_messag
             return (m_parameters.vpn->dns_proxy == nullptr) ? RP_EXCEPTIONAL : RP_THROUGH_DNS_PROXY;
         }
     }
+#else
+    return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;
+#endif
 }
 
 void PlainDnsMessageHandler::on_incoming_message(U8View data, bool library_request) {

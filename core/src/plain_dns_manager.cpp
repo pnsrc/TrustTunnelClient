@@ -602,7 +602,7 @@ void ag::PlainDnsManager::on_async_task(void *arg, TaskId) {
 
 void ag::PlainDnsManager::on_dns_updated(void *arg) {
 // On iOS, exceptional DNS routing can not use DnsLibs since system DNS servers can not exactly be determined
-// TODO: implement this instead: https://developer.apple.com/documentation/dnssd/1804747-dnsservicequeryrecord?language=objc
+// TODO(s.fionov): implement this instead: https://developer.apple.com/documentation/dnssd/1804747-dnsservicequeryrecord?language=objc
 #if !defined(__APPLE__) || !TARGET_OS_IPHONE
     auto *self = (PlainDnsManager *) arg;
 
