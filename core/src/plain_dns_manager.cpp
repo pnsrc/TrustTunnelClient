@@ -601,6 +601,9 @@ void ag::PlainDnsManager::on_async_task(void *arg, TaskId) {
 }
 
 void ag::PlainDnsManager::on_dns_updated(void *arg) {
+// On iOS, exceptional DNS routing can not use DnsLibs since system DNS servers can not exactly be determined
+// TODO: implement this instead: https://developer.apple.com/documentation/dnssd/1804747-dnsservicequeryrecord?language=objc
+#if !defined(__APPLE__) || !TARGET_OS_IPHONE
     auto *self = (PlainDnsManager *) arg;
 
     static constexpr auto server_address_from_str = [](std::string_view str) {
@@ -640,6 +643,7 @@ void ag::PlainDnsManager::on_dns_updated(void *arg) {
     if (!self->start_dns_proxy(std::move(servers))) {
         log_manager(self, err, "Failed to start DNS proxy");
     }
+#endif // !TARGET_OS_IPHONE
 }
 
 void ag::PlainDnsManager::complete_read(uint64_t us_conn_id) {

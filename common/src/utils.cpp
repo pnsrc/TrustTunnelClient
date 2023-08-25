@@ -101,7 +101,8 @@ size_t sockaddr_get_ip_size(const struct sockaddr *addr) {
 }
 
 bool sockaddr_equals(const struct sockaddr *lh, const struct sockaddr *rh) {
-    return lh->sa_family == rh->sa_family && 0 == memcmp(lh->sa_data, rh->sa_data, sockaddr_get_size(lh));
+    ev_socklen_t len = sockaddr_get_size(lh);
+    return lh->sa_family == rh->sa_family && (len == 0 || 0 == memcmp(lh->sa_data, rh->sa_data, len - offsetof(sockaddr, sa_data)));
 }
 
 ssize_t sockaddr_ip_to_str(const struct sockaddr *addr, char *buf, size_t buf_size) {
