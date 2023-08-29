@@ -296,6 +296,10 @@ static void on_event(struct bufferevent *bev, short what, void *ctx) {
             callbacks->handler(callbacks->arg, TCP_SOCKET_EVENT_READABLE, nullptr);
         }
     } else if (what & BEV_EVENT_TIMEOUT) {
+        // We do not expect that timeout disables reads or writes
+        bufferevent_enable(bev, (what & BEV_EVENT_WRITING) ? EV_WRITE : 0);
+        bufferevent_enable(bev, (what & BEV_EVENT_READING) ? EV_READ : 0);
+
         struct timeval timeout_tv = ms_to_timeval(uint32_t(socket->parameters.timeout.count()));
         struct timeval expected_timeout_ts;
         evutil_timeradd(&socket->timeouts_set_ts, &timeout_tv, &expected_timeout_ts);
@@ -597,7 +601,7 @@ evutil_socket_t tcp_socket_get_fd(const TcpSocket *socket) {
 void tcp_socket_set_timeout(TcpSocket *socket, Millis x) {
     socket->parameters.timeout = x;
     const timeval tv = ms_to_timeval(uint32_t(x.count()));
-    int r = bufferevent_set_timeouts(socket->bev, &tv, &tv);
+    int r = bufferevent_set_timeouts(socket->bev, &tv, nullptr);
     event_base_gettimeofday_cached(bufferevent_get_base(socket->bev), &socket->timeouts_set_ts);
     (void) r;
     assert(r == 0);
