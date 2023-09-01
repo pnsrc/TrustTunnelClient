@@ -26,7 +26,7 @@ public:
     ~PlainDnsClientSideAdapter() override;
 
 protected:
-    virtual void close_client_side_connection(uint64_t id, bool graceful, bool async) = 0;
+    virtual void close_client_side_connection(uint64_t id, VpnError error, bool async) = 0;
     virtual ssize_t send_outgoing_packet(uint64_t id, const uint8_t *data, size_t length) = 0;
     virtual void consume_outgoing_flow(uint64_t id, size_t length) = 0;
 
@@ -46,7 +46,7 @@ public:
     ~PlainDnsServerSideAdapter() override;
 
 protected:
-    virtual void close_upstream_side_connection(uint64_t id, bool graceful, bool async) = 0;
+    virtual void close_upstream_side_connection(uint64_t id, VpnError error, bool async) = 0;
     virtual ssize_t send_incoming_packet(uint64_t id, const uint8_t *data, size_t length) = 0;
     virtual void consume_incoming_flow(uint64_t id, size_t n) = 0;
 
@@ -141,14 +141,14 @@ private:
     bool open_session(std::optional<Millis> timeout) override;
     void close_session() override;
     uint64_t open_connection(const TunnelAddressPair *addr, int proto, std::string_view app_name) override;
-    void close_client_side_connection(uint64_t id, bool graceful, bool async) override;
+    void close_client_side_connection(uint64_t id, VpnError error, bool async) override;
     ssize_t send_outgoing_packet(uint64_t conn_id, const uint8_t *data, size_t length) override;
     void consume_outgoing_flow(uint64_t conn_id, size_t length) override;
     size_t available_to_send(uint64_t id) override;
     void update_flow_control(uint64_t id, TcpFlowCtrlInfo info) override;
 
     void complete_connect_request(uint64_t id, ClientConnectResult result) override;
-    void close_upstream_side_connection(uint64_t id, bool graceful, bool async) override;
+    void close_upstream_side_connection(uint64_t id, VpnError error, bool async) override;
     ssize_t send_incoming_packet(uint64_t id, const uint8_t *data, size_t length) override;
     void consume_incoming_flow(uint64_t id, size_t n) override;
     TcpFlowCtrlInfo flow_control_info(uint64_t id) override;
@@ -157,8 +157,8 @@ private:
     static void on_async_task(void *arg, TaskId);
     static void on_dns_updated(void *arg);
     void complete_read(uint64_t id);
-    void close_connection_sync(uint64_t id, ClientSideConnection &conn, bool closed_by_opposite);
-    void close_connection_sync(uint64_t id, UpstreamSideConnection &conn, bool closed_by_opposite);
+    void close_connection_sync(uint64_t id, ClientSideConnection &conn, bool closed_by_opposite, VpnError error);
+    void close_connection_sync(uint64_t id, UpstreamSideConnection &conn, bool closed_by_opposite, VpnError error);
     ssize_t send_outgoing_tcp_packet(uint64_t conn_id, ClientSideConnection &cs_conn, Uint8View data);
     ssize_t send_outgoing_query(uint64_t conn_id, ClientSideConnection &cs_conn,
             PlainDnsMessageHandler::RoutingPolicy routing_policy, Uint8View data);

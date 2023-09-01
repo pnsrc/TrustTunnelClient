@@ -110,7 +110,9 @@ ag::PlainDnsClientSideAdapter::PlainDnsClientSideAdapter(int id)
 ag::PlainDnsClientSideAdapter::~PlainDnsClientSideAdapter() = default;
 
 void ag::PlainDnsClientSideAdapter::close_connection(uint64_t conn_id, bool graceful, bool async) {
-    close_client_side_connection(conn_id, graceful, async);
+    close_client_side_connection(conn_id,
+            graceful ? VpnError{} : VpnError{utils::AG_ECONNRESET, evutil_socket_error_to_string(utils::AG_ECONNRESET)},
+            async);
 }
 
 ssize_t ag::PlainDnsClientSideAdapter::send(uint64_t conn_id, const uint8_t *data, size_t length) {
@@ -140,7 +142,9 @@ ag::PlainDnsServerSideAdapter::PlainDnsServerSideAdapter() = default;
 ag::PlainDnsServerSideAdapter::~PlainDnsServerSideAdapter() = default;
 
 void ag::PlainDnsServerSideAdapter::close_connection(uint64_t conn_id, bool graceful, bool async) {
-    close_upstream_side_connection(conn_id, graceful, async);
+    close_upstream_side_connection(conn_id,
+            graceful ? VpnError{} : VpnError{utils::AG_ECONNRESET, evutil_socket_error_to_string(utils::AG_ECONNRESET)},
+            async);
 }
 
 ssize_t ag::PlainDnsServerSideAdapter::send(uint64_t conn_id, const uint8_t *data, size_t length) {
@@ -267,7 +271,7 @@ void ag::PlainDnsManager::close_session() {
     log_manager(this, dbg, "...");
 
     while (!m_upstream_side_connections.empty()) {
-        close_upstream_side_connection(m_upstream_side_connections.begin()->first, false, false);
+        close_upstream_side_connection(m_upstream_side_connections.begin()->first, {}, false);
     }
 
     log_manager(this, dbg, "Done");
@@ -285,7 +289,7 @@ uint64_t ag::PlainDnsManager::open_connection(const ag::TunnelAddressPair *addr,
     return conn_id;
 }
 
-void ag::PlainDnsManager::close_client_side_connection(uint64_t cs_conn_id, bool, bool async) {
+void ag::PlainDnsManager::close_client_side_connection(uint64_t cs_conn_id, VpnError error, bool async) {
     if (async) {
         m_closing_client_side_connections.insert(cs_conn_id);
         if (!m_async_task.has_value()) {
@@ -295,7 +299,17 @@ void ag::PlainDnsManager::close_client_side_connection(uint64_t cs_conn_id, bool
     }
 
     if (auto node = m_client_side_connections.extract(cs_conn_id); !node.empty()) {
-        this->close_connection_sync(cs_conn_id, *node.mapped(), false);
+        this->close_connection_sync(cs_conn_id, *node.mapped(), false, error);
+        return;
+    }
+
+    m_closing_client_side_connections.erase(cs_conn_id);
+    if (error.code == VPN_EC_NOERROR) {
+        this->ServerUpstream::handler.func(
+                this->ServerUpstream::handler.arg, SERVER_EVENT_CONNECTION_CLOSED, &cs_conn_id);
+    } else {
+        ServerError event = {cs_conn_id, error};
+        this->ServerUpstream::handler.func(this->ServerUpstream::handler.arg, SERVER_EVENT_ERROR, &event);
     }
 }
 
@@ -397,18 +411,31 @@ void ag::PlainDnsManager::update_flow_control(uint64_t cs_conn_id, ag::TcpFlowCt
     }
 }
 
+static ag::VpnError connect_result_to_error(ag::ClientConnectResult result) {
+    switch (result) {
+    case ag::CCR_PASS:
+        return {};
+    case ag::CCR_DROP:
+        return {ag::utils::AG_ETIMEDOUT, evutil_socket_error_to_string(ag::utils::AG_ETIMEDOUT)};
+    case ag::CCR_REJECT:
+        return {ag::utils::AG_ECONNREFUSED, evutil_socket_error_to_string(ag::utils::AG_ECONNREFUSED)};
+    case ag::CCR_UNREACH:
+        return {AG_EHOSTUNREACH, evutil_socket_error_to_string(AG_EHOSTUNREACH)};
+    }
+}
+
 void ag::PlainDnsManager::complete_connect_request(uint64_t us_conn_id, ag::ClientConnectResult result) {
     auto us_conn_iter = m_upstream_side_connections.find(us_conn_id);
     if (us_conn_iter == m_upstream_side_connections.end()) {
         log_us_conn(this, us_conn_id, dbg, "Not found");
-        this->close_upstream_side_connection(us_conn_id, false, false);
+        this->close_upstream_side_connection(us_conn_id, connect_result_to_error(result), false);
         return;
     }
 
     UpstreamSideConnection &us_conn = *us_conn_iter->second;
     if (us_conn.state != UpstreamSideConnection::S_CONNECTING) {
         log_us_conn(this, us_conn_id, dbg, "Unexpected state: {}", magic_enum::enum_name(us_conn.state));
-        this->close_upstream_side_connection(us_conn_id, false, false);
+        this->close_upstream_side_connection(us_conn_id, connect_result_to_error(result), false);
         return;
     }
 
@@ -416,11 +443,11 @@ void ag::PlainDnsManager::complete_connect_request(uint64_t us_conn_id, ag::Clie
     auto cs_conn_iter = m_client_side_connections.find(cs_conn_id);
     if (cs_conn_iter == m_client_side_connections.end()) {
         log_cs_conn(this, cs_conn_id, dbg, "Not found");
-        this->close_upstream_side_connection(us_conn_id, false, false);
+        this->close_upstream_side_connection(us_conn_id, connect_result_to_error(result), false);
         return;
     }
 
-    std::optional<ServerError> error;
+    std::optional<VpnError> error;
     switch (result) {
     case CCR_PASS:
         us_conn.state = UpstreamSideConnection::S_CONNECTED;
@@ -436,26 +463,19 @@ void ag::PlainDnsManager::complete_connect_request(uint64_t us_conn_id, ag::Clie
         }
         us_conn.packet_buffer.reset();
         break;
-    case CCR_REJECT: {
-        ServerError &event = error.emplace();
-        event.id = cs_conn_id;
-        event.error = {-1, "Upstream rejected connection"};
-        break;
-    }
+    case CCR_REJECT:
     case CCR_UNREACH: {
-        ServerError &event = error.emplace();
-        event.id = cs_conn_id;
-        event.error = {AG_EHOSTUNREACH, ag::sys::strerror(AG_EHOSTUNREACH)};
+        error = connect_result_to_error(result);
         break;
     }
     }
 
     if (error.has_value()) {
-        this->ServerUpstream::handler.func(this->ServerUpstream::handler.arg, SERVER_EVENT_ERROR, &error.value());
+        this->close_client_side_connection(cs_conn_id, error.value(), false);
     }
 }
 
-void ag::PlainDnsManager::close_upstream_side_connection(uint64_t us_conn_id, bool, bool async) {
+void ag::PlainDnsManager::close_upstream_side_connection(uint64_t us_conn_id, VpnError error, bool async) {
     if (async) {
         m_closing_upstream_side_connections.insert(us_conn_id);
         if (!m_async_task.has_value()) {
@@ -465,8 +485,9 @@ void ag::PlainDnsManager::close_upstream_side_connection(uint64_t us_conn_id, bo
     }
 
     if (auto node = m_upstream_side_connections.extract(us_conn_id); !node.empty()) {
-        this->close_connection_sync(us_conn_id, *node.mapped(), false);
+        this->close_connection_sync(us_conn_id, *node.mapped(), false, error);
     } else {
+        m_closing_upstream_side_connections.erase(us_conn_id);
         this->ClientListener::handler.func(
                 this->ClientListener::handler.arg, CLIENT_EVENT_CONNECTION_CLOSED, &us_conn_id);
     }
@@ -507,7 +528,7 @@ ssize_t ag::PlainDnsManager::send_incoming_packet(uint64_t us_conn_id, const uin
     if (m_client_side_connections.contains(cs_conn_id) && cs_conn.protocol == utils::TP_UDP
             && ((UdpClientSideConnection &) cs_conn).query_counter == 0) {
         log_cs_conn(this, cs_conn_id, trace, "All queries are completed");
-        this->close_client_side_connection(cs_conn_id, false, true);
+        this->close_client_side_connection(cs_conn_id, {}, true);
     }
 
     return event.result;
@@ -570,10 +591,10 @@ void ag::PlainDnsManager::on_async_task(void *arg, TaskId) {
 
     log_manager(self, trace, "Do postponed closes");
     for (uint64_t id : std::exchange(self->m_closing_client_side_connections, {})) {
-        self->close_client_side_connection(id, false, false);
+        self->close_client_side_connection(id, {}, false);
     }
     for (uint64_t id : std::exchange(self->m_closing_upstream_side_connections, {})) {
-        self->close_upstream_side_connection(id, false, false);
+        self->close_upstream_side_connection(id, {}, false);
     }
     log_manager(self, trace, "Closes done");
 
@@ -667,7 +688,7 @@ void ag::PlainDnsManager::complete_read(uint64_t us_conn_id) {
         };
         this->ClientListener::handler.func(this->ClientListener::handler.arg, CLIENT_EVENT_READ, &event);
         if (event.result < 0) {
-            close_upstream_side_connection(us_conn_id, false, false);
+            close_upstream_side_connection(us_conn_id, {}, false);
             break;
         }
         if (event.result == 0) {
@@ -679,23 +700,30 @@ void ag::PlainDnsManager::complete_read(uint64_t us_conn_id) {
 }
 
 void ag::PlainDnsManager::close_connection_sync( // NOLINT(misc-no-recursion)
-        uint64_t cs_conn_id, ClientSideConnection &cs_conn, bool closed_by_opposite) {
+        uint64_t cs_conn_id, ClientSideConnection &cs_conn, bool closed_by_opposite, VpnError error) {
     if (!closed_by_opposite) {
         for (std::optional<uint64_t> us_conn_id : cs_conn.upstream_side_conns) {
             if (!us_conn_id.has_value()) {
                 continue;
             }
             if (auto node = m_upstream_side_connections.extract(us_conn_id.value()); !node.empty()) {
-                this->close_connection_sync(us_conn_id.value(), *node.mapped(), true);
+                this->close_connection_sync(us_conn_id.value(), *node.mapped(), true, error);
             }
         }
     }
 
-    this->ServerUpstream::handler.func(this->ServerUpstream::handler.arg, SERVER_EVENT_CONNECTION_CLOSED, &cs_conn_id);
+    m_closing_client_side_connections.erase(cs_conn_id);
+    if (error.code == VPN_EC_NOERROR) {
+        this->ServerUpstream::handler.func(
+                this->ServerUpstream::handler.arg, SERVER_EVENT_CONNECTION_CLOSED, &cs_conn_id);
+    } else {
+        ServerError event = {cs_conn_id, error};
+        this->ServerUpstream::handler.func(this->ServerUpstream::handler.arg, SERVER_EVENT_ERROR, &event);
+    }
 }
 
 void ag::PlainDnsManager::close_connection_sync( // NOLINT(misc-no-recursion)
-        uint64_t us_conn_id, UpstreamSideConnection &us_conn, bool closed_by_opposite) {
+        uint64_t us_conn_id, UpstreamSideConnection &us_conn, bool closed_by_opposite, VpnError error) {
     if (!closed_by_opposite) {
         if (auto cs_conn_iter = m_client_side_connections.find(us_conn.client_side_conn_id);
                 cs_conn_iter != m_client_side_connections.end()) {
@@ -707,11 +735,12 @@ void ag::PlainDnsManager::close_connection_sync( // NOLINT(misc-no-recursion)
                             return !x.has_value();
                         })) {
                 this->close_connection_sync(us_conn.client_side_conn_id,
-                        *m_client_side_connections.extract(us_conn.client_side_conn_id).mapped(), true);
+                        *m_client_side_connections.extract(us_conn.client_side_conn_id).mapped(), true, error);
             }
         }
     }
 
+    m_closing_upstream_side_connections.erase(us_conn_id);
     this->ClientListener::handler.func(this->ClientListener::handler.arg, CLIENT_EVENT_CONNECTION_CLOSED, &us_conn_id);
 }
 

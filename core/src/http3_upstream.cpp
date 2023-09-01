@@ -1189,6 +1189,7 @@ void Http3Upstream::retry_connect_requests() {
 
         ServerError error = {conn_id, {-1, "Failed to send connect request"}};
         this->handler.func(this->handler.arg, SERVER_EVENT_ERROR, &error);
+        this->clean_tcp_connection_data(conn_id);
     }
 
     m_retriable_tcp_requests = std::move(requests);

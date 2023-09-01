@@ -392,8 +392,8 @@ void Tunnel::upstream_handler(ServerUpstream *upstream, ServerEvent what, void *
         VpnConnection *conn = vpn_connection_get_by_id(this->connections.by_server_id, id);
         if (conn == nullptr) {
             log_tun(this, err, "Got server connect result for inexistent or already closed connection: {}", id);
-            assert(0);
             upstream->close_connection(id, false, true);
+            assert(0);
             break;
         }
 
