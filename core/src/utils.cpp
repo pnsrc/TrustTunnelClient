@@ -65,11 +65,6 @@ AutoPod<VpnUpstreamConfig, vpn_upstream_config_destroy> vpn_upstream_config_clon
     dst->username = safe_strdup(src->username);
     dst->password = safe_strdup(src->password);
 
-    if (size_t to_copy = sizeof(sockaddr_storage) * dst->relay_addresses.size) {
-        dst->relay_addresses.data = (sockaddr_storage *) malloc(to_copy);
-        std::memcpy((void *) dst->relay_addresses.data, src->relay_addresses.data, to_copy);
-    }
-
     return dst;
 }
 
@@ -77,7 +72,6 @@ void vpn_upstream_config_destroy(VpnUpstreamConfig *config) {
     vpn_location_destroy(&config->location);
     free((void *) config->username);
     free((void *) config->password);
-    free((void *) config->relay_addresses.data);
     *config = {};
 }
 

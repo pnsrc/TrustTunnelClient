@@ -98,7 +98,6 @@ struct Vpn {
     DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager{vpn_network_manager_get()};
     AutoPod<VpnUpstreamConfig, vpn_upstream_config_destroy> upstream_config;
     std::vector<sockaddr_storage> relay_addresses;
-    std::vector<sockaddr_storage> relay_addresses_disqualified;
     /** The endpoint the client is connected or trying to connect to */
     std::optional<SelectedEndpoint> selected_endpoint;
     bool network_changed_before_recovery = false;

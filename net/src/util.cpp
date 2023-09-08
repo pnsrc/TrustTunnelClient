@@ -182,6 +182,10 @@ AutoVpnLocation vpn_location_clone(const VpnLocation *src) {
         e.release();
     }
 
+    size_t relay_addresses_size = dst->relay_addresses.size * sizeof(sockaddr_storage);
+    dst->relay_addresses.data = (sockaddr_storage *) malloc(relay_addresses_size);
+    std::memcpy(dst->relay_addresses.data, src->relay_addresses.data, relay_addresses_size);
+
     return dst;
 }
 
@@ -204,6 +208,7 @@ void vpn_location_destroy(VpnLocation *location) {
 
     free((char *) location->id);
     vpn_endpoints_destroy(&location->endpoints);
+    free(location->relay_addresses.data);
 
     std::memset(location, 0, sizeof(*location));
 }

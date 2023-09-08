@@ -29,15 +29,13 @@ typedef struct {
 #endif /* __MACH__ */
     bool use_quic; // use QUIC version negotiation instead of a TCP handshake
     bool anti_dpi; // enable anti-DPI measures
-    const sockaddr *relay_address; // a relay address to use when a connection to an endpoint's address fails
 } LocationsPingerInfo;
 
 typedef struct {
     const char *id; // location id
     int ping_ms;    // selected endpoint's ping (negative if none of the location endpoints successfully pinged)
     const VpnEndpoint *endpoint; // selected endpoint
-    int through_relay;           // non-zero if the relay address specified in `LocationsPingerInfo`
-                                 // was used to ping the selected endpoint
+    int through_relay;           // non-zero if the selected endpoint was pinged through a relay
 } LocationsPingerResult;
 
 struct LocationsPingerResultExtra : public LocationsPingerResult {
@@ -59,7 +57,14 @@ typedef struct {
 } LocationsPingerHandler;
 
 /**
- * Ping given locations
+ * Ping locations.
+ *
+ * If a location has a list of relay addresses, the first one in the list will be used to ping an endpoint
+ * that is unreachable on its normal address in the next round. Note that if the number of rounds is `1`,
+ * the pinger will not have a chance to use a relay address. If none of the endpoints in a location are
+ * pinged successfully, the number of rounds is greater than `1`, and the location has relay addresses,
+ * the first relay address of that location can be considered inoperable.
+ *
  * @param info pinger info
  * @param handler pinger handler
  * @param ev_loop event loop for operation

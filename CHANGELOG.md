@@ -1,12 +1,20 @@
 # CHANGELOG
 
+* Changes in pinging and locations API.
+    * Removed `VpnUpstreamConfig::relay_addresses` and `LocationsPingerInfo::relay_address`.
+    * Added `VpnLocation::relay_addresses`.
+    * When a `VpnLocation` is used as part of a `VpnUpstreamConfig`, its relay addresses shall be used
+      exactly in the same manner as `VpnUpstreamConfig::relay_addresses` were used before.
+    * The documentation for `ag::locations_pinger_start` has been updated to include a note about how
+      the location's relay addresses are used by the pinger.
+
 ## 0.92.88
 
 * [Feature] Support connecting to endpoints through a set of SNI proxies.
     * `VpnUpstreamConfig::relay_addresses` can now be specified when connecting to a location.
       The client shall try using one of the relay addresses to connect to an endpoint if it's unavailable
       on its normal address. The client shall automatically disqualify relay addresses that don't work.
-    * `LocationsPinger::relay_address` can now be specified when pinging a location. The pinger shall try
+    * `LocationsPingerInfo::relay_address` can now be specified when pinging a location. The pinger shall try
       to use it if an endpoint is unavailable on its normal address. `PingResult::through_relay` will be
       non-zero if the relay is used. The application should try pinging with a different relay address if
       there are pinging errors through the relay.

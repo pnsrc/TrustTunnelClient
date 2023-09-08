@@ -57,7 +57,6 @@ struct LocationsPinger {
     uint32_t rounds;
     bool use_quic;
     bool anti_dpi;
-    sockaddr_storage relay_address;
 };
 
 struct FinalizeLocationInfo {
@@ -141,7 +140,7 @@ static void finalize_location(LocationsPinger *pinger, const FinalizeLocationInf
         result.through_relay = selected->through_relay;
         log_location(pinger, location->info->id, dbg, "Selected endpoint: {} ({}{}) ({}ms)", result.endpoint->name,
                 result.through_relay ? "through relay " : "",
-                result.through_relay ? sockaddr_to_str((sockaddr *) &pinger->relay_address)
+                result.through_relay ? sockaddr_to_str((sockaddr *) &location->info->relay_addresses.data[0])
                                      : sockaddr_to_str((sockaddr *) &result.endpoint->address),
                 result.ping_ms);
     } else {
@@ -227,8 +226,8 @@ static void start_location_ping(LocationsPinger *pinger) {
     log_location(pinger, i->info->id, dbg, "Starting location ping");
     PingInfo ping_info = {pinger->loop, {i->info->endpoints.data, i->info->endpoints.size}, pinger->timeout_ms,
             {pinger->interfaces.data(), pinger->interfaces.size()}, pinger->rounds, pinger->use_quic, pinger->anti_dpi};
-    if (pinger->relay_address.ss_family) {
-        ping_info.relay_address = (sockaddr *) &pinger->relay_address;
+    if (i->info->relay_addresses.size) {
+        ping_info.relay_address = (sockaddr *) &i->info->relay_addresses.data[0];
     }
     Ping *ping = ping_start(&ping_info, {ping_handler, pinger});
     pinger->locations.emplace(ping, std::move(*i));
@@ -268,10 +267,6 @@ LocationsPinger *locations_pinger_start(
     pinger->rounds = info->rounds;
     pinger->use_quic = info->use_quic;
     pinger->anti_dpi = info->anti_dpi;
-
-    if (info->relay_address) {
-        pinger->relay_address = sockaddr_to_storage(info->relay_address);
-    }
 
     for (size_t i = 0; i < info->locations.size; ++i) {
         const VpnLocation *l = &info->locations.data[i];

@@ -43,6 +43,7 @@ using VpnEndpoints = AG_ARRAY_OF(VpnEndpoint);
 struct VpnLocation {
     const char *id;         // location id
     VpnEndpoints endpoints; // location endpoints
+    AG_ARRAY_OF(sockaddr_storage) relay_addresses; // location's relay addresses
 };
 
 struct NameValue {
