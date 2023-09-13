@@ -1,5 +1,6 @@
 #include <atomic>
 #include <fstream>
+#include <list>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -318,7 +319,7 @@ TEST_F(LocationsPingerRunnerTest, RelayAddresses) {
     });
     t1.join();
     ASSERT_EQ(1, ctx.count);
-    ASSERT_TRUE(vpn_endpoint_equals(ctx.endpoint.get(), &endpoints[2]));
+    ASSERT_STREQ("one.one.one.one", ctx.endpoint->name);
     ASSERT_EQ("1.1.1.1:443", ctx.relay_address);
 }
 
@@ -417,7 +418,7 @@ TEST_F(LocationsPingerRunnerTest, QuicToTlsFallbackAndRelayAddresses) {
     });
     t1.join();
     ASSERT_EQ(1, ctx.count);
-    ASSERT_TRUE(vpn_endpoint_equals(ctx.endpoint.get(), &endpoints[2]));
+    ASSERT_STREQ("dns.quad9.net", ctx.endpoint->name);
     ASSERT_EQ("9.9.9.9:443", ctx.relay_address);
 }
 
@@ -431,6 +432,8 @@ TEST_F(LocationsPingerRunnerTest, DISABLED_Live) {
     locations.reserve(json["locations"].size());
 
     ag::Logger::set_log_level(ag::LOG_LEVEL_TRACE);
+
+    std::list<std::vector<sockaddr_storage>> relay_addresses;
 
     for (auto &json_loc : json["locations"]) {
         VpnLocation &location = locations.emplace_back();
@@ -447,6 +450,14 @@ TEST_F(LocationsPingerRunnerTest, DISABLED_Live) {
                 sockaddr_set_port((sockaddr *) &endpoint->address, 443);
             }
         }
+        auto &relays = relay_addresses.emplace_back();
+        relays.reserve(json_loc["relay_endpoints"].size() + 1);
+        for (auto &r : json_loc["relay_endpoints"]) {
+            relays.emplace_back(sockaddr_from_str(r.get<std::string>().c_str()));
+            sockaddr_set_port((sockaddr *) &relays.back(), 443);
+        }
+        location.relay_addresses.data = relays.data();
+        location.relay_addresses.size = relays.size();
     }
 
     struct Result {

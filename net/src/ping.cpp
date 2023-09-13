@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <list>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include <event2/event.h>
@@ -109,7 +110,6 @@ struct PingConn {
     PingConnState state = PCS_SYN_SENT;
     bool use_quic = false;
     uint32_t rounds_done = 0;
-    std::vector<sockaddr_storage> relay_addresses; // These are in reverse order compared to the ones in `PingInfo`.
 };
 
 struct Ping {
@@ -133,6 +133,8 @@ struct Ping {
     event_loop::AutoTaskId connect_task_id;
     event_loop::AutoTaskId hello_task_id;
     event_loop::AutoTaskId report_task_id;
+
+    std::vector<sockaddr_storage> relay_addresses; // These are in reverse order compared to the ones in `PingInfo`.
 
     bool have_round_winner;
     bool anti_dpi;
@@ -466,28 +468,34 @@ static void do_prepare(void *arg) {
     assert(!self->pending.empty() ? (self->done.empty() && self->report.empty())
                                   : (!self->done.empty() || !self->report.empty()));
 
+    std::unordered_set<std::string> relay_snis; // Don't try to connect through a relay with the same SNI more than once
+
     for (auto conn = self->done.begin(); conn != self->done.end();) {
-        // If an error occurred and we don't have any results yet, try falling back to TLS or the next relay address.
-        // (If an error occurred and we DO have a result, the error is most probably sporadic).
-        if (conn->socket_error && !conn->best_result_ms.has_value()) {
+        if (conn->socket_error && conn->rounds_done == 0) {
             if (conn->use_quic) { // Fallback from QUIC to TLS
                 conn->use_quic = false;
                 conn->hello.clear();
-            } else if (!conn->relay_addresses.empty()) { // Fallback to the next relay address
-                conn->relay_address = conn->relay_addresses.back();
-                conn->relay_addresses.pop_back();
+            } else if (std::string sni; !self->relay_addresses.empty()
+                       && !relay_snis.contains((sni = conn->endpoint->name))) { // NOLINT(*-assignment-in-if-condition)
+                // Fallback to the next relay address
+                conn->relay_address = self->relay_addresses.back();
+                relay_snis.emplace(std::move(sni));
             } else {
                 goto increment_rounds;
             }
             ++conn;
             continue;
         }
-        increment_rounds:
+    increment_rounds:
         if (++conn->rounds_done == self->rounds_target) {
             self->report.splice(self->report.end(), self->done, conn++);
         } else {
             ++conn;
         }
+    }
+
+    if (!relay_snis.empty()) { // Consume relay address.
+        self->relay_addresses.pop_back();
     }
 
     self->pending.splice(self->pending.end(), self->done);
@@ -631,6 +639,9 @@ Ping *ping_start(const PingInfo *info, PingHandler handler) {
     self->round_timeout_ms = info->timeout_ms ? info->timeout_ms : DEFAULT_PING_TIMEOUT_MS;
     self->timer.reset(evtimer_new(vpn_event_loop_get_base(self->loop), on_timer, self.get()));
 
+    self->relay_addresses.insert(
+            self->relay_addresses.begin(), info->relay_addresses.rbegin(), info->relay_addresses.rend());
+
     constexpr uint32_t DEFAULT_IF_IDX = 0;
     std::span<const uint32_t> interfaces = info->interfaces_to_query;
     if (interfaces.empty()) {
@@ -642,8 +653,6 @@ Ping *ping_start(const PingInfo *info, PingHandler handler) {
             conn.endpoint = vpn_endpoint_clone(&endpoint);
             conn.bound_if = bound_if;
             conn.use_quic = info->use_quic;
-            conn.relay_addresses.insert(
-                    conn.relay_addresses.begin(), info->relay_addresses.rbegin(), info->relay_addresses.rend());
             if (ag::utils::trim(safe_to_string_view(endpoint.name)).empty()) {
                 log_ping(self, warn, "Endpoint {} has no name", sockaddr_to_str((sockaddr *) &endpoint.address));
                 return nullptr;
