@@ -1,0 +1,95 @@
+---
+version: 2
+plan:
+  project-key: CL
+  key: VLRIT
+  name: VpnLibs - Run Instrumented Test
+stages:
+  - Default Stage:
+      manual: false
+      final: false
+      jobs:
+        - Run Instrumented test
+Run Instrumented test:
+  key: JOB1
+  description: Runs Instrumented tests
+  tasks:
+    - checkout:
+        repository: core-libs/vpn-libs
+        path: test/client/vpn-libs
+        force-clean-build: 'true'
+        description: Checkout client
+    - checkout:
+        repository: core-libs/vpn-libs-endpoint
+        path: test/endpoint/vpn-libs-endpoint
+        force-clean-build: 'true'
+        description: Checkout endpoint
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            #!/bin/bash
+
+            set -x -e
+
+            cp -RT client/vpn-libs/integration-tests/ ./
+
+            ./integration_test.sh clean
+            ./integration_test.sh run browser ${bamboo.conanRepoUrl}; exit $?
+        description: Run browser tests
+        working-dir: test
+  final-tasks:
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            #!/bin/bash
+
+            set -x -e
+
+            pushd logs
+            timeout 10s gzip -f vpn_tun_http2.log || true
+            popd
+
+            ./integration_test.sh clean
+            ./integration_test.sh clean-browser
+        description: Gzip logs
+        working-dir: test
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            #!/bin/bash
+
+            pushd logs
+            rm -f vpn_tun_http2.log
+            popd
+        description: Cleanup
+        working-dir: test
+  requirements:
+    - adg-privileged-docker
+  artifacts:
+    -
+      name: Vpn-Libs Log
+      location: test/logs
+      pattern: '*.gz'
+      shared: false
+    - 
+      name: Test result
+      location: test/
+      pattern: 'output.json'
+      shared: true
+  artifact-subscriptions: [ ]
+repositories:
+  - core-libs/vpn-libs:
+      scope: global
+  - core-libs/vpn-libs-endpoint:
+      scope: global
+branches:
+  create: manually
+  delete: never
+  link-to-jira: true
+notifications: [ ]
+labels: [ ]
+other:
+  concurrent-build-plugin: system-default

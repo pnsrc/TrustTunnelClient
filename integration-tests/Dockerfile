@@ -2,7 +2,7 @@
 FROM adguard/core-libs:1.16
 
 # Install the required utilities
-RUN apt update && \
+RUN apt update --allow-releaseinfo-change && \
     apt install -y build-essential cmake curl git gnupg lsb-release iperf3 iproute2 \
     net-tools software-properties-common wget nano iputils-ping iptables tcpdump
 
