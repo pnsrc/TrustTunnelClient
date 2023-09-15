@@ -299,6 +299,7 @@ TEST_F(LocationsPingerRunnerTest, RelayAddresses) {
     LocationsPingerInfo info{
             .timeout_ms = 1000,
             .locations = {&location, 1},
+            .rounds = 1,
     };
     runner.reset(locations_pinger_runner_create(&info,
             {
@@ -344,6 +345,7 @@ TEST_F(LocationsPingerRunnerTest, QuicToTlsFallback) {
     LocationsPingerInfo info{
             .timeout_ms = 1000,
             .locations = {&location, 1},
+            .rounds = 1,
             .use_quic = true,
     };
     runner.reset(locations_pinger_runner_create(&info,
@@ -397,6 +399,7 @@ TEST_F(LocationsPingerRunnerTest, QuicToTlsFallbackAndRelayAddresses) {
     LocationsPingerInfo info{
             .timeout_ms = 1000,
             .locations = {&location, 1},
+            .rounds = 1,
             .use_quic = true,
     };
     runner.reset(locations_pinger_runner_create(&info,
@@ -435,6 +438,7 @@ TEST_F(LocationsPingerRunnerTest, DISABLED_Live) {
 
     std::list<std::vector<sockaddr_storage>> relay_addresses;
 
+    size_t total_endpoints = 0;
     for (auto &json_loc : json["locations"]) {
         VpnLocation &location = locations.emplace_back();
         location.id = safe_strdup(fmt::format(
@@ -448,6 +452,7 @@ TEST_F(LocationsPingerRunnerTest, DISABLED_Live) {
                 endpoint->name = safe_strdup(ep["domain_name"].get<std::string>().c_str());
                 endpoint->address = sockaddr_from_str(ep[addr_propname].get<std::string>().c_str());
                 sockaddr_set_port((sockaddr *) &endpoint->address, 443);
+                ++total_endpoints;
             }
         }
         auto &relays = relay_addresses.emplace_back();
@@ -510,7 +515,8 @@ TEST_F(LocationsPingerRunnerTest, DISABLED_Live) {
     for (auto &res : ctx.results) {
         fmt::print("{:46} {:46} {:46} {} ms\n", res.id, res.address, res.relay, res.ms);
     }
-    fmt::print("min: {} ms, avg: {} ms, max: {} ms, errors: {}\n", ctx.min, ctx.avg, ctx.max, ctx.num_errs);
+    fmt::print("min: {} ms, avg: {} ms, max: {} ms, errors: {}, endpoints: {}, locations: {}\n", ctx.min, ctx.avg,
+            ctx.max, ctx.num_errs, total_endpoints, locations.size());
 
     ASSERT_EQ(locations.size(), ctx.num);
 }
