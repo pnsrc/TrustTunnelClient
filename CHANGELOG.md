@@ -1,7 +1,5 @@
 # CHANGELOG
 
-## 0.92.104
-
 * Added `VpnConnectedInfo::relay_address`.
 
 ## 0.92.100
