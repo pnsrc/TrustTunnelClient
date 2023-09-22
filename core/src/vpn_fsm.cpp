@@ -442,10 +442,7 @@ static void raise_state(void *ctx, void *) {
         break;
     case VPN_SS_CONNECTED:
         event.connected_info = {
-                .endpoint = vpn->selected_endpoint->endpoint.get(),
-                .relay_address = vpn->selected_endpoint->relay_address.has_value()
-                        ? (sockaddr *) &*vpn->selected_endpoint->relay_address
-                        : nullptr,
+                .endpoint = vpn->selected_endpoint.value().endpoint.get(), // NOLINT(bugprone-unchecked-optional-access)
                 .protocol = vpn->client.endpoint_upstream->get_protocol(),
         };
         break;
