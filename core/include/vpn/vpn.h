@@ -33,6 +33,7 @@ enum {
 };
 
 static const float VPN_DEFAULT_RECOVERY_BACKOFF_RATE = 1.3f;
+static const int VPN_SKIP_VERIFICATION_FLAG = 100;
 
 typedef enum {
     VPN_EC_NOERROR, // Depending on context may mean successful operation status (if returned from `vpn_connect`)
@@ -244,7 +245,11 @@ typedef enum {
 
 typedef struct {
     X509_STORE_CTX *ctx; // SSL context to verify
-    int result;          // FILLED BY HANDLER: operation result (0 in case of success)
+    /**
+     * SET BY HANDLER: Outcome of the operation (0 if successful, `VPN_SKIP_VERIFICATION_FLAG` to indicate that
+     * hostname verification should be skipped)
+     */
+    int result;
 } VpnVerifyCertificateEvent;
 
 typedef enum {

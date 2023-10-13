@@ -660,6 +660,20 @@ void vpn_process_client_packets(Vpn *vpn, VpnPackets packets) {
 static int ssl_verify_callback(const char *host_name, const sockaddr *host_ip, X509_STORE_CTX *ctx, void *arg) {
     const Vpn *vpn = (Vpn *) arg;
 
+    int result = 0;
+    VpnVerifyCertificateEvent event = {ctx, 0};
+    vpn->handler.func(vpn->handler.arg, VPN_EVENT_VERIFY_CERTIFICATE, &event);
+    if (event.result == 0) {
+        result = 1;
+    } else if (event.result == VPN_SKIP_VERIFICATION_FLAG) {
+        result = 1;
+        return result;
+    } else {
+        log_vpn(vpn, err, "Failed to verify certificate");
+        SSL *ssl = (SSL *) X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
+        SSL_send_fatal_alert(ssl, SSL_AD_UNKNOWN_CA);
+    }
+    
     X509 *cert = X509_STORE_CTX_get0_cert(ctx);
     if ((host_name != nullptr || (host_ip != nullptr && host_ip->sa_family != AF_UNSPEC))
             && (host_name == nullptr || !tls_verify_cert_host_name(cert, host_name))
@@ -669,17 +683,6 @@ static int ssl_verify_callback(const char *host_name, const sockaddr *host_ip, X
         SSL *ssl = (SSL *) X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
         SSL_send_fatal_alert(ssl, SSL_AD_CERTIFICATE_UNKNOWN);
         return 0;
-    }
-
-    int result = 0;
-    VpnVerifyCertificateEvent event = {ctx, 0};
-    vpn->handler.func(vpn->handler.arg, VPN_EVENT_VERIFY_CERTIFICATE, &event);
-    if (event.result == 0) {
-        result = 1;
-    } else {
-        log_vpn(vpn, err, "Failed to verify certificate");
-        SSL *ssl = (SSL *) X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
-        SSL_send_fatal_alert(ssl, SSL_AD_UNKNOWN_CA);
     }
 
     return result;

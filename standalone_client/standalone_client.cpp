@@ -142,7 +142,7 @@ static void vpn_handler(void *, VpnEvent what, void *data) {
                 : tls_verify_cert(event->ctx, g_config.endpoint.ca_store.get());
         if (err == nullptr) {
             tracelog(g_logger, "Certificate verified successfully");
-            event->result = 0;
+            event->result = g_config.endpoint.skip_verification ? VPN_SKIP_VERIFICATION_FLAG : 0;
         } else {
             errlog(g_logger, "Failed to verify certificate: {}", err);
             event->result = -1;
