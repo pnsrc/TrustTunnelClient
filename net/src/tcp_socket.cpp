@@ -331,12 +331,13 @@ static void on_connect_event(struct bufferevent *, short what, TcpSocket *ctx) {
 
     VpnError e = {};
     if (socket->flags & SF_CONNECT_CALLED) {
+        int e2 = errno;
         e = get_error(socket);
-        log_sock(socket, dbg, "Unexpected synchronous connect event: {} {} {}", what, e.code, e.text);
+        log_sock(socket, dbg, "Unexpected synchronous connect event: {}, {} {}, {} {}", what, e2, strerror(e2), e.code, e.text);
         e = {-1, "Unexpected synchronous connect event"};
         // it seems like libevent should always raise callbacks asynchronously
         // with `BEV_OPT_DEFER_CALLBACKS` flag set
-        assert(0);
+        abort();
     } else if (what & BEV_EVENT_CONNECTED) {
         bufferevent_enable(socket->bev, EV_WRITE);
         bufferevent_setcb(socket->bev, on_read, (bufferevent_data_cb) on_write_flush, on_event, socket);
