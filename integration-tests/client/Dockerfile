@@ -11,7 +11,7 @@ COPY $VPN_LIBS_DIR /test/$VPN_LIBS_DIR
 RUN conan remote add -i 0 art $CONAN_REPO_URL
 
 WORKDIR /test/$VPN_LIBS_DIR/build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" \
+RUN export LDFLAGS=-fuse-ld=lld && cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" \
         -DCMAKE_C_COMPILER="clang" \
         -DCMAKE_CXX_COMPILER="clang++" \
         -DCMAKE_CXX_FLAGS="-stdlib=libc++" && \
