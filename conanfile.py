@@ -119,19 +119,3 @@ class VpnLibsConan(ConanFile):
             self.cpp_info.system_libs = ["ws2_32", "crypt32", "userenv", "version"]
         elif self.settings.os != 'Android':
             self.cpp_info.system_libs = ["resolv"]
-        self.cpp_info.requires = [
-            "brotli::brotli",
-            "dns::dns",
-            "http_parser::http_parser",
-            "klib::klib",
-            "ldns::ldns",
-            "libevent::libevent",
-            "magic_enum::magic_enum",
-            "native_libs_common::native_libs_common",
-            "nghttp2::nghttp2",
-            "openssl::openssl",
-            "quiche::quiche",
-            "zlib::zlib",
-        ]
-        if self.settings.os == "Windows":
-            self.cpp_info.requires.append("detours::detours")
