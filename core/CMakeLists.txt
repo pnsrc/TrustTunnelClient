@@ -72,10 +72,6 @@ target_link_libraries(vpnlibs_core dns-libs::dns-libs quiche::quiche)
 if (WIN32)
     target_link_libraries(vpnlibs_core BCrypt) # Quiche requirement
 endif()
-if (APPLE)
-    find_package(ghc_filesystem REQUIRED)
-    target_link_libraries(vpnlibs_core ghcFilesystem::ghc_filesystem)
-endif()
 
 if(NOT TARGET vpnlibs_tcpip)
     add_subdirectory(${VPN_LIB_DIR}/tcpip ${CMAKE_BINARY_DIR}/tcpip)
@@ -135,10 +131,6 @@ target_link_libraries(vpnlibs_core_mocked dns-libs::dns-libs)
 target_link_libraries(vpnlibs_core_mocked quiche::quiche)
 if (WIN32)
     target_link_libraries(vpnlibs_core_mocked BCrypt) # Quiche requirement
-endif()
-if (APPLE)
-    find_package(ghc_filesystem REQUIRED)
-    target_link_libraries(vpnlibs_core_mocked ghcFilesystem::ghc_filesystem)
 endif()
 target_include_directories(vpnlibs_core_mocked PUBLIC include)
 
