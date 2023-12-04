@@ -171,6 +171,7 @@ static void vpn_handler(void *, VpnEvent what, void *data) {
         case VPN_SS_CONNECTING:
         case VPN_SS_CONNECTED:
         case VPN_SS_RECOVERING:
+        case VPN_SS_WAITING_FOR_NETWORK:
             break;
         }
         break;
