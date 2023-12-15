@@ -288,7 +288,7 @@ void http_stream_reset_state(HttpStream *stream) {
 }
 
 HttpStream *http_stream_new(HttpSession *session, int32_t id) {
-    auto *stream = (HttpStream *) calloc(1, sizeof(HttpStream));
+    auto *stream = new HttpStream{};
     stream->id = (uint32_t) id;
     stream->session = session;
     stream->processed_bytes = 0;
@@ -297,7 +297,7 @@ HttpStream *http_stream_new(HttpSession *session, int32_t id) {
 
 void http_stream_destroy(HttpStream *stream) {
     http_stream_reset_state(stream);
-    free(stream);
+    delete stream;
 }
 
 } // namespace ag
