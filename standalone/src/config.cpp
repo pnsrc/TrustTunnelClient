@@ -104,7 +104,7 @@ public:
     }
 
     T unwrap_or(T &&x) {
-        return std::move(m_value.value_or(std::move(x)));
+        return m_value.value_or(std::move(x));
     }
 
 private:

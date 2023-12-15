@@ -50,10 +50,6 @@ endif(NOT TARGET vpnlibs_common)
 add_library(vpnlibs_net STATIC EXCLUDE_FROM_ALL ${SOURCE_FILES})
 set_target_properties(vpnlibs_net PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if (NOT MSVC)
-    target_compile_options(vpnlibs_net PRIVATE -W -Wall -Wextra -Werror)
-    target_compile_options(vpnlibs_net PRIVATE
-            -Wno-unknown-warning-option -Wno-macro-redefined -Wno-unused-parameter
-            -Wno-missing-field-initializers -Wno-c99-designator)
     if(APPLE AND OSX_SYSROOT_LC MATCHES "/macosx([0-9]+\.)+sdk$")
         target_compile_options(vpnlibs_net PRIVATE -fobjc-arc)
         target_link_libraries(vpnlibs_net "-framework Foundation" "-framework SystemConfiguration")

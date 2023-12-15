@@ -39,7 +39,7 @@ struct VpnEndpoint {
     const char *remote_id;    // if not NULL or empty, used for server TLS certificate verification instead of `name`
 };
 
-using VpnEndpoints = AG_ARRAY_OF(VpnEndpoint);
+typedef AG_ARRAY_OF(VpnEndpoint) VpnEndpoints;
 
 struct VpnLocation {
     const char *id;         // location id

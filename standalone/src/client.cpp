@@ -166,7 +166,7 @@ Error<VpnStandaloneClient::ConnectResultError> VpnStandaloneClient::dns_runner()
     }
 #ifdef __APPLE__
     if (std::holds_alternative<VpnStandaloneConfig::TunListener>(m_config.listener)) {
-        m_dns_manager = std::move(VpnMacDnsSettingsManager::create(AG_UNFILTERED_DNS_IPS_V4[0]));
+        m_dns_manager = VpnMacDnsSettingsManager::create(AG_UNFILTERED_DNS_IPS_V4[0]);
     }
 #endif // __APPLE__
 #endif

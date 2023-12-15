@@ -11,8 +11,8 @@
 
 namespace ag {
 
-using TlsCert = AG_ARRAY_OF(uint8_t);
-using TlsChain = AG_ARRAY_OF(TlsCert);
+typedef AG_ARRAY_OF(uint8_t) TlsCert;
+typedef AG_ARRAY_OF(TlsCert) TlsChain;
 
 enum TlsParseResult {
     TLS_RERR = 1,

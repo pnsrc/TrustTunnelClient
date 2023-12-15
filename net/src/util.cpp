@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cctype>
 #include <cstring>
+#include <fstream>
 #include <span>
 #include <tuple>
 #include <unordered_map>
@@ -621,12 +622,12 @@ Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
         return make_error(RetrieveSystemDnsError::AE_INIT);
     }
 
-    std::vector<uint8_t> addrs_buf(res.nscount * sizeof(res_9_sockaddr_union));
+    std::vector<uint8_t> addrs_buf(res.nscount * sizeof(res_sockaddr_union));
     res_getservers(&res, (res_sockaddr_union *) addrs_buf.data(), res.nscount);
 
     SystemDnsServers servers;
     servers.main.reserve(res.nscount);
-    for (const res_9_sockaddr_union &addr : std::span{(res_9_sockaddr_union *) addrs_buf.data(), size_t(res.nscount)}) {
+    for (const res_sockaddr_union &addr : std::span{(res_sockaddr_union *) addrs_buf.data(), size_t(res.nscount)}) {
         SocketAddress sock_addr((sockaddr *) &addr);
         if (!sock_addr.valid()) {
             warnlog(g_logger, "Skipping invalid address: {}", ag::encode_to_hex({(uint8_t *) &addr, sizeof(addr)}));
@@ -642,7 +643,7 @@ Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
     return servers;
 }
 
-#elif !defined(__ANDROID__)
+#elif defined(__GLIBC__)
 
 Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
     struct __res_state res = {};
@@ -674,7 +675,31 @@ Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
     return servers;
 }
 
-#endif // ifdef _WIN32
+#else
+
+Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
+    SystemDnsServers servers;
+    std::ifstream ifs{"/etc/resolv.conf"};
+    std::string line;
+    while (std::getline(ifs, line)) {
+        std::string_view line_view = line;
+        constexpr std::string_view NAMESERVER = "nameserver";
+        if (line_view.starts_with(NAMESERVER)) {
+            line_view.remove_prefix(NAMESERVER.size());
+        }
+        line_view = ag::utils::ltrim(line_view);
+        line_view = line_view.substr(0,
+                std::distance(line_view.begin(),
+                        std::find_if(line_view.begin(), line_view.end(), (int (*)(int)) std::isspace)));
+        SocketAddress addr{line_view, 53};
+        if (addr.valid()) {
+            servers.main.emplace_back(SystemDnsServer{std::string(line_view), std::nullopt});
+        }
+    };
+    return servers;
+}
+
+#endif
 
 bool is_private_or_linklocal_ipv4_address(const in_addr *ip_ptr) {
     const uint32_t ip_int = ntohl(ip_ptr->s_addr);

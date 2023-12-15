@@ -59,6 +59,7 @@ PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::on_outgoing_messag
         case VPN_MODE_SELECTIVE:
             return RP_DEFAULT;
         }
+        break;
     case DFMS_EXCLUSION:
         switch (m_parameters.vpn->domain_filter.get_mode()) {
         case VPN_MODE_GENERAL:
@@ -66,6 +67,7 @@ PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::on_outgoing_messag
         case VPN_MODE_SELECTIVE:
             return (m_parameters.vpn->dns_proxy == nullptr) ? RP_EXCEPTIONAL : RP_THROUGH_DNS_PROXY;
         }
+        break;
     }
 #else
     return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;

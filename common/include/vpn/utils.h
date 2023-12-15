@@ -47,7 +47,7 @@ struct TcpFlowCtrlInfo {
     }
 
 // May be owning or non-owning depending on context
-using VpnStr = AG_ARRAY_OF(const char);
+typedef AG_ARRAY_OF(const char) VpnStr;
 #define VPNSTR_INIT(c_string)                                                                                          \
     { c_string, (c_string) ? uint32_t(strlen(c_string)) : 0 }
 
@@ -142,7 +142,7 @@ private:
     std::vector<VpnPacket> m_packets;
 };
 
-template <typename T, auto DELETER, std::enable_if_t<std::is_pod_v<T>, bool> = true>
+template <typename T, auto DELETER, std::enable_if_t<std::is_standard_layout_v<T> && std::is_trivial_v<T>, bool> = true>
 struct AutoPod {
     T data{};
 

@@ -36,9 +36,9 @@ if (NOT MSVC)
     target_compile_options(vpnlibs_standalone PRIVATE "-fno-exceptions")
 endif (NOT MSVC)
 
-target_compile_definitions(vpnlibs_standalone PRIVATE TOML_EXCEPTIONS=0)
-target_compile_definitions(vpnlibs_standalone PRIVATE _HAS_EXCEPTIONS=0)
-target_compile_definitions(vpnlibs_standalone PRIVATE CXXOPTS_NO_RTTI)
+target_compile_definitions(vpnlibs_standalone PUBLIC TOML_EXCEPTIONS=0)
+target_compile_definitions(vpnlibs_standalone PUBLIC _HAS_EXCEPTIONS=0)
+target_compile_definitions(vpnlibs_standalone PUBLIC CXXOPTS_NO_RTTI=1 CXXOPTS_NO_EXCEPTIONS=1)
 
 add_executable(standalone_client EXCLUDE_FROM_ALL standalone_client.cpp)
 target_link_libraries(standalone_client vpnlibs_standalone)

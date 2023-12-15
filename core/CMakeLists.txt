@@ -49,12 +49,7 @@ endif(NOT TARGET vpnlibs_net)
 
 add_library(vpnlibs_core STATIC EXCLUDE_FROM_ALL ${SOURCE_FILES})
 set_target_properties(vpnlibs_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
-if (NOT MSVC)
-    target_compile_options(vpnlibs_core PRIVATE -W -Wall -Wextra -Werror)
-    target_compile_options(vpnlibs_core PRIVATE
-            -Wno-unknown-warning-option -Wno-macro-redefined -Wno-unused-parameter
-            -Wno-missing-field-initializers -Wno-c99-designator)
-else()
+if (MSVC)
     target_compile_definitions(vpnlibs_core PRIVATE _UNICODE UNICODE)
 endif()
 
@@ -80,12 +75,6 @@ endif(NOT TARGET vpnlibs_tcpip)
 target_link_libraries(vpnlibs_core vpnlibs_tcpip)
 
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test)
-
-
-if (NOT MSVC)
-add_compile_options(-Wall -Wextra -Werror -Wimplicit-fallthrough
-        -Wno-missing-field-initializers -Wno-unused-parameter -Wno-c99-designator -Wno-unused-private-field)
-endif()
 
 enable_testing()
 

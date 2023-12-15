@@ -59,12 +59,6 @@ add_library(vpnlibs_tcpip STATIC EXCLUDE_FROM_ALL
     ${lwipcore6_SRCS}
     ${SOURCE_FILES})
 set_target_properties(vpnlibs_tcpip PROPERTIES POSITION_INDEPENDENT_CODE ON)
-if(NOT MSVC)
-    target_compile_options(vpnlibs_tcpip PRIVATE -W -Wall -Wextra -Werror)
-    target_compile_options(vpnlibs_tcpip PRIVATE
-            -Wno-unknown-warning-option -Wno-macro-redefined -Wno-unused-parameter
-            -Wno-missing-field-initializers -Wno-c99-designator)
-endif()
 target_include_directories(vpnlibs_tcpip PUBLIC include)
 target_include_directories(vpnlibs_tcpip PRIVATE ${LWIP_INCLUDE_DIRS})
 target_include_directories(vpnlibs_tcpip PRIVATE src)

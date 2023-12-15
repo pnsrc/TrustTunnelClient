@@ -17,20 +17,18 @@
 
 namespace ag {
 
-enum {
-    VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS = 30 * 1000, // for VPN endpoint connection
-    VPN_DEFAULT_TCP_TIMEOUT_MS = TCPIP_TCP_TIMEOUT_FOR_ESTABLISHED_S * 1000, // for bypassed server-side and client-side TCP connections
-    VPN_DEFAULT_UDP_TIMEOUT_MS = TCPIP_UDP_TIMEOUT_S * 1000, // for bypassed and redirected server-side and client-side UDP connections
-    VPN_DEFAULT_MAX_CONN_BUFFER_FILE_SIZE = 4 * 1024 * 1024,
-    VPN_DEFAULT_CONN_MEMORY_BUFFER_THRESHOLD = DEFAULT_CONNECTION_MEMORY_BUFFER_SIZE,
-    VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS = 60 * 1000,
-    VPN_DEFAULT_RECOVERY_LOCATION_UPDATE_PERIOD_MS = 70 * 1000,
-    VPN_DEFAULT_INITIAL_RECOVERY_INTERVAL_MS = 1 * 1000,
-    VPN_DEFAULT_CONNECT_ATTEMPTS_NUM = 5,
-    VPN_DEFAULT_FALLBACK_CONNECT_DELAY_MS = 1 * 1000,
-    VPN_DEFAULT_POSTPONEMENT_WINDOW_MS =
-            3 * 1000, // how long after recovery starts connections are postponed instead of bypassed
-};
+static constexpr int VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS = 30 * 1000; // for VPN endpoint connection
+static constexpr int VPN_DEFAULT_TCP_TIMEOUT_MS = TCPIP_TCP_TIMEOUT_FOR_ESTABLISHED_S * 1000; // for bypassed server-side and client-side TCP connections
+static constexpr int VPN_DEFAULT_UDP_TIMEOUT_MS = TCPIP_UDP_TIMEOUT_S * 1000; // for bypassed and redirected server-side and client-side UDP connections
+static constexpr int VPN_DEFAULT_MAX_CONN_BUFFER_FILE_SIZE = 4 * 1024 * 1024;
+static constexpr int VPN_DEFAULT_CONN_MEMORY_BUFFER_THRESHOLD = DEFAULT_CONNECTION_MEMORY_BUFFER_SIZE;
+static constexpr int VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS = 60 * 1000;
+static constexpr int VPN_DEFAULT_RECOVERY_LOCATION_UPDATE_PERIOD_MS = 70 * 1000;
+static constexpr int VPN_DEFAULT_INITIAL_RECOVERY_INTERVAL_MS = 1 * 1000;
+static constexpr int VPN_DEFAULT_CONNECT_ATTEMPTS_NUM = 5;
+static constexpr int VPN_DEFAULT_FALLBACK_CONNECT_DELAY_MS = 1 * 1000;
+static constexpr int VPN_DEFAULT_POSTPONEMENT_WINDOW_MS =
+            3 * 1000; // how long after recovery starts connections are postponed instead of bypassed
 
 static const float VPN_DEFAULT_RECOVERY_BACKOFF_RATE = 1.3f;
 static const int VPN_SKIP_VERIFICATION_FLAG = 100;
