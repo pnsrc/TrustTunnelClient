@@ -64,6 +64,7 @@ bool DomainFilter::update_exclusions(VpnMode mode_, std::string_view exclusions)
     m_domains.clear();
     m_addresses.clear();
     m_exclusion_suspects.clear();
+    m_cidr_ranges.clear();
 
     auto add_entry = [this](const std::string &entry) {
         ParseResult result = parse_entry(entry);
