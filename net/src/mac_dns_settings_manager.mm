@@ -119,8 +119,6 @@ public:
     }
 
     static void touch_prefs() {
-        static Logger logger{"S_VpnMacDnsSettingsManager"};
-        dbglog(logger, "Touching DNS preferences");
         @autoreleasepool {
             SCPreferencesRef prefs = SCPreferencesCreate(nullptr, (__bridge CFStringRef) @"MacDnsManager", nullptr);
             SCPreferencesLock(prefs, YES);
