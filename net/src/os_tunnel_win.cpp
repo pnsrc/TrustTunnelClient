@@ -373,7 +373,7 @@ bool ag::VpnWinTunnel::setup_dns() {
 
     for (const sockaddr_storage &dns_server : dns_servers) {
         ag::SocketAddress address{(sockaddr *) &dns_server};
-        ag::CidrRange route{address.addr(), address.addr().length()};
+        ag::CidrRange route{address.addr(), address.addr().length() * CHAR_BIT};
         if (!add_adapter_route(route, m_if_index)) {
             return false;
         }
