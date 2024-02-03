@@ -204,7 +204,7 @@ get_location_data() {
     docker exec ${COMMON_CONTAINER} /bin/bash -c "bash ./get_location.sh ${ADGUARD_API_LOCATIONS_URL}"
     docker cp ${COMMON_CONTAINER}:result.txt network-load-simulator/endpoint.txt
     ENDPOINT_HOSTNAME=$(cat network-load-simulator/endpoint.txt | grep ENDPOINT_HOSTNAME | cut -d '=' -f 2)
-    ENDPOINT_IP=$BAMBOO_ADGUARD_RELAY_IP
+    ENDPOINT_IP=$(cat network-load-simulator/endpoint.txt | grep ENDPOINT_IP | cut -d '=' -f 2)
     docker stop ${COMMON_CONTAINER}
     rm -f network-load-simulator/endpoint.txt
 }
@@ -216,6 +216,7 @@ run_browser_test() {
   ADGUARD_API_DOMAIN=$BAMBOO_ADGUARD_API_DOMAIN
   ADGUARD_API_CREDS_URL="https://${ADGUARD_API_DOMAIN}${BAMBOO_ADGUARD_API_CREDS_PATH}"
   ADGUARD_API_LOCATIONS_URL="https://${ADGUARD_API_DOMAIN}${BAMBOO_ADGUARD_API_LOCATIONS_PATH}"
+  # Get location data from backend. Hostname and relay IP address of the endpoint
   get_location_data
 
   PROTOCOL=http2
@@ -228,10 +229,22 @@ run_browser_test() {
   run_client_with_browser
 
   sleep 5
+
+  # Check that client is running
+  if ! docker exec "$CLIENT_WITH_BROWSER_CONTAINER" pgrep standalone > /dev/null;
+  then
+    echo "Client is not running"
+    # Try to get some logs from client
+    docker logs $CLIENT_WITH_BROWSER_CONTAINER
+    exit 1
+  fi
+
+  # Run tests for 30 minutes
   docker exec -w /test -e TIME_LIMIT=30m "$CLIENT_WITH_BROWSER_CONTAINER" node index.js || RESULT=1
   docker exec "$CLIENT_WITH_BROWSER_CONTAINER" chmod -R 777 /output/
   docker cp "$CLIENT_WITH_BROWSER_CONTAINER":/test/output.json ./output1part.json
 
+  # Imitate network problems. Drop all traffic to endpoint. Client should reconnect.
   docker exec "$CLIENT_WITH_BROWSER_CONTAINER" /bin/bash -c "iptables -A OUTPUT -j DROP; iptables -A INPUT -j DROP"
   sleep 1
   docker exec "$CLIENT_WITH_BROWSER_CONTAINER" /bin/bash -c 'pids=$(pgrep standalone); echo "PIDS: $pids"; for pid in $pids; do kill -SIGHUP $pid || true; done'
@@ -239,6 +252,7 @@ run_browser_test() {
   docker exec "$CLIENT_WITH_BROWSER_CONTAINER" /bin/bash -c "iptables -D OUTPUT -j DROP; iptables -D INPUT -j DROP"
   sleep 60
 
+  # Run tests again
   docker exec -w /test -e TIME_LIMIT=30m "$CLIENT_WITH_BROWSER_CONTAINER" node index.js || RESULT=1
   docker cp $CLIENT_WITH_BROWSER_CONTAINER:/test/output.json ./output2part.json
   docker stop "$CLIENT_WITH_BROWSER_CONTAINER"

@@ -66,6 +66,12 @@ Run Instrumented test:
             set -x
 
             pushd logs
+            # Check that file exists and is not empty
+            if [ ! -f vpn_tun_http2.log ]; then
+              echo "vpn_tun_http2.log does not exist"
+              exit 1
+            fi
+            
             timeout 10s gzip -f vpn_tun_http2.log
             if [ $? -eq 124 ]; then
               truncate -s 300M vpn_tun_http2.log

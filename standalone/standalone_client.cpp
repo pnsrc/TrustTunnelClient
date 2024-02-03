@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
     ag::Logger::set_log_level(config.loglevel);
     g_client = new ag::VpnStandaloneClient(std::move(config));
 
-    auto res = g_client->connect(std::chrono::seconds(10));
+    auto res = g_client->connect(std::chrono::seconds(30));
     if (res) {
         errlog(g_logger, "{}", res->str());
         return -1;

@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 
+set -e -x
+
 LOCATIONS_API_URL=$1
 LOCATIONS=""
 
 echo "nameserver 101.101.101.101" > /etc/resolv.conf
 
-for i in {1..6}; do
+for i in {1..10}; do
+  set +e
   LOCATIONS=$(timeout 10s ~/go/bin/gocurl --tls-split-hello=5:50 "${LOCATIONS_API_URL}")
+  set -e
 
   if [[ ! -z "$LOCATIONS" ]]; then
     break

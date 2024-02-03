@@ -8,7 +8,8 @@ cp /etc/resolv.conf resolv.conf
 echo "nameserver 101.101.101.101" > /etc/resolv.conf
 
 CREDS_RESPONSE=""
-for i in {1..6}; do
+for i in {1..10}; do
+  echo "Attempt $i"
   set +e
   CREDS_RESPONSE=$(timeout 10s ~/go/bin/gocurl --tls-split-hello=5:50 "${CREDS_API_URL}" -X POST \
                  -H "Content-Type: application/x-www-form-urlencoded" \
@@ -34,7 +35,6 @@ exclusions = [
   "example.org",
   "cloudflare-dns.com",
 ]
-dns_upstreams = ["8.8.8.8:53"]
 
 [endpoint]
 hostname = "$ENDPOINT_HOSTNAME"
@@ -55,6 +55,7 @@ done
 iptables -I OUTPUT -o eth0 -d "$ENDPOINT_IP" -j ACCEPT
 iptables -A OUTPUT -o eth0 -j DROP
 
+set +e
 
 if [[ "$MODE" == "tun" ]]; then
   cat >>standalone_client.toml <<EOF
@@ -75,7 +76,19 @@ excluded_routes = [
 ]
 mtu_size = 1500
 EOF
+  # Check that standalone_client executable exists
+  if [ ! -f standalone_client ]; then
+    echo "standalone_client executable not found!"
+    exit 1
+  fi
+
   ./standalone_client >>"/output/$LOG_FILE_NAME" 2>&1
+  exit_status=$?
+
+  if [ $exit_status -ne 0 ]; then
+      echo "Error occurred while running standalone_client. Exit status: $exit_status"
+      tail -n 50 "/output/$LOG_FILE_NAME"
+  fi
 else
   cat >>standalone_client.toml <<EOF
 $COMMON_CONFIG
