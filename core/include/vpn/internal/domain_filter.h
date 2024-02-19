@@ -30,6 +30,11 @@ enum DomainFilterMatchStatus {
     DFMS_SUSPECT_EXCLUSION,
 };
 
+struct DomainFilterMatchResult {
+    DomainFilterMatchStatus status;
+    std::optional<std::string> domain;
+};
+
 class DomainFilter {
 public:
     static constexpr size_t DEFAULT_CACHE_SIZE = 512;
@@ -67,7 +72,7 @@ public:
      * `VpnSettings.exclusions` description.
      * @param tag address tag
      */
-    [[nodiscard]] DomainFilterMatchStatus match_tag(const SockAddrTag &tag) const;
+    [[nodiscard]] DomainFilterMatchResult match_tag(const SockAddrTag &tag) const;
 
     /**
      * Add resolved tag in cache

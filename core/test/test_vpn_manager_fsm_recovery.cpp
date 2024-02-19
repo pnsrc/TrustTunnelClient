@@ -108,6 +108,7 @@ struct ConnectingVpnManagerTest : MockedTest {
         case VPN_EVENT_DNS_UPSTREAM_UNAVAILABLE:
         case VPN_EVENT_TUNNEL_CONNECTION_STATS:
         case VPN_EVENT_TUNNEL_CONNECTION_CLOSED:
+        case VPN_EVENT_CONNECTION_INFO:
             break;
         case VPN_EVENT_STATE_CHANGED: {
             auto *event = (VpnStateChangedEvent *) data;

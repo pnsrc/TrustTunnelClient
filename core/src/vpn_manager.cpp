@@ -675,7 +675,7 @@ static int ssl_verify_callback(const char *host_name, const sockaddr *host_ip, X
             SSL_send_fatal_alert(ssl, SSL_AD_UNKNOWN_CA);
         }
     }
-    
+
     X509 *cert = X509_STORE_CTX_get0_cert(ctx);
     if ((host_name != nullptr || (host_ip != nullptr && host_ip->sa_family != AF_UNSPEC))
             && (host_name == nullptr || !tls_verify_cert_host_name(cert, host_name))
@@ -724,6 +724,9 @@ static void client_handler(void *arg, vpn_client::Event what, void *data) {
         break;
     case vpn_client::EVENT_CONNECTION_CLOSED:
         vpn->handler.func(vpn->handler.arg, VPN_EVENT_TUNNEL_CONNECTION_CLOSED, data);
+        break;
+    case vpn_client::EVENT_CONNECTION_INFO:
+        vpn->handler.func(vpn->handler.arg, VPN_EVENT_CONNECTION_INFO, data);
         break;
     }
 }
@@ -790,8 +793,8 @@ void vpn_abandon_endpoint(Vpn *vpn, const VpnEndpoint *endpoint) {
             vpn->pending_error = (vpn->upstream_config->location.endpoints.size == 0)
                     ? VpnError{VPN_EC_LOCATION_UNAVAILABLE, "Exhausted all endpoints of location"}
                     : ((abandoned_family == AF_INET)
-                                    ? VpnError{VPN_EC_LOCATION_UNAVAILABLE, "Exhausted IPv4 endpoints of location"}
-                                    : VpnError{VPN_EC_LOCATION_UNAVAILABLE, "Exhausted IPv6 endpoints of location"});
+                                      ? VpnError{VPN_EC_LOCATION_UNAVAILABLE, "Exhausted IPv4 endpoints of location"}
+                                      : VpnError{VPN_EC_LOCATION_UNAVAILABLE, "Exhausted IPv6 endpoints of location"});
             log_vpn(vpn, info, "{}", vpn->pending_error->text);
             vpn_endpoints_destroy(&vpn->upstream_config->location.endpoints);
         } else if (!is_selected_endpoint) {

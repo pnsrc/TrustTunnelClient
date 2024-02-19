@@ -1,5 +1,9 @@
 # CHANGELOG
 
+* [Feature] The library now notify an application with information about connection. This event contain info
+about source ip, destination (ip, domain or both), transport protocol and action (bypass/tunnel).
+For this purpose, new event `VPN_EVENT_CONNECTION_INFO` was introduced in `VpnEvent`.
+
 ## 0.92.115
 
 * Added a new `VpnConnectAction`: `VPN_CA_REJECT`. 

@@ -288,8 +288,7 @@ static std::variant<AfterLookuperAction, DomainLookuperResult> lookup_udp(
         }
         if (quic_header->type == ag::quic_utils::INITIAL) {
             // quic traffic
-            auto quic_data =
-                    ag::quic_utils::prepare_for_domain_lookup({data, length}, quic_header.value());
+            auto quic_data = ag::quic_utils::prepare_for_domain_lookup({data, length}, quic_header.value());
             if (!quic_data.has_value()) {
                 // no data for domain lookup
                 return ALUA_DONE;
@@ -425,6 +424,53 @@ static bool send_buffered_data(const Tunnel *self, uint64_t conn_client_id) {
     return true;
 }
 
+static VpnAddress tunnel_to_vpn_address(const TunnelAddress *tunnel);
+static VpnFinalConnectionAction get_final_action(VpnMode mode, VpnConnectAction action) {
+    if (action == VPN_CA_DEFAULT) {
+        switch (mode) {
+        case VPN_MODE_GENERAL:
+            return VpnFinalConnectionAction::VPN_FCA_TUNNEL;
+        case VPN_MODE_SELECTIVE:
+            return VpnFinalConnectionAction::VPN_FCA_BYPASS;
+        }
+    }
+    if (action == VPN_CA_FORCE_BYPASS) {
+        return VpnFinalConnectionAction::VPN_FCA_BYPASS;
+    }
+    if (action == VPN_CA_FORCE_REDIRECT) {
+        return VpnFinalConnectionAction::VPN_FCA_TUNNEL;
+    }
+    return VpnFinalConnectionAction::VPN_FCA_REJECT;
+}
+
+static void report_connection_info(const Tunnel *self, VpnConnection *conn, const char *domain) {
+    // Don't report connection info for loopback, DNS, or already reported connections. Also don't report if we are
+    // looking up the domain.
+    if (conn->flags.test(CONNF_PLAIN_DNS_CONNECTION) || conn->flags.test(CONNF_ROUTE_TO_DNS_PROXY)
+            || conn->flags.test(CONNF_LOOKINGUP_DOMAIN) || conn->flags.test(CONNF_CONN_INFO_SENT)) {
+        return;
+    }
+
+    if (const sockaddr *dst = (sockaddr *) std::get_if<sockaddr_storage>(&conn->addr.dst);
+            dst && sockaddr_is_loopback(dst)) {
+        return;
+    }
+
+    conn->flags.set(CONNF_CONN_INFO_SENT);
+    VpnConnectionInfoEvent info;
+    info.src = &conn->addr.src;
+    if (const sockaddr_storage *dst =std::get_if<sockaddr_storage>(&conn->addr.dst)) {
+        info.dst = dst;
+        info.domain = domain;
+    } else {
+        info.dst = nullptr;
+        info.domain = std::get<NamePort>(conn->addr.dst).name.c_str();
+    }
+    info.proto = conn->proto;
+    info.action = get_final_action(self->vpn->domain_filter.get_mode(), conn->action.value_or(VPN_CA_DEFAULT));
+    self->vpn->parameters.handler.func(self->vpn->parameters.handler.arg, vpn_client::EVENT_CONNECTION_INFO, &info);
+}
+
 void Tunnel::upstream_handler(const std::shared_ptr<ServerUpstream> &upstream, ServerEvent what, void *data) {
     switch (what) {
     case SERVER_EVENT_SESSION_OPENED:
@@ -468,6 +514,7 @@ void Tunnel::upstream_handler(const std::shared_ptr<ServerUpstream> &upstream, S
         switch (conn->state) {
         case CONNS_WAITING_RESPONSE: {
             log_conn(this, conn, dbg, "Successfully made tunnel");
+            report_connection_info(this, conn, conn->domain_lookuper_result.domain.c_str());
             conn->state = CONNS_WAITING_ACCEPT;
             listener->complete_connect_request(conn->client_id, CCR_PASS);
             break;
@@ -591,11 +638,11 @@ void Tunnel::upstream_handler(const std::shared_ptr<ServerUpstream> &upstream, S
             case ALUA_DROP:
                 break;
             case ALUA_SHUTDOWN:
-                log_conn(this, conn, dbg, "Connection had been routed {} while should've been routed {}",
-                        (upstream.get() == this->vpn->endpoint_upstream.get()) ? "through VPN endpoint"
-                                                                               : "directly to target host",
-                        (upstream.get() == this->vpn->endpoint_upstream.get()) ? "directly to target host"
-                                                                               : "through VPN endpoint");
+                log_conn(this, conn, dbg, "Server: Connection had been routed {}, closing it to re-route",
+                        (upstream.get() == this->vpn->endpoint_upstream.get())         ? "through VPN endpoint"
+                                : (upstream.get() == this->vpn->bypass_upstream.get()) ? "directly to target host"
+                                : (upstream.get() == this->fake_upstream.get())        ? "through fake endpoint"
+                                                                                       : "through unknown endpoint");
                 close_client_side_connection(this, conn, 0, false);
                 return;
             case ALUA_BLOCK:
@@ -789,13 +836,13 @@ constexpr VpnConnectAction invert_action(VpnConnectAction action) {
     return action;
 }
 
-static std::shared_ptr<ServerUpstream> select_upstream(const Tunnel *self, VpnConnectAction action, VpnConnection *conn) {
+static std::shared_ptr<ServerUpstream> select_upstream(
+        const Tunnel *self, VpnConnectAction action, VpnConnection *conn) {
     bool is_plain_dns_connection = conn != nullptr && conn->flags.test(CONNF_PLAIN_DNS_CONNECTION);
     switch (action) {
     case VPN_CA_DEFAULT:
         if (const sockaddr_storage * dst; // NOLINT(cppcoreguidelines-init-variables)
-                conn != nullptr && conn->flags.test(CONNF_LOOKINGUP_DOMAIN)
-                && conn->flags.test(CONNF_SUSPECT_EXCLUSION)
+                conn != nullptr && conn->flags.test(CONNF_LOOKINGUP_DOMAIN) && conn->flags.test(CONNF_SUSPECT_EXCLUSION)
                 && nullptr != (dst = std::get_if<sockaddr_storage>(&conn->addr.dst))
                 && is_domain_scannable_port(sockaddr_get_port((sockaddr *) dst))) {
             return self->fake_upstream;
@@ -879,6 +926,7 @@ static std::shared_ptr<ServerUpstream> select_upstream(const Tunnel *self, VpnCo
     sw_conn->flags.set(CONNF_LOOKINGUP_DOMAIN, conn->flags.test(CONNF_LOOKINGUP_DOMAIN));
     sw_conn->migrating_client_id = conn->client_id;
     sw_conn->app_name = conn->app_name;
+    sw_conn->domain_lookuper_result = conn->domain_lookuper_result;
     add_connection(self, sw_conn);
     if (conn->proto == IPPROTO_UDP) {
         // do not turn off reads on migrating UDP connections,
@@ -925,20 +973,22 @@ std::optional<VpnConnectAction> Tunnel::finalize_connect_action(ConnectRequestRe
     conn->uid = request_result.uid;
 
     const DomainFilter *filter = &this->vpn->domain_filter;
-    std::optional<VpnConnectAction> out;
     if ((request_result.action.has_value() && request_result.action.value() != VPN_CA_DEFAULT)
             || conn->flags.test(CONNF_PLAIN_DNS_CONNECTION)) {
-        out = request_result.action;
+        conn->action = request_result.action;
     } else if (const sockaddr_storage *dst = std::get_if<sockaddr_storage>(&conn->addr.dst); dst != nullptr) {
-        DomainFilterMatchStatus filter_result = filter->match_tag(conn->make_tag());
-        switch (filter_result) {
+        DomainFilterMatchResult filter_result = filter->match_tag(conn->make_tag());
+        switch (filter_result.status) {
         case DFMS_DEFAULT:
-            out = request_result.action;
+            conn->action = request_result.action;
             break;
-        case DFMS_EXCLUSION:
+        case DFMS_EXCLUSION: {
             log_conn(this, conn, dbg, "Connection will be excluded");
-            out = invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode()));
+            conn->action = invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode()));
+            report_connection_info(
+                    this, conn, filter_result.domain.has_value() ? filter_result.domain->c_str() : nullptr);
             break;
+        }
         case DFMS_SUSPECT_EXCLUSION:
             if (is_domain_scannable_port(sockaddr_get_port((sockaddr *) dst))) {
                 log_conn(this, conn, dbg, "Connection may target excluded host");
@@ -956,17 +1006,18 @@ std::optional<VpnConnectAction> Tunnel::finalize_connect_action(ConnectRequestRe
             [[fallthrough]];
 #endif
         case DFMS_DEFAULT:
-            out = request_result.action;
+            conn->action = request_result.action;
             break;
         case DFMS_EXCLUSION:
-            out = invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode()));
+            conn->action = invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode()));
+            report_connection_info(this, conn, dst->name.c_str());
             break;
         }
     }
 
-    log_conn(this, conn, dbg, "Final action: {}", out.has_value() ? magic_enum::enum_name(out.value()) : "<none>");
-
-    return out;
+    log_conn(this, conn, dbg, "Final action: {}",
+            conn->action.has_value() ? magic_enum::enum_name(conn->action.value()) : "<none>");
+    return conn->action;
 }
 
 static std::optional<sockaddr_storage> select_resolved_destination_address(
@@ -978,8 +1029,8 @@ static std::optional<sockaddr_storage> select_resolved_destination_address(
         VpnConnectAction action = VPN_CA_DEFAULT;
         // if the action was default, check if the address matches exclusions
         if (!conn->flags.test(CONNF_FORCIBLY_BYPASSED) && !conn->flags.test(CONNF_FORCIBLY_REDIRECTED)) {
-            DomainFilterMatchStatus filter_result = self->vpn->domain_filter.match_tag(SockAddrTag{address});
-            switch (filter_result) {
+            DomainFilterMatchResult filter_result = self->vpn->domain_filter.match_tag(SockAddrTag{address});
+            switch (filter_result.status) {
             case DFMS_DEFAULT:
                 // neither the domain name nor resolved address matched against exclusions,
                 // continue with the default action
@@ -1061,8 +1112,8 @@ static void on_destination_resolve_result(void *arg, VpnDnsResolveId id, VpnDnsR
     } else if (conn->flags.test(CONNF_FORCIBLY_REDIRECTED)) {
         action = VPN_CA_FORCE_REDIRECT;
     } else {
-        DomainFilterMatchStatus filter_result = self->vpn->domain_filter.match_tag(SockAddrTag{address});
-        switch (filter_result) {
+        DomainFilterMatchResult filter_result = self->vpn->domain_filter.match_tag(SockAddrTag{address});
+        switch (filter_result.status) {
         case DFMS_DEFAULT:
             // neither the domain name nor resolved address matched against exclusions,
             // continue with the default action
@@ -1560,11 +1611,7 @@ void Tunnel::listener_handler(const std::shared_ptr<ClientListener> &listener, C
                 break;
             }
             case ALUA_SHUTDOWN:
-                log_conn(this, conn, dbg, "Connection had been routed {} while should've been routed {}",
-                        (upstream.get() == this->vpn->endpoint_upstream.get()) ? "through VPN endpoint"
-                                                                               : "directly to target host",
-                        (upstream.get() == this->vpn->endpoint_upstream.get()) ? "directly to target host"
-                                                                               : "through VPN endpoint");
+                conn->action = invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode()));
                 conn->flags.reset(CONNF_LOOKINGUP_DOMAIN);
                 migrate_to_another_upstream = true;
                 break;
@@ -1576,6 +1623,7 @@ void Tunnel::listener_handler(const std::shared_ptr<ClientListener> &listener, C
                 return;
             }
 
+            report_connection_info(this, conn, conn->domain_lookuper_result.domain.c_str());
             if (migrate_to_another_upstream) {
                 if (!conn->flags.test(CONNF_FIRST_PACKET)) {
                     log_conn(this, conn, dbg, "Can't switch upstream in the middle of handshake");
@@ -1584,11 +1632,18 @@ void Tunnel::listener_handler(const std::shared_ptr<ClientListener> &listener, C
                     upstream->close_connection(conn->server_id, false, true);
                     break;
                 }
-
-                event->result = initiate_connection_migration(this, conn,
-                        select_upstream(
-                                this, invert_action(vpn_mode_to_action(this->vpn->domain_filter.get_mode())), conn),
-                        {event->data, event->length});
+                auto upstream_to_migrate = select_upstream(this, conn->action.value(), conn);
+                log_conn(this, conn, dbg, "Client: Connection had been routed {}, migrating to {}",
+                        (upstream.get() == this->vpn->endpoint_upstream.get())         ? "through VPN endpoint"
+                                : (upstream.get() == this->vpn->bypass_upstream.get()) ? "directly to target host"
+                                : (upstream.get() == this->fake_upstream.get())        ? "through fake endpoint"
+                                                                                       : "through unknown endpoint",
+                        (upstream_to_migrate.get() == this->vpn->endpoint_upstream.get())         ? "Endpoint upstream"
+                                : (upstream_to_migrate.get() == this->vpn->bypass_upstream.get()) ? "Bypass upstream"
+                                : (upstream_to_migrate.get() == this->fake_upstream.get())        ? "Fake upstream"
+                                                                                                  : "unknown upstream");
+                event->result = initiate_connection_migration(
+                        this, conn, std::move(upstream_to_migrate), {event->data, event->length});
                 break;
             }
         }
@@ -1696,7 +1751,7 @@ void Tunnel::listener_handler(const std::shared_ptr<ClientListener> &listener, C
         switch (this->icmp_manager.register_request(event->request)) {
         case IM_MSGS_PASS: {
             VpnConnectAction action = VPN_CA_DEFAULT;
-            switch (this->vpn->domain_filter.match_tag({event->request.peer})) {
+            switch (this->vpn->domain_filter.match_tag({event->request.peer}).status) {
             case DFMS_DEFAULT:
             case DFMS_SUSPECT_EXCLUSION:
                 break;

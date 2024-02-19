@@ -132,8 +132,8 @@ DomainFilterMatchStatus DomainFilter::match_domain(std::string_view domain) cons
     return DFMS_DEFAULT;
 }
 
-DomainFilterMatchStatus DomainFilter::match_tag(const SockAddrTag &tag) const {
-    DomainFilterMatchStatus result = DFMS_DEFAULT;
+DomainFilterMatchResult DomainFilter::match_tag(const SockAddrTag &tag) const {
+    DomainFilterMatchResult result = {.status = DFMS_DEFAULT};
 
     char addr_str[SOCKADDR_STR_BUF_SIZE];
     if (m_log.is_enabled(ag::LOG_LEVEL_DEBUG)) {
@@ -159,12 +159,13 @@ DomainFilterMatchStatus DomainFilter::match_tag(const SockAddrTag &tag) const {
 
     if (found) {
         log_filter(this, trace, "Address matched against exclusion list: {}", addr_str);
-        result = DFMS_EXCLUSION;
+        result.status = DFMS_EXCLUSION;
     } else if (auto domain = m_resolved_tags.get(tag)) {
         log_filter(this, dbg, "Cache hit: {}#{} -> {}", addr_str, tag.appname, *domain);
-        result = match_domain(*domain);
+        result.status = match_domain(*domain);
+        result.domain = *domain;
     } else if (m_exclusion_suspects.get(addr_no_port)) {
-        result = DFMS_SUSPECT_EXCLUSION;
+        result.status = DFMS_SUSPECT_EXCLUSION;
     }
 
     return result;

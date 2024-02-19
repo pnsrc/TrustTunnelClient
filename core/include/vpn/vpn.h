@@ -11,9 +11,9 @@
 #include "common/logger.h"
 #include "net/os_tunnel.h"
 #include "net/utils.h"
+#include "tcpip/tcpip.h"
 #include "vpn/event_loop.h"
 #include "vpn/utils.h"
-#include "tcpip/tcpip.h"
 
 namespace ag {
 
@@ -37,13 +37,13 @@ typedef enum {
     VPN_EC_NOERROR, // Depending on context may mean successful operation status (if returned from `vpn_connect`)
                     // or an endpoint session is closed without any error (if raised with `VPN_EVENT_STATE_CHANGED`)
     VPN_EC_ERROR,   // General code for the errors not described below
-    VPN_EC_INVALID_SETTINGS,     // Settings passed for an operation are invalid
-    VPN_EC_ADDR_IN_USE,          // Operation failed because the specified address was in use
-    VPN_EC_INVALID_STATE,        // VPN client instance is in invalid state for the requested operation
-    VPN_EC_AUTH_REQUIRED,        // Authorization error (in case user credentials are invalid or expired)
-    VPN_EC_LOCATION_UNAVAILABLE, // None of the endpoints in a location are available
-    VPN_EC_EVENT_LOOP_FAILURE,   // Failed to start the IO event loop, or it unexpectedly terminated
-    VPN_EC_INITIAL_CONNECT_FAILED,  // No connection attempts left after initial connect() call
+    VPN_EC_INVALID_SETTINGS,       // Settings passed for an operation are invalid
+    VPN_EC_ADDR_IN_USE,            // Operation failed because the specified address was in use
+    VPN_EC_INVALID_STATE,          // VPN client instance is in invalid state for the requested operation
+    VPN_EC_AUTH_REQUIRED,          // Authorization error (in case user credentials are invalid or expired)
+    VPN_EC_LOCATION_UNAVAILABLE,   // None of the endpoints in a location are available
+    VPN_EC_EVENT_LOOP_FAILURE,     // Failed to start the IO event loop, or it unexpectedly terminated
+    VPN_EC_INITIAL_CONNECT_FAILED, // No connection attempts left after initial connect() call
 } VpnErrorCode;
 
 typedef struct Vpn Vpn;
@@ -239,6 +239,8 @@ typedef enum {
                                             a VPN endpoint) */
     VPN_EVENT_TUNNEL_CONNECTION_CLOSED,  /** Raised when a connection is closed (raised with
                                             `VpnTunnelConnectionClosedEvent`) */
+    VPN_EVENT_CONNECTION_INFO,           /** Notifies that connection info is ready (raised with
+                                            `VpnConnectionInfoEvent`) */
 } VpnEvent;
 
 typedef struct {
@@ -361,6 +363,23 @@ typedef struct {
 typedef struct {
     uint64_t id; // Connection id, corresponds to the one raised in `VpnConnectRequestEvent`
 } VpnTunnelConnectionClosedEvent;
+
+typedef enum {
+    VPN_FCA_BYPASS,  // Route the connection directly to the destination host
+    VPN_FCA_TUNNEL,  // Route the connection through the VPN endpoint
+    VPN_FCA_REJECT,   // Reject the connection
+} VpnFinalConnectionAction;
+
+/**
+ * VPN client connection information
+ */
+typedef struct {
+    const struct sockaddr_storage *src; // source address of connection
+    const struct sockaddr_storage *dst; // destination address of connection
+    const char *domain;                 // destination domain
+    int proto;                          // connection protocol
+    VpnFinalConnectionAction action;    // final action
+} VpnConnectionInfoEvent;
 
 typedef struct {
     void (*func)(void *arg, VpnEvent what, void *data);

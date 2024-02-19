@@ -24,6 +24,7 @@
 
 #include "common/logger.h"
 #include "common/net_utils.h"
+#include "common/utils.h"
 #include "net/network_manager.h"
 #include "net/os_tunnel.h"
 #include "net/tls.h"
@@ -342,14 +343,12 @@ VpnListener *VpnStandaloneClient::make_tun_listener() {
     }
 
     const VpnOsTunnelSettings *defaults = vpn_os_tunnel_settings_defaults();
-    VpnOsTunnelSettings tunnel_settings = {
-            .ipv4_address = defaults->ipv4_address,
+    VpnOsTunnelSettings tunnel_settings = {.ipv4_address = defaults->ipv4_address,
             .ipv6_address = defaults->ipv6_address,
             .included_routes = {.data = included_routes.data(), .size = uint32_t(included_routes.size())},
             .excluded_routes = {.data = excluded_routes.data(), .size = uint32_t(excluded_routes.size())},
             .mtu = int(config.mtu_size),
-            .dns_servers = defaults->dns_servers
-    };
+            .dns_servers = defaults->dns_servers};
 
     m_tunnel = ag::make_vpn_tunnel();
     if (m_tunnel == nullptr) {
@@ -489,6 +488,25 @@ void VpnStandaloneClient::vpn_handler(void *, VpnEvent what, void *data) {
                 });
         break;
     }
+    case VPN_EVENT_CONNECTION_INFO:
+        const VpnConnectionInfoEvent *info = (VpnConnectionInfoEvent *) data;
+        std::string src = sockaddr_ip_to_str((sockaddr *) info->src);
+        std::string proto = info->proto == IPPROTO_TCP ? "TCP" : "UDP";
+        std::string dst;
+        if (info->domain) {
+            dst = info->domain;
+        }
+        if (info->dst) {
+            dst = AG_FMT("{}({})", dst, sockaddr_ip_to_str((sockaddr *) info->dst));
+        }
+        auto action = magic_enum::enum_name(info->action);
+
+        std::string log_message;
+
+        log_message = fmt::format("{}, {} -> {}. Action: {}", proto, src, dst, action);
+
+        dbglog(m_logger, "{}", log_message);
+        break;
     }
 } // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 

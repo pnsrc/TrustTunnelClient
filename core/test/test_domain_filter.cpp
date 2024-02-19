@@ -83,7 +83,7 @@ TEST_P(AddressMatch, Test) {
 
     sockaddr_storage address = sockaddr_from_str(param.entry.c_str());
     ASSERT_NE(address.ss_family, AF_UNSPEC);
-    ASSERT_EQ(DFMS_EXCLUSION, filter.match_tag({address, ""}));
+    ASSERT_EQ(DFMS_EXCLUSION, filter.match_tag({address, ""}).status);
 }
 
 static const MatchTestParam ADDRESS_MATCH_TEST_SAMPLES[] = {
@@ -113,7 +113,7 @@ TEST_P(AddressNoMatch, Test) {
 
     sockaddr_storage address = sockaddr_from_str(param.entry.c_str());
     ASSERT_NE(address.ss_family, AF_UNSPEC);
-    ASSERT_EQ(filter.match_tag({address, ""}), DFMS_DEFAULT);
+    ASSERT_EQ(filter.match_tag({address, ""}).status, DFMS_DEFAULT);
 }
 
 static const MatchTestParam ADDRESS_NOMATCH_TEST_SAMPLES[] = {
@@ -160,12 +160,18 @@ public:
 TEST_P(Tags, Basic) {
     const TagsTestParam &param = GetParam();
 
-    ASSERT_EQ(filter.match_tag({address, param.app}), DFMS_DEFAULT);
+    ASSERT_EQ(filter.match_tag({address, param.app}).status, DFMS_DEFAULT);
 
     filter.add_resolved_tag({address, param.app}, "example.com");
-    ASSERT_EQ(filter.match_tag({address, param.app}), DFMS_EXCLUSION);
-    ASSERT_EQ(filter.match_tag({address, ""}), DFMS_DEFAULT);
-    ASSERT_EQ(filter.match_tag({address, param.app + "1"}), DFMS_DEFAULT);
+    auto res = filter.match_tag({address, param.app});
+    ASSERT_EQ(res.status, DFMS_EXCLUSION);
+    ASSERT_EQ(res.domain, "example.com");
+    res = filter.match_tag({address, ""});
+    ASSERT_EQ(res.status, DFMS_DEFAULT);
+    ASSERT_FALSE(res.domain.has_value());
+    res = filter.match_tag({address, param.app + "1"});
+    ASSERT_EQ(res.status, DFMS_DEFAULT);
+    ASSERT_FALSE(res.domain.has_value());
 }
 
 static const TagsTestParam TAGS_TEST_SAMPLES[] = {

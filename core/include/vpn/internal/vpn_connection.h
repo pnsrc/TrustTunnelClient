@@ -53,6 +53,8 @@ enum VpnConnectionFlags {
     CONNF_ROUTE_TO_DNS_PROXY,
     /// Connection's statistics is being monitored
     CONNF_MONITOR_STATS,
+    /// Connection info is being reported to the client
+    CONNF_CONN_INFO_SENT,
 };
 
 class ClientListener;
@@ -82,6 +84,7 @@ struct VpnConnection {
     std::list<std::vector<uint8_t>> buffered_packets;
     event_loop::AutoTaskId send_buffered_task;
     int lookup_attempts_num = 0;
+    std::optional<VpnConnectAction> action;
 
     static VpnConnection *make(uint64_t client_id, TunnelAddressPair addr, int proto);
 

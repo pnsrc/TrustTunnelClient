@@ -45,6 +45,7 @@ enum Event {
     EVENT_CONNECTION_STATS,  /** Notifies of connection statistics updates (raised with `VpnTunnelConnectionStatsEvent`
                                 and  only for connections routed through a VPN endpoint) */
     EVENT_CONNECTION_CLOSED, /** Raised when a connection is closed (raised with `VpnTunnelConnectionClosedEvent`) */
+    EVENT_CONNECTION_INFO,   /** Notifies that connection info is ready (raised with `VpnConnectionInfoEvent`) */
 };
 
 struct Handler {
