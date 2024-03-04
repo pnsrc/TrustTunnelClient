@@ -55,7 +55,6 @@ static constexpr auto EVENT_NAMES = make_enum_names_array<SessionEvent>();
 static bool is_successful(const void *ctx, void *data);
 
 static void run_connect(void *ctx, void *data);
-static void schedule_health_check(void *ctx, void *data);
 static void raise_connected(void *ctx, void *data);
 static void raise_disconnected(void *ctx, void *data);
 static void run_disconnect(void *ctx, void *data);
@@ -67,13 +66,13 @@ static constexpr FsmTransitionEntry TRANSITION_TABLE[] = {
         {S_DISCONNECTED,        E_SESSION_CLOSED,       Fsm::ANYWAY,    Fsm::DO_NOTHING,       S_DISCONNECTED,         raise_disconnected},
         {S_DISCONNECTED,        E_DISCONNECT,           Fsm::ANYWAY,    Fsm::DO_NOTHING,       S_DISCONNECTED,         Fsm::DO_NOTHING},
 
-        {S_CONNECTING,          E_SESSION_OPENED,       Fsm::ANYWAY,    schedule_health_check, S_CONNECTED,            raise_connected},
+        {S_CONNECTING,          E_SESSION_OPENED,       Fsm::ANYWAY,    Fsm::DO_NOTHING,       S_CONNECTED,            raise_connected},
         {S_CONNECTING,          E_SESSION_CLOSED,       Fsm::ANYWAY,    Fsm::DO_NOTHING,       S_DISCONNECTED,         raise_disconnected},
 
         {S_CONNECTED,           E_SESSION_CLOSED,       Fsm::ANYWAY,    Fsm::DO_NOTHING,       S_DISCONNECTED,         raise_disconnected},
         {S_CONNECTED,           E_SESSION_ERROR,        Fsm::ANYWAY,    submit_disconnect,     S_DISCONNECTING,        Fsm::DO_NOTHING},
         {S_CONNECTED,           E_RUN_PREPARATION_FAIL, Fsm::ANYWAY,    submit_disconnect,     S_DISCONNECTING,        Fsm::DO_NOTHING},
-        {S_CONNECTED,           E_HEALTH_CHECK_READY,   is_successful,  schedule_health_check, Fsm::SAME_TARGET_STATE, Fsm::DO_NOTHING},
+        {S_CONNECTED,           E_HEALTH_CHECK_READY,   is_successful,  Fsm::DO_NOTHING,       Fsm::SAME_TARGET_STATE, Fsm::DO_NOTHING},
         {S_CONNECTED,           E_HEALTH_CHECK_READY,   Fsm::OTHERWISE, submit_disconnect,     S_DISCONNECTING,        Fsm::DO_NOTHING},
 
         {S_DISCONNECTING,       E_SESSION_CLOSED,       Fsm::ANYWAY,    Fsm::DO_NOTHING,       S_DISCONNECTED,         raise_disconnected},
@@ -733,15 +732,6 @@ static void vpn_client::run_connect(void *ctx, void *data) {
     if (VpnError e = vpn->endpoint_connector->connect(timeout); e.code != VPN_EC_NOERROR) {
         vpn->pending_error = e;
     }
-
-    log_client(vpn, trace, "Done");
-}
-
-static void vpn_client::schedule_health_check(void *ctx, void *) {
-    auto *vpn = (VpnClient *) ctx;
-    log_client(vpn, trace, "...");
-
-    submit_health_check(vpn, vpn->upstream_config.endpoint_pinging_period);
 
     log_client(vpn, trace, "Done");
 }

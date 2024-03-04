@@ -116,9 +116,8 @@ bool Http3Upstream::open_session(std::optional<Millis>) {
     }
     DeclPtr<quiche_config, &quiche_config_free> config_holder{config};
 
-    // we are not able to update connection timeout dynamically, so set it greater than
-    // the pinging period to make the connection live long enough until the following ping
-    m_max_idle_timeout = std::max(upstream_config.timeout, 2 * upstream_config.endpoint_pinging_period);
+    // Let the connection live long enough to perform a health check.
+    m_max_idle_timeout = 2 * (upstream_config.timeout + upstream_config.health_check_timeout);
 
     quiche_config_verify_peer(config, true);
     quiche_config_set_application_protos(
@@ -410,6 +409,8 @@ VpnError Http3Upstream::do_health_check() {
         return {VPN_EC_ERROR, "No HTTP3 session"};
     }
 
+    udp_socket_set_timeout(m_socket.get(), this->vpn->upstream_config.health_check_timeout);
+
     auto [stream_id, is_retriable] = this->send_connect_request(&HEALTH_CHECK_HOST, "");
     if (stream_id.has_value()) {
         m_health_check_info = {
@@ -441,7 +442,7 @@ VpnError Http3Upstream::do_health_check() {
                             self->do_health_check();
                         },
                 },
-                this->vpn->upstream_config.endpoint_pinging_period / 10);
+                this->vpn->upstream_config.health_check_timeout / 10);
         return {};
     }
 
@@ -485,7 +486,14 @@ void Http3Upstream::socket_handler(void *arg, UdpSocketEvent what, void *data) {
         break;
 
     case UDP_SOCKET_EVENT_TIMEOUT:
-        log_upstream(upstream, dbg, "Socket timed out");
+        if (!upstream->m_quic_conn || !quiche_conn_is_established(upstream->m_quic_conn.get())
+                || !upstream->m_h3_conn || upstream->m_health_check_info.has_value()) {
+            log_upstream(upstream, dbg, "UDP socket timed out, closing session");
+            upstream->close_session_inner();
+        } else {
+            log_upstream(upstream, dbg, "UDP socket timed out, doing health check");
+            upstream->do_health_check();
+        }
         break;
     }
 }
@@ -668,6 +676,9 @@ void Http3Upstream::on_udp_packet() {
         }
 
         m_state = H3US_ESTABLISHED;
+        assert(this->vpn->upstream_config.timeout >= this->vpn->upstream_config.health_check_timeout);
+        udp_socket_set_timeout(m_socket.get(),
+                this->vpn->upstream_config.timeout - this->vpn->upstream_config.health_check_timeout);
         this->handler.func(this->handler.arg, SERVER_EVENT_SESSION_OPENED, nullptr);
         break;
     }
@@ -793,6 +804,9 @@ void Http3Upstream::handle_h3_event(quiche_h3_event *h3_event, uint64_t stream_i
         } else if (stream_id == m_icmp_mux.get_stream_id()) {
             m_icmp_mux.close();
         } else if (is_health_check_stream(stream_id)) {
+            assert(this->vpn->upstream_config.timeout >= this->vpn->upstream_config.health_check_timeout);
+            udp_socket_set_timeout(m_socket.get(),
+                    this->vpn->upstream_config.timeout - this->vpn->upstream_config.health_check_timeout);
             this->handler.func(this->handler.arg, SERVER_EVENT_HEALTH_CHECK_RESULT, &m_health_check_info->error);
             stream_close_code =
                     (m_health_check_info->error.code == VPN_EC_NOERROR) ? H3_NO_ERROR : H3_REQUEST_CANCELLED;

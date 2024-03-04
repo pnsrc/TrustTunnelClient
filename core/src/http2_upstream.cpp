@@ -236,6 +236,9 @@ void Http2Upstream::http_handler(void *arg, HttpEventId what, void *data) {
             upstream->handler.func(
                     upstream->handler.arg, SERVER_EVENT_HEALTH_CHECK_RESULT, &upstream->m_health_check_info->error);
             upstream->m_health_check_info.reset();
+            assert(upstream->vpn->upstream_config.timeout >= upstream->vpn->upstream_config.health_check_timeout);
+            tcp_socket_set_timeout(upstream->m_socket.get(),
+                    upstream->vpn->upstream_config.timeout - upstream->vpn->upstream_config.health_check_timeout);
         } else {
             auto found = upstream->get_conn_by_stream_id(stream_id);
             if (found.second == nullptr) {
@@ -341,10 +344,12 @@ void Http2Upstream::net_handler(void *arg, TcpSocketEvent what, void *data) {
     switch (what) {
     case TCP_SOCKET_EVENT_CONNECTED: {
         tcp_socket_set_read_enabled(upstream->m_socket.get(), true);
-        tcp_socket_set_timeout(upstream->m_socket.get(), upstream->vpn->upstream_config.timeout);
         log_upstream(upstream, dbg, "Established TCP connection to endpoint successfully");
-        log_upstream(upstream, dbg, "Initiating HTTP2 session with endpoint...");
         if (upstream->establish_http_session()) {
+            assert(upstream->vpn->upstream_config.timeout >= upstream->vpn->upstream_config.health_check_timeout);
+            tcp_socket_set_timeout(upstream->m_socket.get(),
+                    upstream->vpn->upstream_config.timeout - upstream->vpn->upstream_config.health_check_timeout);
+
             upstream->handler.func(upstream->handler.arg, SERVER_EVENT_SESSION_OPENED, nullptr);
         } else {
             upstream->close_session_inner(VpnError{VPN_EC_ERROR, "Failed to initiate HTTP2 session"});
@@ -392,10 +397,10 @@ void Http2Upstream::net_handler(void *arg, TcpSocketEvent what, void *data) {
     case TCP_SOCKET_EVENT_ERROR: {
         const VpnError *sock_event = (VpnError *) data;
 
-        // while opening a session or performing a health check, we can't ignore time out
-        if (sock_event->code == ag::utils::AG_ETIMEDOUT && upstream->m_session != nullptr
+        if (sock_event->code == utils::AG_ETIMEDOUT && upstream->m_session != nullptr
                 && !upstream->m_health_check_info.has_value()) {
-            log_upstream(upstream, trace, "Ignore timed out socket");
+            log_upstream(upstream, dbg, "Timeout on HTTP session socket, starting health check");
+            upstream->do_health_check();
             break;
         }
 
@@ -806,6 +811,8 @@ VpnError Http2Upstream::do_health_check() {
         log_upstream(this, dbg, "Ignoring as another health check is already in progress");
         return {};
     }
+
+    tcp_socket_set_timeout(m_socket.get(), this->vpn->upstream_config.health_check_timeout);
 
     std::optional<uint32_t> stream_id = send_connect_request(&HEALTH_CHECK_HOST, "");
     if (!stream_id.has_value()) {

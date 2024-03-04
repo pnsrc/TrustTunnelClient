@@ -33,7 +33,6 @@ public:
     VpnClient vpn;
     ServerUpstream *redirect_upstream = nullptr;
     ClientListener *client_listener = nullptr;
-    bool health_check_engaged = false;
 
     void SetUp() override {
         vpn.parameters = {
@@ -46,9 +45,7 @@ public:
         VpnError error = vpn.init(&settings);
         ASSERT_EQ(error.code, VPN_EC_NOERROR) << error.text;
 
-        error = vpn.connect(vpn_client::EndpointConnectionConfig{
-                .endpoint_pinging_period = HEALTH_CHECK_PERIOD,
-        });
+        error = vpn.connect(vpn_client::EndpointConnectionConfig{});
         ASSERT_EQ(error.code, VPN_EC_NOERROR) << error.text;
 
         this->redirect_upstream->handler.func(
@@ -172,8 +169,6 @@ size_t UpstreamMultiplexer::available_to_send(uint64_t) {
 void UpstreamMultiplexer::update_flow_control(uint64_t, TcpFlowCtrlInfo) {
 }
 VpnError UpstreamMultiplexer::do_health_check() {
-    auto *test = (VpnClientTest *) vpn->parameters.handler.arg;
-    test->health_check_engaged = true;
     return {};
 }
 VpnConnectionStats UpstreamMultiplexer::get_connection_stats() const {
@@ -274,21 +269,6 @@ void Tunnel::on_exclusions_updated() {
 TEST_F(VpnClientTest, Error) {
     ServerError error = {NON_ID, {VPN_EC_ERROR, "test"}};
     redirect_upstream->handler.func(redirect_upstream->handler.arg, SERVER_EVENT_ERROR, &error);
-
-    run_event_loop_once();
-
-    ASSERT_EQ(last_raised_vpn_event, vpn_client::EVENT_ERROR);
-}
-
-TEST_F(VpnClientTest, HealthCheckFailure) {
-    std::this_thread::sleep_for(HEALTH_CHECK_PERIOD);
-    run_event_loop_once();
-
-    ASSERT_TRUE(health_check_engaged);
-
-    VpnError error = {-1, "test"};
-    this->redirect_upstream->handler.func(
-            this->redirect_upstream->handler.arg, SERVER_EVENT_HEALTH_CHECK_RESULT, &error);
 
     run_event_loop_once();
 

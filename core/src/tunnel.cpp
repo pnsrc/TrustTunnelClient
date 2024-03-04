@@ -187,9 +187,15 @@ static void complete_connect_request_task(void *arg, TaskId) {
     switch (conn->state) {
     case CONNS_WAITING_RESOLVE:
     case CONNS_WAITING_RESPONSE:
-    case CONNS_WAITING_ACTION:
-        listener->complete_connect_request(conn->client_id, server_error_to_connect_result(ctx->err_code));
+    case CONNS_WAITING_ACTION: {
+        ClientConnectResult result = server_error_to_connect_result(ctx->err_code);
+        listener->complete_connect_request(conn->client_id, result);
+        if (result != CCR_PASS) {
+            conn->state = CONNS_REJECTED;
+        }
         break;
+    }
+    case CONNS_REJECTED:
     case CONNS_WAITING_ACCEPT:
     case CONNS_CONNECTED:
     case CONNS_CONNECTED_MIGRATING:
@@ -216,6 +222,7 @@ static void close_client_side_connection(Tunnel *self, VpnConnection *conn, int 
         // will be deleted in connection closed event
         listener->close_connection(conn->client_id, err_code == 0, async);
         break;
+    case CONNS_REJECTED:
     case CONNS_WAITING_RESOLVE:
     case CONNS_WAITING_RESPONSE:
     case CONNS_WAITING_ACTION:

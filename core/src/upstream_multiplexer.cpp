@@ -81,6 +81,12 @@ bool UpstreamMultiplexer::open_session(std::optional<Millis> timeout) {
         return false;
     }
 
+    // Here, we simply timeout if there's no read activity or health check results within the specified time window,
+    // since no read activity on the socket should trigger a health check in an underlying upstream.
+    m_timeout_timer.reset(evtimer_new(vpn_event_loop_get_base(this->vpn->parameters.ev_loop), timer_callback, this));
+    timeval tv = ms_to_timeval(this->vpn->upstream_config.timeout.count());
+    evtimer_add(m_timeout_timer.get(), &tv);
+
     return true;
 }
 
@@ -99,6 +105,7 @@ void UpstreamMultiplexer::close_session() {
 
     m_health_check_upstream_id.reset();
     m_pending_error.reset();
+    m_timeout_timer.reset();
 }
 
 uint64_t UpstreamMultiplexer::open_connection(const TunnelAddressPair *addr, int proto, std::string_view app_name) {
@@ -310,6 +317,19 @@ void UpstreamMultiplexer::finalize_closed_upstream(int upstream_id, bool async) 
     }
 }
 
+void UpstreamMultiplexer::timer_callback(evutil_socket_t, short, void *arg) {
+    auto *mux = (UpstreamMultiplexer *) arg;
+    log_mux(mux, dbg, "Timed out");
+    mux->close_session();
+    if (mux->m_pending_error.has_value()) {
+        ServerError error = {NON_ID, std::exchange(mux->m_pending_error, std::nullopt).value()};
+        mux->handler.func(mux->handler.arg, SERVER_EVENT_ERROR, &error);
+    } else {
+        VpnError error{.code = VPN_EC_ERROR, .text = "No read activity within upstream timeout"};
+        mux->handler.func(mux->handler.arg, SERVER_EVENT_SESSION_CLOSED, &error);
+    }
+}
+
 static bool is_fatal_error(const VpnError &error) {
     return error.code == VPN_EC_AUTH_REQUIRED;
 }
@@ -369,19 +389,28 @@ void UpstreamMultiplexer::child_upstream_handler(void *arg, ServerEvent what, vo
         mux->m_connections.erase(id);
         log_mux(mux, dbg, "Remaining upstreams={} connections={} pending connections={}", mux->m_upstreams_pool.size(),
                 mux->m_connections.size(), mux->m_pending_connections.size());
-        [[fallthrough]];
+        mux->handler.func(mux->handler.arg, what, data);
+        break;
+    }
+    case SERVER_EVENT_READ: {
+        timeval tv = ms_to_timeval(mux->vpn->upstream_config.timeout.count());
+        evtimer_add(mux->m_timeout_timer.get(), &tv);
+        mux->handler.func(mux->handler.arg, what, data);
+        break;
     }
     case SERVER_EVENT_CONNECTION_OPENED:
-    case SERVER_EVENT_READ:
     case SERVER_EVENT_DATA_SENT:
     case SERVER_EVENT_GET_AVAILABLE_TO_SEND:
     case SERVER_EVENT_ECHO_REPLY:
         mux->handler.func(mux->handler.arg, what, data);
         break;
-    case SERVER_EVENT_HEALTH_CHECK_RESULT:
+    case SERVER_EVENT_HEALTH_CHECK_RESULT: {
+        timeval tv = ms_to_timeval(mux->vpn->upstream_config.timeout.count());
+        evtimer_add(mux->m_timeout_timer.get(), &tv);
         mux->handler.func(mux->handler.arg, what, data);
         mux->m_health_check_upstream_id.reset();
         break;
+    }
     case SERVER_EVENT_ERROR: {
         const ServerError *event = (ServerError *) data;
         if (event->id != NON_ID) {

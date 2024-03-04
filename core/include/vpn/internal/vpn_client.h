@@ -65,9 +65,9 @@ struct EndpointConnectionConfig {
     VpnUpstreamFallbackConfig fallback;
     AutoVpnEndpoint endpoint;
     std::chrono::milliseconds timeout{VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS};
+    std::chrono::milliseconds health_check_timeout{VPN_DEFAULT_HEALTH_CHECK_TIMEOUT_MS};
     std::string username;
     std::string password;
-    std::chrono::milliseconds endpoint_pinging_period{VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS};
     IpVersionSet ip_availability;
     bool anti_dpi = false;
 };

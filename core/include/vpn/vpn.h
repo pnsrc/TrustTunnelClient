@@ -17,18 +17,19 @@
 
 namespace ag {
 
+// clang-format off
 static constexpr int VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS = 30 * 1000; // for VPN endpoint connection
+static constexpr int VPN_DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
 static constexpr int VPN_DEFAULT_TCP_TIMEOUT_MS = TCPIP_TCP_TIMEOUT_FOR_ESTABLISHED_S * 1000; // for bypassed server-side and client-side TCP connections
 static constexpr int VPN_DEFAULT_UDP_TIMEOUT_MS = TCPIP_UDP_TIMEOUT_S * 1000; // for bypassed and redirected server-side and client-side UDP connections
 static constexpr int VPN_DEFAULT_MAX_CONN_BUFFER_FILE_SIZE = 4 * 1024 * 1024;
 static constexpr int VPN_DEFAULT_CONN_MEMORY_BUFFER_THRESHOLD = DEFAULT_CONNECTION_MEMORY_BUFFER_SIZE;
-static constexpr int VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS = 60 * 1000;
 static constexpr int VPN_DEFAULT_RECOVERY_LOCATION_UPDATE_PERIOD_MS = 70 * 1000;
 static constexpr int VPN_DEFAULT_INITIAL_RECOVERY_INTERVAL_MS = 1 * 1000;
 static constexpr int VPN_DEFAULT_CONNECT_ATTEMPTS_NUM = 5;
 static constexpr int VPN_DEFAULT_FALLBACK_CONNECT_DELAY_MS = 1 * 1000;
-static constexpr int VPN_DEFAULT_POSTPONEMENT_WINDOW_MS =
-            3 * 1000; // how long after recovery starts connections are postponed instead of bypassed
+static constexpr int VPN_DEFAULT_POSTPONEMENT_WINDOW_MS = 3 * 1000; // how long after recovery starts connections are postponed instead of bypassed
+// clang-format on
 
 static const float VPN_DEFAULT_RECOVERY_BACKOFF_RATE = 1.3f;
 static const int VPN_SKIP_VERIFICATION_FLAG = 100;
@@ -192,18 +193,17 @@ typedef struct {
      */
     uint32_t location_ping_timeout_ms;
     /**
-     * Socket operations timeout. If 0, `VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS` will be assigned.
-     * Used for IO operations and server session establishing during `vpn_connect`.
+     * If the library doesn't receive any data from the upstream within the specified
+     * amount of time since the last data was received, the connection is closed.
+     * If 0, `VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS` will be assigned.
      */
     uint32_t timeout_ms;
     /**
-     * The library periodically pings a VPN endpoint. This is needed for an endpoint to increase its
-     * confidence in the connected client legitimacy, and for the library to update connectivity
-     * status.
-     * This field contains the period value of the pinging.
-     * If 0, `VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS` will be assigned.
+     * The library will send a "health check" request to the upstream `health_check_timeout_ms`
+     * milliseconds before the connection times out due to `timeout_ms`. This value should not be greater
+     * than `timeout_ms`. Values greater than `timeout_ms` will be clamped to `timeout_ms`.
      */
-    uint32_t endpoint_pinging_period_ms;
+    uint32_t health_check_timeout_ms;
     /** Username for authorization */
     const char *username;
     /** Password for authorization */

@@ -29,6 +29,8 @@ enum VpnConnectionState {
     CONNS_CONNECTED,
     /// Established connection waiting for migration completion
     CONNS_CONNECTED_MIGRATING,
+    /// Connection has been rejected, but has not been deleted yet
+    CONNS_REJECTED,
 };
 
 enum VpnConnectionFlags {

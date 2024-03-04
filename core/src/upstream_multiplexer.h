@@ -52,6 +52,7 @@ private:
     std::optional<int> m_health_check_upstream_id; // id of an upstream which performs health check
     MakeUpstream m_make_upstream;
     std::optional<VpnError> m_pending_error;
+    DeclPtr<event, &event_free> m_timeout_timer;
 
     ag::Logger m_log{"UPSTREAM_MUX"};
 
@@ -82,6 +83,8 @@ private:
     [[nodiscard]] size_t connections_num_by_upstream(int upstream_id) const;
     void mark_closed_upstream(int upstream_id, event_loop::AutoTaskId task_id);
     void finalize_closed_upstream(int upstream_id, bool async);
+
+    static void timer_callback(evutil_socket_t, short, void *);
 };
 
 } // namespace ag

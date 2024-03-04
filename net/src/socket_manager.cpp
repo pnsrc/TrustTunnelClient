@@ -241,7 +241,7 @@ int SocketManager::timer_subscribe(
     TimerInfo &timer_info = this->timer.value();
     uint32_t new_period = (timer_info.min_period == 0) ? timeout_ms : std::min(timer_info.min_period, timeout_ms);
     if (timer_info.min_period == 0 || new_period < timer_info.min_period) {
-        timeval tv = ms_to_timeval(new_period / 4);
+        timeval tv = ms_to_timeval(std::max(new_period / 4, uint32_t(0)));
         if (0 != event_del(timer_info.ev.get()) || 0 != event_add(timer_info.ev.get(), &tv)) {
             return -1;
         }

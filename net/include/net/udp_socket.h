@@ -64,4 +64,9 @@ evutil_socket_t udp_socket_get_fd(const UdpSocket *socket);
  */
 ssize_t udp_socket_recv(UdpSocket *socket, uint8_t *buffer, size_t cap);
 
+/**
+ * Set the read timeout.
+ */
+void udp_socket_set_timeout(UdpSocket *socket, Millis timeout);
+
 } // namespace ag

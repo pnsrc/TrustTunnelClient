@@ -59,9 +59,11 @@ void Vpn::update_upstream_config(AutoPod<VpnUpstreamConfig, vpn_upstream_config_
     if (this->upstream_config->timeout_ms == 0) {
         this->upstream_config->timeout_ms = VPN_DEFAULT_ENDPOINT_UPSTREAM_TIMEOUT_MS;
     }
-    if (this->upstream_config->endpoint_pinging_period_ms == 0) {
-        this->upstream_config->endpoint_pinging_period_ms = VPN_DEFAULT_ENDPOINT_PINGING_PERIOD_MS;
+    if (this->upstream_config->health_check_timeout_ms == 0) {
+        this->upstream_config->health_check_timeout_ms = VPN_DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
     }
+    this->upstream_config->health_check_timeout_ms =
+            std::min(this->upstream_config->health_check_timeout_ms, this->upstream_config->timeout_ms);
     if (this->upstream_config->recovery.backoff_rate < 1) {
         this->upstream_config->recovery.backoff_rate = VPN_DEFAULT_RECOVERY_BACKOFF_RATE;
     }
@@ -93,10 +95,10 @@ vpn_client::EndpointConnectionConfig Vpn::make_client_upstream_config() const {
             .main_protocol = this->upstream_config->protocol,
             .fallback = this->upstream_config->fallback,
             .endpoint = std::move(endpoint),
-            .timeout = milliseconds(this->upstream_config->timeout_ms),
+            .timeout = Millis{this->upstream_config->timeout_ms},
+            .health_check_timeout = Millis{this->upstream_config->health_check_timeout_ms},
             .username = this->upstream_config->username,
             .password = this->upstream_config->password,
-            .endpoint_pinging_period = milliseconds(this->upstream_config->endpoint_pinging_period_ms),
             .ip_availability =
                     [this] {
                         const VpnEndpoints &endpoints = this->upstream_config->location.endpoints;

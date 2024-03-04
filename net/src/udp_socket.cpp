@@ -237,4 +237,12 @@ ssize_t udp_socket_recv(UdpSocket *socket, uint8_t *buffer, size_t cap) {
     return ret;
 }
 
+void udp_socket_set_timeout(UdpSocket *socket, Millis timeout) {
+    socket->parameters.timeout = timeout;
+    socket->timeout_ts = get_next_timeout_ts(socket);
+    socket_manager_timer_unsubscribe(socket->parameters.socket_manager, socket->subscribe_id);
+    socket->subscribe_id = socket_manager_timer_subscribe(socket->parameters.socket_manager, socket->parameters.ev_loop,
+            uint32_t(socket->parameters.timeout.count()), timer_callback, socket);
+}
+
 } // namespace ag
