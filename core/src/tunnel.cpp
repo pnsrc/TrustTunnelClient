@@ -475,6 +475,11 @@ static void report_connection_info(const Tunnel *self, VpnConnection *conn, cons
     }
     info.proto = conn->proto;
     info.action = get_final_action(self->vpn->domain_filter.get_mode(), conn->action.value_or(VPN_CA_DEFAULT));
+
+    if (info.domain && info.domain[0] == '\0') {
+        info.domain = nullptr;
+    }
+
     self->vpn->parameters.handler.func(self->vpn->parameters.handler.arg, vpn_client::EVENT_CONNECTION_INFO, &info);
 }
 
