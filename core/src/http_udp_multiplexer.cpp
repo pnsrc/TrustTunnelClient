@@ -203,12 +203,6 @@ void HttpUdpMultiplexer::close_connection(uint64_t id) {
         return;
     }
 
-    if (m_recv_connection.id == id && m_recv_connection.state == RCS_PAYLOAD) {
-        // closed connection is the one for which we are receiving packet,
-        // so drop the rest of the packet
-        m_recv_connection.state = RCS_DROPPING;
-    }
-
     ServerHandler *handler = &m_params.parent->handler;
     handler->func(handler->arg, SERVER_EVENT_CONNECTION_CLOSED, &id);
 }
@@ -332,6 +326,7 @@ int HttpUdpMultiplexer::process_read_event(U8View data) {
             break;
         }
         case RCS_PAYLOAD: {
+            assert(m_connections.count(rconn->id));
             m_connections.at(rconn->id).timeout = steady_clock::now() + milliseconds(VPN_DEFAULT_UDP_TIMEOUT_MS);
 
             size_t to_read = std::min(rconn->bytes_left, data.length());
@@ -403,6 +398,10 @@ bool HttpUdpMultiplexer::clean_connection_data(uint64_t id) {
     auto i = m_connections.find(id);
     if (i == m_connections.end()) {
         return false;
+    }
+
+    if (m_recv_connection.id == id) {
+        m_recv_connection.state = RCS_DROPPING;
     }
 
     m_addr_to_id.erase(i->second.addr);
