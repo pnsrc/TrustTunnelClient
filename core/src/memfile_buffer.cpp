@@ -202,7 +202,9 @@ std::optional<std::string> MemfileBuffer::strip_file() {
         return str_format("Failed to get file size: %s (%d)", sys::strerror(sys::last_error()), sys::last_error());
     }
 
-    assert(fsize >= (ssize_t) m_read_offset);
+    if (size_t(fsize) < m_read_offset) {
+        return str_format("File size is less than the read offset");
+    }
 
     file::close(std::exchange(m_fd, file::INVALID_HANDLE));
     std::string tmp_fpath = str_format("%s.tmp", m_path.c_str());
@@ -232,7 +234,7 @@ std::optional<std::string> MemfileBuffer::strip_file() {
         goto exit;
     }
 
-    err = transfer_file2file(m_fd, tmp_fd, fsize - m_read_offset);
+    err = transfer_file2file(m_fd, tmp_fd, size_t(fsize) - m_read_offset);
     if (err.has_value()) {
         err = str_format("Failed to transfer file content: %s", err->c_str());
         goto exit;
