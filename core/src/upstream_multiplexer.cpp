@@ -90,12 +90,21 @@ bool UpstreamMultiplexer::open_session(std::optional<Millis> timeout) {
     return true;
 }
 
+static void clear_upstreams_map(std::unordered_map<int, std::unique_ptr<UpstreamInfo>> &map) {
+    for (auto it = map.begin(); it != map.end();) {
+        // Extend `UpstreamCtx`'s lifetime until the upstream has been deleted:
+        // upstream's destructor may raise events that use the `UpstreamCtx`.
+        std::unique_ptr<UpstreamCtx> ctx = std::move(it->second->ctx);
+        it = map.erase(it);
+    }
+}
+
 void UpstreamMultiplexer::close_session() {
     for (auto &[_, info] : m_upstreams_pool) {
         info->upstream->close_session();
     }
-    m_upstreams_pool.clear();
-    m_closed_upstreams.clear();
+    clear_upstreams_map(m_upstreams_pool);
+    clear_upstreams_map(m_closed_upstreams);
     m_connections.clear();
 
     for (const auto &[conn_id, _] : std::exchange(m_pending_connections, {})) {
