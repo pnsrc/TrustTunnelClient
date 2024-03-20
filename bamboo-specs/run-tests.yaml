@@ -91,7 +91,7 @@ Run tests on Windows:
         interpreter: BINSH_OR_CMDEXE
         scripts:
           - |-
-            call vcvars32
+            call vcvarsall amd64_x86
 
             python -m venv venv --clear
             call .\venv\Scripts\activate
@@ -117,7 +117,7 @@ Run tests on Windows:
         interpreter: BINSH_OR_CMDEXE
         scripts:
           - |-
-            call vcvars32
+            call vcvarsall amd64_x86
             cd build || exit /b 1
             ctest -D ExperimentalTest --no-compress-output || exit /b 1
   final-tasks:

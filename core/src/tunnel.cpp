@@ -1164,6 +1164,12 @@ static bool need_resolve_hostname(const Tunnel *self, VpnConnectAction action, c
         return false;
     }
 
+    if (conn->listener.lock() == self->vpn->dns_proxy_listener) {
+        // Allow connections with domain as destination address from DnsLibs.
+        // This prevents route looping requests from DnsLibs bootstrapper.
+        return false;
+    }
+
     // adjust action to an effective value
     switch (action) {
     case VPN_CA_DEFAULT:
