@@ -161,9 +161,20 @@ private:
     void close_connection_sync(uint64_t id, UpstreamSideConnection &conn, bool closed_by_opposite, VpnError error);
     ssize_t send_outgoing_tcp_packet(uint64_t conn_id, ClientSideConnection &cs_conn, Uint8View data);
     ssize_t send_outgoing_query(uint64_t conn_id, ClientSideConnection &cs_conn,
-            PlainDnsMessageHandler::RoutingPolicy routing_policy, Uint8View data);
+            PlainDnsMessageHandler::RoutingPolicyExt routing_policy, Uint8View data);
     [[nodiscard]] bool start_dns_proxy(SystemDnsServers servers);
-    [[nodiscard]] std::optional<sockaddr_storage> get_redirect_address(uint64_t cs_conn_id,
+
+    enum RedirectType
+    {
+        SYSTEM_PROXY,
+        PUBLIC_THROUGH_ENDPOINT
+    };
+    struct Redirect
+    {
+        sockaddr_storage addr;
+        RedirectType type;
+    };
+    [[nodiscard]] std::optional<Redirect> get_redirect(uint64_t cs_conn_id,
             const ClientSideConnection &cs_conn, PlainDnsMessageHandler::RoutingPolicy routing_policy) const;
 };
 

@@ -46,6 +46,11 @@ public:
 
     void init(const Parameters &parameters);
 
+    struct RoutingPolicyExt
+    {
+        RoutingPolicy policy;
+        bool system_only;
+    };
     /**
      * Checks if the domain being resolved should be routed through endpoint.
      * In case it should and user set up a custom DNS resolver, the message
@@ -53,7 +58,7 @@ public:
      * @param data DNS message.
      * @return See `RoutingPolicy`.
      */
-    [[nodiscard]] RoutingPolicy on_outgoing_message(U8View data) const;
+    [[nodiscard]] RoutingPolicyExt on_outgoing_message(U8View data) const;
 
     /**
      * Process an intercepted DNS reply.
@@ -70,6 +75,8 @@ public:
 private:
     Parameters m_parameters = {};
     ag::Logger m_log{"DNS_MSG_HANDLER"};
+
+    RoutingPolicy routing_policy_based_on_domain_match(std::string_view name) const;
 };
 
 } // namespace ag

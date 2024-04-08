@@ -11,66 +11,67 @@ void PlainDnsMessageHandler::init(const Parameters &p) {
     m_parameters = p;
 }
 
-PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::on_outgoing_message(U8View data) const {
+PlainDnsMessageHandler::RoutingPolicyExt PlainDnsMessageHandler::on_outgoing_message(U8View data) const {
 // On iOS, exceptional DNS routing can not use DnsLibs since system DNS servers can not exactly be determined
 // TODO(s.fionov): implement this instead: https://developer.apple.com/documentation/dnssd/1804747-dnsservicequeryrecord?language=objc
 #if !defined(__APPLE__) || !TARGET_OS_IPHONE
     dns_utils::DecodeResult r = dns_utils::decode_packet(data);
     if (const auto *e = std::get_if<dns_utils::Error>(&r); e != nullptr) {
         log_handler(this, dbg, "Failed to parse reply: {}", e->description);
-        return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;
+        return {
+            .policy = (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY,
+            .system_only = false
+        };
     }
 
     const auto *request = std::get_if<dns_utils::DecodedRequest>(&r);
     if (request == nullptr) {
         log_handler(this, dbg, "Packet holds inapplicable request");
-        return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;
+        return {
+            .policy = (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY,
+            .system_only = false
+        };
     }
 
     log_handler(this, dbg, "Domain name: {}", request->name);
 
     if (m_parameters.vpn->drop_non_app_initiated_dns_queries()) {
         if (!vpn_network_manager_check_app_request_domain(request->name.c_str())) {
-            log_handler(this, dbg, "Drop non-app-initiated DNS query");
-            return RP_DROP;
+            log_handler(this, dbg, "Non-app-initiated DNS query");
+            return {
+                .policy = routing_policy_based_on_domain_match(request->name), 
+                .system_only = true // Only allow connections that are going to system proxy
+            };
         }
 
         // `drop_non_app_initiated_dns_queries()` returning true means that we are not
         // connected to an endpoint, so all our own application initiated DNS queries
         // should be routed to the target host directly, otherwise they would be dropped
-        return RP_FORCE_BYPASS;
+        return {
+            .policy = RP_FORCE_BYPASS,
+            .system_only = false
+        };
     }
 
     if (m_parameters.vpn->dns_health_check_id.has_value() && request->name == VpnClient::dns_health_check_domain()
             && m_parameters.vpn->dns_health_check_id
                     == m_parameters.dns_resolver->lookup_resolve_id(request->id, request->name)) {
         log_handler(this, dbg, "DNS health check request");
-        return RP_THROUGH_DNS_PROXY;
+        return {
+            .policy = RP_THROUGH_DNS_PROXY,
+            .system_only = false
+        };
     }
 
-    switch (m_parameters.vpn->domain_filter.match_domain(request->name)) {
-    case DFMS_SUSPECT_EXCLUSION:
-        assert(0);
-        [[fallthrough]];
-    case DFMS_DEFAULT:
-        switch (m_parameters.vpn->domain_filter.get_mode()) {
-        case VPN_MODE_GENERAL:
-            return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;
-        case VPN_MODE_SELECTIVE:
-            return RP_DEFAULT;
-        }
-        break;
-    case DFMS_EXCLUSION:
-        switch (m_parameters.vpn->domain_filter.get_mode()) {
-        case VPN_MODE_GENERAL:
-            return RP_EXCEPTIONAL;
-        case VPN_MODE_SELECTIVE:
-            return (m_parameters.vpn->dns_proxy == nullptr) ? RP_EXCEPTIONAL : RP_THROUGH_DNS_PROXY;
-        }
-        break;
-    }
+    return {
+        .policy = routing_policy_based_on_domain_match(request->name),
+        .system_only = false
+    };
 #else
-    return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;
+    return {
+        .policy = (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY,
+        .system_only = false
+    };
 #endif
 }
 
@@ -121,6 +122,30 @@ PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::vpn_action_to_rout
     };
 
     return TABLE[mode][action]; // NOLINT(cppcoreguidelines-pro-bounds-constant-array-index)
+}
+
+PlainDnsMessageHandler::RoutingPolicy PlainDnsMessageHandler::routing_policy_based_on_domain_match(std::string_view name) const {
+    switch (m_parameters.vpn->domain_filter.match_domain(name)) {
+    case DFMS_SUSPECT_EXCLUSION:
+        assert(0);
+        [[fallthrough]];
+    case DFMS_DEFAULT:
+        switch (m_parameters.vpn->domain_filter.get_mode()) {
+        case VPN_MODE_GENERAL:
+            return (m_parameters.vpn->dns_proxy == nullptr) ? RP_DEFAULT : RP_THROUGH_DNS_PROXY;
+        case VPN_MODE_SELECTIVE:
+            return RP_DEFAULT;
+        }
+        break;
+    case DFMS_EXCLUSION:
+        switch (m_parameters.vpn->domain_filter.get_mode()) {
+        case VPN_MODE_GENERAL:
+            return RP_EXCEPTIONAL;
+        case VPN_MODE_SELECTIVE:
+            return (m_parameters.vpn->dns_proxy == nullptr) ? RP_EXCEPTIONAL : RP_THROUGH_DNS_PROXY;
+        }
+        break;
+    }
 }
 
 } // namespace ag

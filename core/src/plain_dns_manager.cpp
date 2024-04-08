@@ -779,8 +779,8 @@ ssize_t ag::PlainDnsManager::send_outgoing_tcp_packet(
             break;
         }
 
-        PlainDnsMessageHandler::RoutingPolicy routing_policy = m_message_handler.on_outgoing_message(query.value());
-        ssize_t r = this->send_outgoing_query(cs_conn_id, cs_conn, routing_policy,
+        auto routing_policy_ext = m_message_handler.on_outgoing_message(query.value());
+        ssize_t r = this->send_outgoing_query(cs_conn_id, cs_conn, routing_policy_ext,
                 {packet_start, sizeof(query_length.value()) + query_length.value()});
         if (r < 0) {
             return r;
@@ -791,7 +791,8 @@ ssize_t ag::PlainDnsManager::send_outgoing_tcp_packet(
 }
 
 ssize_t ag::PlainDnsManager::send_outgoing_query(uint64_t cs_conn_id, ClientSideConnection &cs_conn,
-        PlainDnsMessageHandler::RoutingPolicy routing_policy, Uint8View data) {
+        PlainDnsMessageHandler::RoutingPolicyExt routing_policy_ext, Uint8View data) {
+    auto [routing_policy, system_only] = routing_policy_ext;
     log_cs_conn(this, cs_conn_id, dbg, "Routing policy: {}", magic_enum::enum_name(routing_policy));
 
     if (routing_policy == PlainDnsMessageHandler::RP_DROP) {
@@ -815,11 +816,15 @@ ssize_t ag::PlainDnsManager::send_outgoing_query(uint64_t cs_conn_id, ClientSide
     if (std::optional us_conn_id = cs_conn.upstream_side_conns[routing_policy];
             !us_conn_id.has_value() || !m_upstream_side_connections.contains(us_conn_id.value())) {
         TunnelAddress dst;
-        if (std::optional redirect_addr = get_redirect_address(cs_conn_id, cs_conn, routing_policy);
-                redirect_addr.has_value()) {
+        std::optional redirect = get_redirect(cs_conn_id, cs_conn, routing_policy);
+        if (system_only && (!redirect.has_value() || redirect->type != SYSTEM_PROXY)) {
+            log_cs_conn(this, cs_conn_id, dbg, "Drop non-system query");
+            return ssize_t(data.length());
+        }
+        if (redirect.has_value()) {
             log_cs_conn(this, cs_conn_id, dbg, "Redirecting connection to {}",
-                    sockaddr_to_str((sockaddr *) &redirect_addr.value()));
-            dst.emplace<sockaddr_storage>(redirect_addr.value());
+                    sockaddr_to_str((sockaddr *) &redirect->addr));
+            dst.emplace<sockaddr_storage>(redirect->addr);
         } else {
             dst = cs_conn.original_addr.dst;
         }
@@ -908,7 +913,7 @@ bool ag::PlainDnsManager::start_dns_proxy(SystemDnsServers servers) {
     return true;
 }
 
-std::optional<sockaddr_storage> ag::PlainDnsManager::get_redirect_address(uint64_t cs_conn_id,
+std::optional<ag::PlainDnsManager::Redirect> ag::PlainDnsManager::get_redirect(uint64_t cs_conn_id,
         const ClientSideConnection &cs_conn, PlainDnsMessageHandler::RoutingPolicy routing_policy) const {
     const auto *dst = std::get_if<sockaddr_storage>(&cs_conn.original_addr.dst);
     if (dst == nullptr) {
@@ -935,7 +940,10 @@ std::optional<sockaddr_storage> ag::PlainDnsManager::get_redirect_address(uint64
 
     if (routed_directly && m_system_dns_proxy != nullptr) {
         log_cs_conn(this, cs_conn_id, dbg, "Redirecting query targeted default server to system DNS proxy");
-        return m_system_dns_proxy->get_listen_address(cs_conn.protocol);
+        return Redirect{
+            .addr = m_system_dns_proxy->get_listen_address(cs_conn.protocol),
+            .type = SYSTEM_PROXY
+        };
     }
 
     if (!routed_directly && routing_policy != PlainDnsMessageHandler::RP_THROUGH_DNS_PROXY
@@ -950,7 +958,10 @@ std::optional<sockaddr_storage> ag::PlainDnsManager::get_redirect_address(uint64
         static const sockaddr_storage IPV4_REDIRECT_ADDR = make_redirect_addr(AG_UNFILTERED_DNS_IPS_V4[0].data());
         static const sockaddr_storage IPV6_REDIRECT_ADDR = make_redirect_addr(AG_UNFILTERED_DNS_IPS_V6[0].data());
 
-        return (dst->ss_family == AF_INET) ? IPV4_REDIRECT_ADDR : IPV6_REDIRECT_ADDR;
+        return Redirect{
+            .addr = (dst->ss_family == AF_INET) ? IPV4_REDIRECT_ADDR : IPV6_REDIRECT_ADDR,
+            .type = PUBLIC_THROUGH_ENDPOINT
+        };
     }
 
     return std::nullopt;
