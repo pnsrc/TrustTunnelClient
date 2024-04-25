@@ -9,7 +9,6 @@
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
-#include <brotli/decode.h>
 
 #ifndef _WIN32
 #include <ifaddrs.h>
@@ -27,7 +26,9 @@
 #include "vpn/guid_utils.h"
 #endif
 
+#include <brotli/decode.h>
 #include <magic_enum/magic_enum.hpp>
+#include <openssl/ssl.h>
 
 #include "common/logger.h"
 #include "common/net_utils.h"
@@ -760,8 +761,8 @@ static int DecompressBrotliCert(SSL *ssl, CRYPTO_BUFFER **out, size_t uncompress
 }
 #endif
 
-std::variant<SslPtr, std::string> make_ssl(
-        int (*verification_callback)(X509_STORE_CTX *, void *), void *arg, U8View alpn_protos, const char *sni) {
+std::variant<SslPtr, std::string> make_ssl(int (*verification_callback)(X509_STORE_CTX *, void *), void *arg,
+        U8View alpn_protos, const char *sni, bool quic) {
     DeclPtr<SSL_CTX, SSL_CTX_free> ctx{SSL_CTX_new(TLS_client_method())};
     if (verification_callback && arg) {
         SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_PEER, nullptr);
@@ -770,14 +771,6 @@ std::variant<SslPtr, std::string> make_ssl(
     if (0 != SSL_CTX_set_alpn_protos(ctx.get(), alpn_protos.data(), alpn_protos.size())) {
         return "Failed to set ALPN protocols";
     }
-
-#ifdef OPENSSL_IS_BORINGSSL
-    SSL_CTX_set_grease_enabled(ctx.get(), 1);
-    if (SSL_CTX_add_cert_compression_alg(ctx.get(), TLSEXT_cert_compression_zlib, nullptr, DecompressBrotliCert) != 1) {
-        return "Failed to add certificate compression algorithm";
-    }
-    SSL_CTX_set_permute_extensions(ctx.get(), true);
-#endif
 
     SSL_CTX_set_session_cache_mode(ctx.get(), SSL_SESS_CACHE_CLIENT);
     SSL_CTX_sess_set_new_cb(ctx.get(), cache_session_cb);
@@ -789,22 +782,54 @@ std::variant<SslPtr, std::string> make_ssl(
         }
     }
 
+// Mimic Chrome's ClientHello if we are using BoringSSL.
 #ifdef OPENSSL_IS_BORINGSSL
+    if (SSL_CTX_add_cert_compression_alg(ctx.get(), TLSEXT_cert_compression_brotli, nullptr, DecompressBrotliCert) != 1) {
+        return "Failed to add certificate compression algorithm";
+    }
+
+    SSL_CTX_set_permute_extensions(ctx.get(), true);
+
     SSL_set_enable_ech_grease(ssl.get(), 1);
-    /**
-     * Mimic Chrome ClientHello by indicating that we support ALPS extension,
-     * but don't actually send any settings (Chrome does the same).
-     * Conforming HTTP/2 implementations should use the settings from the SETTINGS frame anyway.
-     */
+
     if (SSL_add_application_settings(ssl.get(), (uint8_t *)"h2", 2, nullptr, 0) != 1) {
         return "Failed to add ALPS extension";
     }
-    SSL_enable_signed_cert_timestamps(ssl.get());
-#endif
-    SSL_set_connect_state(ssl.get());
-    if (SSL_set_tlsext_status_type(ssl.get(), TLSEXT_STATUSTYPE_ocsp) != 1) {
-        return "Failed to set OCSP state extension";
+
+    // Use the BoringSSL defaults, but disable 3DES and SHA1 HMAC
+    if (!SSL_set_strict_cipher_list(ssl.get(), "ALL:!aPSK:!ECDSA+SHA1:!3DES")) {
+        return "Failed to set strict cipher list";
     }
+
+    if (!SSL_set_min_proto_version(ssl.get(), TLS1_2_VERSION)
+            || !SSL_set_max_proto_version(ssl.get(), TLS1_3_VERSION)) {
+        return "Failed to set SSL versions";
+    }
+
+    if (!quic) {
+        SSL_CTX_set_grease_enabled(ctx.get(), 1);
+
+        SSL_enable_signed_cert_timestamps(ssl.get());
+
+        // Request OCSP stapling.
+        if (SSL_set_tlsext_status_type(ssl.get(), TLSEXT_STATUSTYPE_ocsp) != 1) {
+            return "Failed to set OCSP state extension";
+        }
+
+        // Disable the SHA1 signature algorithm.
+        // clang-format off
+        static constexpr uint16_t SIGALGS[] = { SSL_SIGN_ECDSA_SECP256R1_SHA256, SSL_SIGN_RSA_PSS_RSAE_SHA256,
+                                        SSL_SIGN_RSA_PKCS1_SHA256, SSL_SIGN_ECDSA_SECP384R1_SHA384,
+                                        SSL_SIGN_RSA_PSS_RSAE_SHA384, SSL_SIGN_RSA_PKCS1_SHA384,
+                                        SSL_SIGN_RSA_PSS_RSAE_SHA512, SSL_SIGN_RSA_PKCS1_SHA512, };
+        // clang-format on
+        if (!SSL_set_verify_algorithm_prefs(ssl.get(), SIGALGS, std::size(SIGALGS))) {
+            return "Failed to set signature algorithms";
+        }
+    }
+#endif
+
+    SSL_set_connect_state(ssl.get());
 
     if (auto session = pop_session_from_cache(sni)) {
         SSL_set_session(ssl.get(), session.release());

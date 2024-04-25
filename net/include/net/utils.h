@@ -217,8 +217,8 @@ static inline size_t varint_len(uint64_t varint_value) {
 
 using SslPtr = ag::DeclPtr<SSL, SSL_free>;
 
-std::variant<SslPtr, std::string> make_ssl(
-        int (*verification_callback)(X509_STORE_CTX *, void *), void *arg, ag::U8View alpn_protos, const char *sni);
+std::variant<SslPtr, std::string> make_ssl(int (*verification_callback)(X509_STORE_CTX *, void *), void *arg,
+        ag::U8View alpn_protos, const char *sni, bool quic);
 
 /**
  * Check if the specified IPv4 address is a private address as defined by RFC 1918

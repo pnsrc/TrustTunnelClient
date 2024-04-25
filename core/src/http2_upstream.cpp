@@ -466,7 +466,8 @@ bool Http2Upstream::open_session(std::optional<Millis> timeout) {
     static constexpr uint8_t HTTP2_ALPN[] = {2, 'h', '2'};
 
     SslPtr ssl;
-    if (auto r = make_ssl(verify_callback, this, {HTTP2_ALPN, std::size(HTTP2_ALPN)}, config->endpoint->name);
+    if (auto r = make_ssl(
+                verify_callback, this, {HTTP2_ALPN, std::size(HTTP2_ALPN)}, config->endpoint->name, /*quic*/ false);
             std::holds_alternative<SslPtr>(r)) {
         ssl = std::move(std::get<SslPtr>(r));
     } else {

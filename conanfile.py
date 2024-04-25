@@ -52,6 +52,7 @@ class VpnLibsConan(ConanFile):
 
     def build_requirements(self):
         self.test_requires("gtest/1.14.0")
+        self.test_requires("fmt/10.1.1")
 
     def configure(self):
         self.options["gtest"].build_gmock = False

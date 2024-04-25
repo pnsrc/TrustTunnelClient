@@ -103,6 +103,14 @@ link_libraries(vpnlibs_net nlohmann_json::nlohmann_json)
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test)
 set(TEST_EXTRA_INCLUDES ${NET_SOURCE_DIR})
 
+add_library(ja4 STATIC EXCLUDE_FROM_ALL test/ja4.cpp)
+target_include_directories(ja4 PUBLIC test)
+
+find_package(fmt REQUIRED)
+target_link_libraries(ja4 openssl::openssl fmt::fmt)
+
+link_libraries(ja4)
+
 add_unit_test(test_http_headers "${TEST_DIR}" "" FALSE FALSE)
 add_unit_test(test_tls_parse "${TEST_DIR}" "" FALSE FALSE)
 add_unit_test(test_ping "${TEST_DIR}" "${TEST_EXTRA_INCLUDES}" TRUE TRUE)

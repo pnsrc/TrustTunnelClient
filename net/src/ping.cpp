@@ -758,13 +758,11 @@ const char *ping_get_id(const Ping *ping) {
 
 #ifndef DISABLE_HTTP3
 std::vector<uint8_t> prepare_quic_initial(const char *sni) {
-    DeclPtr<SSL_CTX, &SSL_CTX_free> ctx{SSL_CTX_new(TLS_method())};
-    DeclPtr<SSL, &SSL_free> ssl{SSL_new(ctx.get())};
-    ssize_t ret [[maybe_unused]] = SSL_set_tlsext_host_name(ssl.get(), sni);
-    assert(ret);
-    uint8_t alpn[] = QUICHE_H3_APPLICATION_PROTOCOL;
-    ret = SSL_set_alpn_protos(ssl.get(), alpn, sizeof(alpn) - 1);
-    assert(ret == 0);
+    static constexpr uint8_t H3_ALPN[] = QUICHE_H3_APPLICATION_PROTOCOL;
+    SslPtr ssl;
+    auto r = make_ssl(nullptr, nullptr, {H3_ALPN, sizeof(H3_ALPN) - 1}, sni, true);
+    assert(std::holds_alternative<SslPtr>(r));
+    ssl = std::move(std::get<SslPtr>(r));
     uint8_t scid[QUICHE_MAX_CONN_ID_LEN];
     RAND_bytes(scid, sizeof(scid));
     sockaddr_storage dummy_address{.ss_family = AF_INET};
@@ -780,7 +778,7 @@ std::vector<uint8_t> prepare_quic_initial(const char *sni) {
     std::vector<uint8_t> initial;
     initial.resize(QUICHE_MIN_CLIENT_INITIAL_LEN);
     quiche_send_info info{};
-    ret = quiche_conn_send(qconn.get(), initial.data(), initial.size(), &info);
+    ssize_t ret [[maybe_unused]] = quiche_conn_send(qconn.get(), initial.data(), initial.size(), &info);
     assert(ret == QUICHE_MIN_CLIENT_INITIAL_LEN);
     return initial;
 }
@@ -796,13 +794,13 @@ std::vector<uint8_t> prepare_client_hello(const char *sni) {
     static constexpr uint8_t HTTP2_ALPN[] = {2, 'h', '2'};
 
     SslPtr ssl;
-    auto r = make_ssl(nullptr, nullptr, {HTTP2_ALPN, std::size(HTTP2_ALPN)}, sni);
+    auto r = make_ssl(nullptr, nullptr, {HTTP2_ALPN, std::size(HTTP2_ALPN)}, sni, false);
     assert(std::holds_alternative<SslPtr>(r));
     ssl = std::move(std::get<SslPtr>(r));
     SSL_set0_wbio(ssl.get(), BIO_new(BIO_s_mem()));
     SSL_connect(ssl.get());
     std::vector<uint8_t> initial;
-    initial.resize(MIN_CLIENT_INITIAL_LEN);
+    initial.resize(2 * MIN_CLIENT_INITIAL_LEN); // X25519Kyber768 is a looong key exchange
     auto ret = BIO_read(SSL_get_wbio(ssl.get()), initial.data(), (int) initial.size());
     assert(ret > 0);
     initial.resize(ret);

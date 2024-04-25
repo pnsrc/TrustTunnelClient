@@ -145,7 +145,7 @@ bool Http3Upstream::open_session(std::optional<Millis>) {
     SslPtr ssl;
     if (auto r = make_ssl(verify_callback, this,
                 {(uint8_t *) QUICHE_H3_APPLICATION_PROTOCOL, std::size(QUICHE_H3_APPLICATION_PROTOCOL) - 1},
-                upstream_config.endpoint->name);
+                upstream_config.endpoint->name, /*quic*/ true);
             std::holds_alternative<SslPtr>(r)) {
         ssl = std::move(std::get<SslPtr>(r));
     } else {
