@@ -86,12 +86,12 @@ void ag::VpnLinuxTunnel::setup_routes(int16_t table_id) {
         ag::tunnel_utils::fsystem("ip -6 ro add {} dev {} table {}", route.to_string(), m_tun_name, table_id);
     }
     if (!ipv4_routes.empty()) {
-        ag::tunnel_utils::fsystem("ip rule add prio 30801 lookup {}", table_id);
         ag::tunnel_utils::fsystem("ip rule add prio 30800 sport 22 lookup main");
+        ag::tunnel_utils::fsystem("ip rule add prio 30801 lookup {}", table_id);
     }
     if (!ipv6_routes.empty()) {
-        ag::tunnel_utils::fsystem("ip -6 rule add prio 30801 lookup {}", table_id);
         ag::tunnel_utils::fsystem("ip -6 rule add prio 30800 sport 22 lookup main");
+        ag::tunnel_utils::fsystem("ip -6 rule add prio 30801 lookup {}", table_id);
     }
 }
 
