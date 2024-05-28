@@ -51,6 +51,7 @@ private:
     std::unordered_map<uint64_t, /* graceful */ bool> m_closing_connections;
     event_loop::AutoTaskId m_async_task;
     std::map<IcmpRequestKey, std::unique_ptr<IcmpRequestInfo>> m_icmp_requests;
+    std::vector<uint8_t> m_udp_recv_buffer;
 
     ag::Logger m_log{"DIRECT_UPSTREAM"};
 

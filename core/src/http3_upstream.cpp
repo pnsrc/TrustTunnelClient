@@ -553,7 +553,7 @@ bool Http3Upstream::flush_pending_quic_data() {
     // so it is sufficient to update the idle timeout only here.
     m_idle_timeout_at_ns = now_ns + duration_cast<nanoseconds>(m_max_idle_timeout).count();
 
-    uint8_t out[UDP_MAX_DATAGRAM_SIZE];
+    uint8_t out[MAX_QUIC_UDP_PAYLOAD_SIZE];
     while (true) {
         quiche_send_info info{};
         ssize_t r = quiche_conn_send(m_quic_conn.get(), out, sizeof(out), &info);

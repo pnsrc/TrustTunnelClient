@@ -45,7 +45,9 @@ struct DirectUpstream::IcmpRequestInfo {
 static constexpr uint16_t ICMP_PING_EMULATION_PORT = 443;
 
 DirectUpstream::DirectUpstream(int id)
-        : ServerUpstream(id) {
+        : ServerUpstream(id)
+        , m_udp_recv_buffer(UDP_MAX_DATAGRAM_SIZE)
+{
 }
 
 DirectUpstream::~DirectUpstream() = default;
@@ -199,10 +201,9 @@ void DirectUpstream::udp_socket_handler(void *arg, UdpSocketEvent what, void *da
 
         constexpr size_t READ_BUDGET = 64;
 
-        uint8_t buffer[UDP_MAX_DATAGRAM_SIZE];
         size_t attempts_made = 0;
         do {
-            ssize_t r = udp_socket_recv(it->second.socket.get(), buffer, std::size(buffer));
+            ssize_t r = udp_socket_recv(it->second.socket.get(), upstream->m_udp_recv_buffer.data(), upstream->m_udp_recv_buffer.size());
             if (r <= 0) {
                 int err = evutil_socket_geterror(udp_socket_get_fd(it->second.socket.get()));
                 if (err != 0 && !AG_ERR_IS_EAGAIN(err)) {
@@ -217,7 +218,7 @@ void DirectUpstream::udp_socket_handler(void *arg, UdpSocketEvent what, void *da
                 break;
             }
 
-            ServerReadEvent event = {ctx->conn_id, buffer, size_t(r), 0};
+            ServerReadEvent event = {ctx->conn_id, upstream->m_udp_recv_buffer.data(), size_t(r), 0};
             upstream->handler.func(upstream->handler.arg, SERVER_EVENT_READ, &event);
         } while (++attempts_made < READ_BUDGET && it->second.read_enabled);
         break;
