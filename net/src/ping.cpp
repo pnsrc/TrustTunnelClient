@@ -390,14 +390,16 @@ static void on_shortcut_timer(evutil_socket_t, short, void *arg) {
         }
     }
 
-    self->connect_shortcut_task_id = event_loop::submit(self->loop,
-            {
-                    .arg = self,
-                    .action =
-                            [](void *arg, TaskId) {
-                                do_connect(arg, /*shortcut*/ true);
-                            },
-            });
+    if (!self->pending_shortcut.empty()) {
+        self->connect_shortcut_task_id = event_loop::submit(self->loop,
+                {
+                        .arg = self,
+                        .action =
+                                [](void *arg, TaskId) {
+                                    do_connect(arg, /*shortcut*/ true);
+                                },
+                });
+    }
 }
 
 // Return 0 if connection started successfully (including if it is inprogress), errno (or equivalent) otherwise.
