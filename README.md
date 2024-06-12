@@ -144,7 +144,7 @@ To build the setup wizard tool, run:
 cmake --build . --target setup_wizard
 ```
 
-For more information, refer to the [client's README](./standalone_client/README.md) file.
+For more information, refer to the [client's README](./standalone/README.md) file.
 
 ---
 
