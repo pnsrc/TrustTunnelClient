@@ -119,13 +119,14 @@ static GUID uuid_v5(std::string_view uuid_namespace, std::string_view uuid_data)
     return guid;
 }
 
-static WINTUN_ADAPTER_HANDLE create_wintun_adapter(std::string_view adapter_name) {
-    std::wstring wname = ag::utils::to_wstring(adapter_name);
-    WINTUN_ADAPTER_HANDLE adapter = WintunOpenAdapter(wname.data());
+static WINTUN_ADAPTER_HANDLE create_wintun_adapter(std::string_view adapter_name, std::string_view tunnel_type) {
+    std::wstring adapter_name_wide = ag::utils::to_wstring(adapter_name);
+    std::wstring tunnel_type_wide = ag::utils::to_wstring(tunnel_type);
+    WINTUN_ADAPTER_HANDLE adapter = WintunOpenAdapter(adapter_name_wide.c_str());
     if (!adapter) {
         dbglog(logger, "WintunOpenAdapter: {}", ag::sys::strerror(ag::sys::last_error()));
         GUID guid = uuid_v5("VpnLibsTunnels", adapter_name);
-        adapter = WintunCreateAdapter(wname.data(), L"wintun", &guid);
+        adapter = WintunCreateAdapter(adapter_name_wide.c_str(), tunnel_type_wide.c_str(), &guid);
         if (!adapter) {
             errlog(logger, "WintunCreateAdapter: {}", ag::sys::strerror(ag::sys::last_error()));
             return nullptr;
@@ -251,7 +252,7 @@ ag::VpnError ag::VpnWinTunnel::init(
     if (!wintun_init_success) {
         return {-1, "Unable to init wintun library"};
     }
-    m_wintun_adapter = create_wintun_adapter(win_settings->adapter_name);
+    m_wintun_adapter = create_wintun_adapter(win_settings->adapter_name, win_settings->tunnel_type);
     if (m_wintun_adapter == nullptr) {
         return {-1, "Unable to create wintun adapter"};
     }

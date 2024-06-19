@@ -178,6 +178,7 @@ const ag::VpnOsTunnelSettings *ag::vpn_os_tunnel_settings_defaults() {
 const ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_defaults() {
     static const ag::VpnWinTunnelSettings win_settings = {
             .adapter_name = "Adguard VpnLibs test tunnel",
+            .tunnel_type = "wintun",
             .wintun_lib = nullptr,
             .block_ipv6 = false,
     };
@@ -188,6 +189,7 @@ ag::VpnWinTunnelSettings *ag::vpn_win_tunnel_settings_clone(const ag::VpnWinTunn
     auto *dst = new VpnWinTunnelSettings{};
     *dst = *settings;
     dst->adapter_name = safe_strdup(settings->adapter_name);
+    dst->tunnel_type = safe_strdup(settings->tunnel_type);
     return dst;
 }
 
@@ -195,7 +197,8 @@ void ag::vpn_win_tunnel_settings_destroy(ag::VpnWinTunnelSettings *settings) {
     if (settings == nullptr) {
         return;
     }
-    delete settings->adapter_name;
+    free((char *) settings->adapter_name);
+    free((char *) settings->tunnel_type);
     delete settings;
 }
 

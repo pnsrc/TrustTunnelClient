@@ -43,8 +43,10 @@ struct VpnOsTunnelSettings {
 
 #ifdef _WIN32
 struct VpnWinTunnelSettings {
-    /** Adapter name */
+    /** Wintun adapter name. Displayed as title of connection in list of connections */
     const char *adapter_name;
+    /** Wintun adapter tunnel type. Displayed as "smth Tunnel" connection type in list of connections */
+    const char *tunnel_type;
     /** Library module to handle tunnel */
     HMODULE wintun_lib;
     /** Block all inbound/outbound IPv6 traffic */
