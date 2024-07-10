@@ -142,8 +142,8 @@ constexpr std::string_view HTTP_METHOD_CONNECT = "CONNECT";
 constexpr std::string_view HTTP_METHOD_GET = "GET";
 
 constexpr std::string_view AG_UNFILTERED_DNS_IPS_V4[] = {
-        "94.140.14.140",
-        "94.140.14.141",
+        "46.243.231.30",
+        "46.243.231.31",
 };
 constexpr std::string_view AG_UNFILTERED_DNS_IPS_V6[] = {
         "2a10:50c0::1:ff",
