@@ -390,8 +390,29 @@ AutoTaskId submit(VpnEventLoop *loop, VpnEventLoopTask task) {
     return {loop, loop->shutdown_guard, vpn_event_loop_submit(loop, task)};
 }
 
+static VpnEventLoopTask func_to_task(std::function<void()> &&func) {
+    return VpnEventLoopTask{
+            new std::function(std::move(func)),
+            [](void *arg, TaskId) {
+                auto *func = (std::function<void()> *) arg;
+                (*func)();
+            },
+            [](void *arg) {
+                delete (std::function<void()> *) arg;
+            },
+    };
+}
+
+AutoTaskId submit(VpnEventLoop *loop, std::function<void()> func) {
+    return {loop, loop->shutdown_guard, vpn_event_loop_submit(loop, func_to_task(std::move(func)))};
+}
+
 AutoTaskId schedule(VpnEventLoop *loop, VpnEventLoopTask task, Millis defer) {
     return {loop, loop->shutdown_guard, vpn_event_loop_schedule(loop, task, defer)};
+}
+
+AutoTaskId schedule(VpnEventLoop *loop, std::function<void()> func, Millis defer) {
+    return {loop, loop->shutdown_guard, vpn_event_loop_schedule(loop, func_to_task(std::move(func)), defer)};
 }
 
 AutoTaskId::AutoTaskId(VpnEventLoop *loop, std::weak_ptr<bool> weak, TaskId id)

@@ -4,6 +4,7 @@
 #include <optional>
 #include <type_traits>
 #include <utility>
+#include <functional>
 
 #include <event2/event.h>
 
@@ -166,11 +167,13 @@ AutoTaskId make_auto_id(TaskId id);
  * Just like `vpn_event_loop_submit` but more convenient for C++
  */
 AutoTaskId submit(VpnEventLoop *loop, VpnEventLoopTask task);
+AutoTaskId submit(VpnEventLoop *loop, std::function<void()> task);
 
 /**
  * Just like `vpn_event_loop_schedule` but more convenient for C++
  */
 AutoTaskId schedule(VpnEventLoop *loop, VpnEventLoopTask task, Millis defer);
+AutoTaskId schedule(VpnEventLoop *loop, std::function<void()> task, Millis defer);
 
 /**
  * Just like `vpn_event_loop_dispatch_sync` but more convenient for C++
