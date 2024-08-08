@@ -464,12 +464,13 @@ static void raise_state(void *ctx, void *) {
                 .protocol = vpn->client.endpoint_upstream->get_protocol(),
         };
         break;
-    case VPN_SS_WAITING_FOR_NETWORK:
     case VPN_SS_DISCONNECTED:
     case VPN_SS_CONNECTING:
     case VPN_SS_RECOVERING:
-        event.error = std::exchange(vpn->pending_error, std::nullopt).value_or(VpnError{});
         vpn->network_changed_before_recovery = false;
+        [[fallthrough]];
+    case VPN_SS_WAITING_FOR_NETWORK:
+        event.error = std::exchange(vpn->pending_error, std::nullopt).value_or(VpnError{});
         break;
     }
 

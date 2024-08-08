@@ -27,6 +27,8 @@
 
 namespace ag {
 
+static constexpr size_t TASK_QUEUE_BUDGET = 64;
+
 std::atomic<TaskId> g_next_task_id = 0;
 std::atomic_int g_next_loop_id = 0;
 
@@ -490,14 +492,14 @@ static void run_task_queue(evutil_socket_t, short, void *arg) {
         }
     }
     TaskInfo info = {};
-    while (true) {
+    for (size_t i = 0;; ++i) {
         {
             std::scoped_lock l(loop->guard);
             if (loop->task_queue.empty()) {
                 loop->task_queue_scheduled = false;
                 break;
             }
-            if (loop->task_queue.front().id > task_queue_last_id) {
+            if (loop->task_queue.front().id > task_queue_last_id || i == TASK_QUEUE_BUDGET) {
                 event_base_once(loop->ev_base.get(), -1, EV_TIMEOUT, &run_task_queue, loop, nullptr);
                 break;
             }
