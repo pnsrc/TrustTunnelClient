@@ -143,7 +143,7 @@ static void destroy_connection(Tunnel *tunnel, uint64_t client_id, uint64_t serv
         delete conn;
     } else {
         log_tun(tunnel, dbg, "Trying to destroy non-existent connection: L:{}-R:{}", client_id, server_id);
-        assert(0);
+        return;
     }
 
     log_tun(tunnel, dbg, "Remaining connections: client-side={} server-side={}",
@@ -606,7 +606,6 @@ void Tunnel::upstream_handler(const std::shared_ptr<ServerUpstream> &upstream, S
         if (conn == nullptr) {
             log_tun(this, dbg, "Got close event for nonexistent or already closed connection: R:{}", id);
             destroy_connection(this, NON_ID, id);
-            assert(0);
             break;
         }
 
