@@ -121,6 +121,7 @@ void ag::VpnLinuxTunnel::setup_dns() {
     std::vector<std::string_view> dns_servers{
             m_settings->dns_servers.data, m_settings->dns_servers.data + m_settings->dns_servers.size};
     ag::tunnel_utils::fsystem("resolvectl dns {} {}", m_tun_name, fmt::join(dns_servers, " "));
+    ag::tunnel_utils::fsystem("resolvectl domain {} '~.'", m_tun_name);
 }
 
 void ag::VpnLinuxTunnel::teardown_routes(int16_t table_id) {
