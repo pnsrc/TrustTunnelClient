@@ -1,12 +1,17 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <event2/buffer.h>
+#include <event2/util.h>
 
+#include "vpn/platform.h"
 #include <common/cidr_range.h>
 #include <common/error.h>
 #include <vpn/utils.h>
@@ -123,15 +128,17 @@ public:
 
 #ifdef _WIN32
 
-    /** Start receiving packets */
-    virtual void start_recv_packets(
-            void (*read_callback)(void *arg, const VpnPackets *packets), void *read_callback_arg) = 0;
+    /** Start notifying about more packets available to receive. */
+    virtual void start_recv_packets(void (*read_callback)(void *arg), void *read_callback_arg) = 0;
 
-    /** Stop receiving packets */
+    /** Stop notifying about more packets available to receive. */
     virtual void stop_recv_packets() = 0;
 
-    /** Send packet */
+    /** Send a packet. */
     virtual void send_packet(std::span<const evbuffer_iovec> chunks) = 0;
+
+    /** Read a packet. Return `std::nullopt` if there are no more packets available at this time. */
+    virtual std::optional<VpnPacket> recv_packet() = 0;
 
 #endif // _WIN32
 
@@ -225,11 +232,11 @@ Result<std::string, ExecError> exec_with_output(const char *cmd);
  */
 void sys_cmd(const std::string &cmd);
 template <typename... Ts>
-void fsystem(std::string_view fmt, Ts &&...args) {
+void fsystem(std::string_view fmt, Ts &&...args) { // NOLINT(*-missing-std-forward)
     sys_cmd(fmt::vformat(fmt, fmt::make_format_args(args...)));
 }
 template <typename... Ts>
-Result<std::string, ExecError> fsystem_with_output(std::string_view fmt, Ts &&...args) {
+Result<std::string, ExecError> fsystem_with_output(std::string_view fmt, Ts &&...args) { // NOLINT(*-missing-std-forward)
     return exec_with_output(fmt::vformat(fmt, fmt::make_format_args(args...)).c_str());
 }
 void get_setup_dns(std::string &dns_list_v4, std::string &dns_list_v6, ag::VpnAddressArray &dns_servers);

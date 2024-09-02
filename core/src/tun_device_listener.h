@@ -46,9 +46,10 @@ private:
     VpnTunListenerConfig m_config;
 
 #ifdef _WIN32
-    std::mutex m_recv_packets_queue_mutex;
-    std::list<VpnPacket> m_recv_packets_queue;
+    std::vector<VpnPacket> m_recv_packets_queue;
+    std::mutex m_recv_packets_mutex;
     event_loop::AutoTaskId m_recv_packets_task;
+    bool m_recv_packets_signaled = false;
 #endif // _WIN32
 
     InitResult init(VpnClient *vpn, ClientHandler handler) override;
@@ -66,7 +67,7 @@ private:
     static void complete_read(void *arg, TaskId task_id);
 
 #ifdef _WIN32
-    static void recv_packets_handler(void *arg, const VpnPackets *packets);
+    static void recv_packets_handler(void *arg);
     static void recv_packets_task(void *arg, ag::TaskId id);
 #endif // _WIN32
 

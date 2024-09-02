@@ -1,8 +1,11 @@
 #pragma once
 
+#include <list>
+
 #include <wintun.h>
 
 #include "net/os_tunnel.h"
+#include "vpn/utils.h"
 
 #include "wfp_firewall.h"
 
@@ -10,19 +13,14 @@ namespace ag {
 
 class VpnWinTunnel : public ag::VpnOsTunnel {
 public:
-    /** Initialize tunnel */
     VpnError init(const VpnOsTunnelSettings *settings, const VpnWinTunnelSettings *win_settings) override;
-    /** Start receiving packets */
-    void start_recv_packets(void (*read_callback)(void *arg, const VpnPackets *packets), void *read_callback_arg) override;
-    /** Stop receiving packets */
+    void start_recv_packets(void (*read_callback)(void *arg), void *read_callback_arg) override;
     void stop_recv_packets() override;
-    /** Send packet */
     void send_packet(std::span<const evbuffer_iovec> chunks) override;
-    /** Stop and deinit tunnel */
+    std::optional<VpnPacket> recv_packet() override;
     void deinit() override;
     /** Return EVUTIL_INVALID_SOCKET */
     evutil_socket_t get_fd() override;
-    /** Get interface name */
     std::string get_name() override;
 
     VpnWinTunnel() = default;

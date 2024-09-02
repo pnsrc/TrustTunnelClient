@@ -1,8 +1,9 @@
 #include "os_tunnel_win.h"
 
 #include <cstdarg>
+#include <utility>
+
 #include <openssl/sha.h>
-#include <unordered_set>
 
 #include <WS2tcpip.h>
 #include <iphlpapi.h>
@@ -50,11 +51,10 @@ static constexpr DWORD WINTUN_RING_CAPACITY = 0x1000000; // 16 MiB
 static constexpr DWORD WINTUN_RING_CAPACITY_ZEROCOPY = WINTUN_MAX_RING_CAPACITY;
 
 struct WintunThreadParams {
-    WINTUN_SESSION_HANDLE session_ptr;
+    HANDLE recv_event;
     HANDLE quit_event;
-    void (*read_callback)(void *arg, const ag::VpnPackets *packets);
+    void (*read_callback)(void *arg);
     void *read_callback_arg;
-    bool zerocopy;
 };
 
 void ag::tunnel_utils::sys_cmd(const std::string &cmd) {
@@ -156,54 +156,10 @@ static void WINAPI send_wintun_packet(WINTUN_SESSION_HANDLE session, std::span<c
     }
 }
 
-static DWORD WINAPI receive_wintun_packets(std::unique_ptr<WintunThreadParams> params) {
-    WINTUN_SESSION_HANDLE session = params->session_ptr;
-    HANDLE quit_event = params->quit_event;
-    HANDLE wait_handles[] = {WintunGetReadWaitEvent(session), quit_event};
-    std::vector<ag::VpnPacket> packets;
-    bool zerocopy = params->zerocopy;
-    while (true) {
-        DWORD packet_size = 0;
-        BYTE *packet = WintunReceivePacket(session, &packet_size);
-        if (packet) {
-            if (zerocopy) {
-                packets.push_back(ag::VpnPacket{
-                        .data = packet,
-                        .size = (size_t) packet_size,
-                        .destructor =
-                                [](void *arg, uint8_t *data) {
-                                    WintunReleaseReceivePacket((WINTUN_SESSION_HANDLE) arg, data);
-                                },
-                        .destructor_arg = session,
-                });
-            } else {
-                packets.push_back({
-                        .data = (uint8_t *) std::malloc(packet_size),
-                        .size = (size_t) packet_size,
-                        .destructor =
-                                [](void *, uint8_t *data) {
-                                    std::free(data);
-                                },
-                        .destructor_arg = nullptr,
-                });
-                std::memcpy(packets.back().data, packet, packet_size);
-                WintunReleaseReceivePacket(session, packet);
-            }
-        } else {
-            DWORD last_error = GetLastError();
-            // Process accumulated packets before error processing
-            ag::VpnPackets read_packets{packets.data(), packets.size()};
-            params->read_callback(params->read_callback_arg, &read_packets);
-            packets.clear();
-
-            if (last_error == ERROR_NO_MORE_ITEMS) {
-                if (WaitForMultipleObjects(std::size(wait_handles), wait_handles, false, INFINITE) == WAIT_OBJECT_0) {
-                    continue;
-                }
-                return ERROR_SUCCESS;
-            }
-            return last_error;
-        }
+static void receive_wintun_packets(std::unique_ptr<WintunThreadParams> params) {
+    HANDLE wait_handles[] = {params->quit_event, params->recv_event};
+    while (WaitForMultipleObjects(std::size(wait_handles), wait_handles, false, INFINITE) != WAIT_OBJECT_0) {
+        params->read_callback(params->read_callback_arg);
     }
 }
 
@@ -415,6 +371,22 @@ bool ag::VpnWinTunnel::setup_dns() {
     ag::tunnel_utils::get_setup_routes(
             ipv4_routes, ipv6_routes, m_settings->included_routes, m_settings->excluded_routes);
 
+    // Add adapter DNS addresses to the list of destinations to restrict DNS traffic to,
+    // to make sure that they are accessible even if not explicitly in the "included_routes" list.
+    for (const sockaddr_storage &dns_server : dns_servers) {
+        std::vector<CidrRange> *routes;
+        if (dns_server.ss_family == AF_INET) {
+            routes = &ipv4_routes;
+        } else if (dns_server.ss_family == AF_INET6) {
+            routes = &ipv6_routes;
+        } else {
+            continue;
+        }
+        routes->emplace_back(Uint8View{(uint8_t *) sockaddr_get_ip_ptr((sockaddr *) &dns_server),
+                                     sockaddr_get_ip_size((sockaddr *) &dns_server)},
+                sockaddr_get_ip_size((sockaddr *) &dns_server));
+    }
+
     if (auto error = m_firewall.restrict_dns_to(ipv4_routes, ipv6_routes)) {
         errlog(logger, "Failed to restrict DNS traffic: {}", error->str());
         return false;
@@ -481,11 +453,41 @@ std::string ag::VpnWinTunnel::get_name() {
     return res ? res : "";
 }
 
-void ag::VpnWinTunnel::start_recv_packets(
-        void (*read_callback)(void *arg, const VpnPackets *packets), void *read_callback_arg) {
+std::optional<ag::VpnPacket> ag::VpnWinTunnel::recv_packet() {
+    DWORD size;
+    BYTE *data = WintunReceivePacket(m_wintun_session, &size);
+    if (data == nullptr) {
+        if (DWORD last_error = GetLastError(); last_error != ERROR_NO_MORE_ITEMS) {
+            warnlog(logger, "WintunReceivePacket(): ({}) {}", last_error, ag::sys::strerror(last_error));
+        }
+        return std::nullopt;
+    }
+    if (m_win_settings->zerocopy) {
+        return VpnPacket{
+            .data = (uint8_t *) data,
+            .size = (size_t) size,
+            .destructor = [](void *arg, uint8_t *data) {
+                WintunReleaseReceivePacket((WINTUN_SESSION_HANDLE) arg, data);
+            },
+            .destructor_arg = m_wintun_session,
+        };
+    }
+    VpnPacket packet{
+        .data = (uint8_t *) std::malloc(size),
+        .size = (size_t) size,
+        .destructor = [](void *, uint8_t *data) {
+            std::free(data);
+        },
+    };
+    std::memcpy(packet.data, data, packet.size);
+    WintunReleaseReceivePacket(m_wintun_session, data);
+    return packet;
+}
+
+void ag::VpnWinTunnel::start_recv_packets(void (*read_callback)(void *arg), void *read_callback_arg) {
     ResetEvent(m_wintun_quit_event);
     std::unique_ptr<WintunThreadParams> pass_params(new WintunThreadParams{
-            m_wintun_session, m_wintun_quit_event, read_callback, read_callback_arg, m_win_settings->zerocopy});
+            WintunGetReadWaitEvent(m_wintun_session), m_wintun_quit_event, read_callback, read_callback_arg});
     m_recv_thread_handle = std::make_unique<std::thread>(receive_wintun_packets, std::move(pass_params));
 }
 
@@ -529,12 +531,12 @@ static bool protect_with_bind(evutil_socket_t fd, const sockaddr *addr, uint32_t
 
     if (int error = GetBestRoute2(nullptr, bound_if, nullptr, (const SOCKADDR_INET *) &dest, 0, &row, &source_best);
             error != ERROR_SUCCESS) {
-        warnlog(logger, "GetBestRoute2(): {}", ag::sys::strerror(error));
+        dbglog(logger, "GetBestRoute2(): {}", ag::sys::strerror(error));
         return false;
     }
 
     if (0 != bind(fd, (sockaddr *) &source_best, ag::sockaddr_get_size((sockaddr *) &source_best))) {
-        warnlog(logger, "Failed to bind socket to interface: {}", ag::sys::strerror(WSAGetLastError()));
+        dbglog(logger, "Failed to bind socket to interface: {}", ag::sys::strerror(WSAGetLastError()));
         return false;
     }
 
@@ -546,17 +548,17 @@ static bool protect_with_unicast_if(evutil_socket_t fd, const sockaddr *addr, ui
         // WinSock expects IPv4 address in network byte order
         bound_if = htonl(bound_if);
         if (0 != setsockopt(fd, IPPROTO_IP, IP_UNICAST_IF, (char *) &bound_if, sizeof(bound_if))) {
-            warnlog(logger, "setsockopt(IP_UNICAST_IF): {}", ag::sys::strerror(WSAGetLastError()));
+            dbglog(logger, "setsockopt(IP_UNICAST_IF): {}", ag::sys::strerror(WSAGetLastError()));
             return false;
         }
     } else if (addr->sa_family == AF_INET6) {
         // IPV6_UNICAST_IF is 32-bit int in host byte order
         if (0 != setsockopt(fd, IPPROTO_IPV6, IPV6_UNICAST_IF, (char *) &bound_if, sizeof(bound_if))) {
-            warnlog(logger, "setsockopt(IPV6_UNICAST_IF): {}", ag::sys::strerror(WSAGetLastError()));
+            dbglog(logger, "setsockopt(IPV6_UNICAST_IF): {}", ag::sys::strerror(WSAGetLastError()));
             return false;
         }
     } else {
-        warnlog(logger, "Unexpected address family: {}", addr->sa_family);
+        dbglog(logger, "Unexpected address family: {}", addr->sa_family);
         return false;
     }
     return true;
@@ -571,7 +573,7 @@ bool ag::vpn_win_socket_protect(evutil_socket_t fd, const sockaddr *addr) {
     const bool bind_protect_success = protect_with_bind(fd, addr, bound_if);
     const bool unicast_protect_success = protect_with_unicast_if(fd, addr, bound_if);
     if (!bind_protect_success && !unicast_protect_success) {
-        errlog(logger, "Failed to protect socket");
+        warnlog(logger, "Failed to protect socket");
         return false;
     }
 

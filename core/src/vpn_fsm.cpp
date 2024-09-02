@@ -188,7 +188,7 @@ static void pinger_handler(void *arg, const LocationsPingerResult *result) {
 
     vpn->selected_endpoint.emplace(vpn_endpoint_clone(result->endpoint),
             result->relay_address ? std::make_optional(sockaddr_to_storage(result->relay_address)) : std::nullopt);
-    log_vpn(vpn, dbg, "Using endpoint: {} (relay address={}) (ping={}ms)", *vpn->selected_endpoint->endpoint,
+    log_vpn(vpn, info, "Using endpoint: {}, relay={}, ping={}ms", *vpn->selected_endpoint->endpoint,
             vpn->selected_endpoint->relay_address.has_value()
                     ? sockaddr_to_str((sockaddr *) &*vpn->selected_endpoint->relay_address).c_str()
                     : "none",
