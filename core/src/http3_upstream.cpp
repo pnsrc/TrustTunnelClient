@@ -23,6 +23,12 @@
 using namespace std::chrono;
 using namespace ag;
 
+template <>
+struct magic_enum::customize::enum_range<quiche_h3_error> {
+    static constexpr int min = -1100;
+    static constexpr int max = 0;
+};
+
 // FIXME: these should be available from the HTTP/3 implementation
 enum Http3Upstream::Http3ErrorCode : uint64_t {
     H3_NO_ERROR = 0x100,
