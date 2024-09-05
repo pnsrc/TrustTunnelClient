@@ -86,16 +86,37 @@ Run tests on Windows:
         description: Checkout Default Repository
         force-clean-build: 'true'
     - script:
-        description: Build tests
+        description: Build x64 library
         interpreter: BINSH_OR_CMDEXE
         scripts:
           - |-
-            call vcvarsall amd64_x86
+            call vcvarsall amd64
 
             python -m venv venv --clear
             call .\venv\Scripts\activate
             pip install conan --upgrade
             conan remove -c "*"
+
+            set VPN_LIBS_ROOT=%cd%
+            if exist build\ rmdir /s /q build || exit /b 1
+            mkdir build || exit /b 1
+            cd build || exit /b 1
+
+            cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
+                -DCMAKE_C_FLAGS_DEBUG=/MT ^
+                -DCMAKE_CXX_FLAGS_DEBUG=/MT ^
+                -G Ninja ^
+                ..
+
+            cmake --build . --target vpnlibs_core --parallel || exit /b 1
+            deactivate
+    - script:
+        description: Build tests
+        interpreter: BINSH_OR_CMDEXE
+        scripts:
+          - |-
+            call vcvarsall amd64_x86
+            call .\venv\Scripts\activate
 
             set VPN_LIBS_ROOT=%cd%
             if exist build\ rmdir /s /q build || exit /b 1

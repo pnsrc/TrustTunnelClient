@@ -2,8 +2,15 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <mutex>
 #include <numeric>
 #include <span>
+#include <utility>
+
+#include <vpn/event_loop.h>
+#include <vpn/vpn.h>
 
 #define log_conn(lstnr_, id_, lvl_, fmt_, ...)                                                                         \
     lvl_##log((lstnr_)->m_log, "[L:{}] " fmt_, (uint64_t) (id_), ##__VA_ARGS__)
@@ -427,9 +434,9 @@ void TunListener::recv_packets_task(void *arg, ag::TaskId) {
         listener->m_recv_packets_queue.emplace_back(std::move(*packet));
     }
 
-    static constexpr size_t BATCH_SIZE = 64;
-    size_t count = std::min(listener->m_recv_packets_queue.size(), BATCH_SIZE);
-    listener->vpn->process_client_packets({.data = listener->m_recv_packets_queue.data(), .size = count});
+    static constexpr int BATCH_SIZE = 64;
+    int count = (int) std::min((size_t) listener->m_recv_packets_queue.size(), (size_t) BATCH_SIZE);
+    listener->vpn->process_client_packets({.data = listener->m_recv_packets_queue.data(), .size = (unsigned) count});
     listener->m_recv_packets_queue.erase(
             listener->m_recv_packets_queue.begin(), listener->m_recv_packets_queue.begin() + count);
 
