@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -82,6 +83,17 @@ struct TunnelAddressPair {
     TunnelAddressPair(const sockaddr_storage &s, const sockaddr_storage &d)
             : src(s)
             , dst(d) {
+    }
+
+    uint16_t dstport() const {
+        if (const auto *ss = std::get_if<sockaddr_storage>(&dst)) {
+            return sockaddr_get_port((const sockaddr *) ss);
+        }
+        if (const auto *np = std::get_if<NamePort>(&dst)) {
+            return np->port;
+        }
+        assert(0);
+        return 0;
     }
 };
 

@@ -1473,7 +1473,11 @@ bool Tunnel::should_complete_immediately(uint64_t client_id) const {
     const VpnConnection *conn = vpn_connection_get_by_id(this->connections.by_client_id, client_id);
     // In general mode, conection requests suspected to be to an exclusion host should be completed
     // immediately -- don't wait for recovery to bypass a connection. In selective mode, it's the opposite.
-    return conn && (conn->flags.test(CONNF_SUSPECT_EXCLUSION) == (vpn->exclusions_mode == VPN_MODE_GENERAL));
+    // Connections to the plain DNS port should be completed immediately: PlainDnsManager should decide
+    // whether to reject or bypass a plain DNS request.
+    return conn
+            && (conn->flags.test(CONNF_SUSPECT_EXCLUSION) == (vpn->exclusions_mode == VPN_MODE_GENERAL)
+                    || conn->addr.dstport() == dns_utils::PLAIN_DNS_PORT_NUMBER);
 }
 
 static VpnAddress tunnel_to_vpn_address(const TunnelAddress *tunnel) {
