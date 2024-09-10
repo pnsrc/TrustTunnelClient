@@ -157,48 +157,6 @@ private:
     std::vector<VpnPacket> m_packets;
 };
 
-template <typename T, auto DELETER, std::enable_if_t<std::is_standard_layout_v<T> && std::is_trivial_v<T>, bool> = true>
-struct AutoPod {
-    T data{};
-
-    explicit AutoPod(const T &data) : data{data} {}
-
-    AutoPod() = default;
-    ~AutoPod() { reset(); }
-
-    AutoPod(const AutoPod&) = delete;
-    AutoPod &operator=(const AutoPod&) = delete;
-
-    AutoPod(AutoPod &&o) noexcept { *this = std::move(o); }
-    AutoPod &operator=(AutoPod &&rhs) noexcept {
-        std::swap(this->data, rhs.data);
-        return *this;
-    }
-
-    const T *get() const { return &data; }
-    T *get() { return &data; }
-
-    T *operator->() { return get(); }
-    const T *operator->() const { return get(); }
-
-    const T &operator*() const { return data; }
-    T &operator*() { return data; }
-
-    void reset() {
-        DELETER(get());
-        release();
-    }
-
-    void reset(const T &d) {
-        reset();
-        data = d;
-    }
-
-    void release() {
-        data = {};
-    }
-};
-
 /**
  * Convert milliseconds to timeval structure
  */

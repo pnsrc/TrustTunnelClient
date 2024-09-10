@@ -14,6 +14,7 @@
 #endif
 
 #include "common/logger.h"
+#include "common/utils.h"
 
 namespace ag {
 
