@@ -87,11 +87,13 @@ private:
     int establish_http_session();
 
     /**
+     * @param conn_id (remote) connection id
      * @param dst_addr destination address
      * @param app_name the name of the appllication that initiated this connection (may be empty)
      * @return a new stream id, or nullopt if unsuccessful
      */
-    std::optional<uint32_t> send_connect_request(const TunnelAddress *dst_addr, std::string_view app_name);
+    std::optional<uint32_t> send_connect_request(
+            uint64_t conn_id, const TunnelAddress *dst_addr, std::string_view app_name);
 
     void close_session_inner(std::optional<VpnError> error);
     void clean_tcp_connection_data(uint64_t id);

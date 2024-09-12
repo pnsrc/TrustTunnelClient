@@ -1322,7 +1322,7 @@ void Tunnel::complete_connect_request(uint64_t id, std::optional<VpnConnectActio
 
     if (conn->server_id != NON_ID) {
         conn->state = CONNS_WAITING_RESPONSE;
-        log_conn(this, conn, trace, "Connecting...");
+        log_conn(this, conn, dbg, "Connecting...");
         add_connection(this, conn);
         if (conn->flags.test(CONNF_PLAIN_DNS_CONNECTION)) {
             if (conn->listener.lock().get() == this->dns_resolver.get()) {

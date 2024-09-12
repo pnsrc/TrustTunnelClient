@@ -387,10 +387,6 @@ void Http2Upstream::net_handler(void *arg, TcpSocketEvent what, void *data) {
                 upstream->close_session_inner(err);
                 break;
             }
-
-            if (0 == http_session_available_to_read(upstream->m_session.get(), 0)) {
-                tcp_socket_set_read_enabled(socket, false);
-            }
         }
         break;
     }
@@ -559,7 +555,8 @@ void Http2Upstream::close_session() {
     log_upstream(this, dbg, "Done");
 }
 
-std::optional<uint32_t> Http2Upstream::send_connect_request(const TunnelAddress *dst_addr, std::string_view app_name) {
+std::optional<uint32_t> Http2Upstream::send_connect_request(uint64_t conn_id,
+        const TunnelAddress *dst_addr, std::string_view app_name) {
     if (m_session == nullptr) {
         log_upstream(this, dbg, "Failed to send connect request: upstream is inactive");
         return std::nullopt;
@@ -567,7 +564,7 @@ std::optional<uint32_t> Http2Upstream::send_connect_request(const TunnelAddress 
 
     HttpHeaders headers = make_http_connect_request(HTTP_VER_2_0, dst_addr, app_name, m_credentials);
     uint32_t stream_id = m_stream_id_generator.get();
-    log_upstream(this, dbg, "[SID:{}] {}", stream_id, headers_to_log_str(headers));
+    log_upstream(this, dbg, "[R:{}][SID:{}] {}", (int64_t) conn_id, stream_id, headers_to_log_str(headers));
 
     int r = http_session_send_headers(m_session.get(), (int32_t) stream_id, &headers, false);
     if (r != 0) {
@@ -583,7 +580,7 @@ bool Http2Upstream::open_connection(
     if (proto == IPPROTO_UDP) {
         result = m_udp_mux.open_connection(conn_id, addr, app_name);
     } else {
-        std::optional<uint32_t> stream_id = send_connect_request(&addr->dst, app_name);
+        std::optional<uint32_t> stream_id = send_connect_request(conn_id, &addr->dst, app_name);
         if (stream_id.has_value()) {
             TcpConnection *conn = &m_tcp_connections[conn_id];
             conn->stream_id = stream_id.value();
@@ -601,7 +598,7 @@ void Http2Upstream::on_icmp_request(IcmpEchoRequestEvent &event) {
 }
 
 void Http2Upstream::close_tcp_connection(uint64_t id, bool graceful) {
-    log_conn(this, id, dbg, "Closing");
+    log_conn(this, id, dbg, "Closing, graceful: {}", (int) graceful);
 
     auto i = m_tcp_connections.find(id);
     if (m_session != nullptr && i != m_tcp_connections.end()) {
@@ -715,8 +712,6 @@ void Http2Upstream::consume(uint64_t id, size_t length) {
     int r = http_session_data_consume(m_session.get(), (int32_t) stream_id.value(), length);
     if (r != 0) {
         log_conn(this, id, err, "Failed to consume data: {} ({})", nghttp2_strerror(r), r);
-    } else if (0 != http_session_available_to_read(m_session.get(), 0)) {
-        tcp_socket_set_read_enabled(m_socket.get(), true);
     }
 }
 
@@ -812,10 +807,6 @@ void Http2Upstream::update_flow_control(uint64_t id, TcpFlowCtrlInfo info) {
     } else if (m_udp_mux.check_connection(id)) {
         m_udp_mux.set_read_enabled(id, info.send_buffer_size > 0);
     }
-
-    if (info.send_buffer_size > 0 && 0 != http_session_available_to_read(m_session.get(), 0)) {
-        tcp_socket_set_read_enabled(m_socket.get(), true);
-    }
 }
 
 size_t Http2Upstream::connections_num() const {
@@ -830,7 +821,7 @@ VpnError Http2Upstream::do_health_check() {
 
     tcp_socket_set_timeout(m_socket.get(), this->vpn->upstream_config.health_check_timeout);
 
-    std::optional<uint32_t> stream_id = send_connect_request(&HEALTH_CHECK_HOST, "");
+    std::optional<uint32_t> stream_id = send_connect_request(NON_ID, &HEALTH_CHECK_HOST, "");
     if (!stream_id.has_value()) {
         return {VPN_EC_ERROR, "Failed to send health check request"};
     }
@@ -849,7 +840,7 @@ VpnConnectionStats Http2Upstream::get_connection_stats() const {
 std::optional<uint64_t> Http2Upstream::send_connect_request_callback(
         ServerUpstream *upstream, const TunnelAddress *dst_addr, std::string_view app_name) {
     Http2Upstream *self = (Http2Upstream *) upstream;
-    return self->send_connect_request(dst_addr, app_name);
+    return self->send_connect_request(NON_ID, dst_addr, app_name);
 }
 
 int Http2Upstream::send_data_callback(ServerUpstream *upstream, uint64_t stream_id, U8View data) {
