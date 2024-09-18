@@ -236,9 +236,7 @@ void Http2Upstream::http_handler(void *arg, HttpEventId what, void *data) {
             upstream->handler.func(
                     upstream->handler.arg, SERVER_EVENT_HEALTH_CHECK_RESULT, &upstream->m_health_check_info->error);
             upstream->m_health_check_info.reset();
-            assert(upstream->vpn->upstream_config.timeout >= upstream->vpn->upstream_config.health_check_timeout);
-            tcp_socket_set_timeout(upstream->m_socket.get(),
-                    upstream->vpn->upstream_config.timeout - upstream->vpn->upstream_config.health_check_timeout);
+            upstream->timer_update();
         } else {
             auto found = upstream->get_conn_by_stream_id(stream_id);
             if (found.second == nullptr) {
@@ -346,10 +344,7 @@ void Http2Upstream::net_handler(void *arg, TcpSocketEvent what, void *data) {
         tcp_socket_set_read_enabled(upstream->m_socket.get(), true);
         log_upstream(upstream, dbg, "Established TCP connection to endpoint successfully");
         if (upstream->establish_http_session()) {
-            assert(upstream->vpn->upstream_config.timeout >= upstream->vpn->upstream_config.health_check_timeout);
-            tcp_socket_set_timeout(upstream->m_socket.get(),
-                    upstream->vpn->upstream_config.timeout - upstream->vpn->upstream_config.health_check_timeout);
-
+            upstream->timer_update();
             upstream->handler.func(upstream->handler.arg, SERVER_EVENT_SESSION_OPENED, nullptr);
         } else {
             upstream->close_session_inner(VpnError{VPN_EC_ERROR, "Failed to initiate HTTP2 session"});
@@ -858,6 +853,25 @@ void Http2Upstream::consume_callback(ServerUpstream *upstream, uint64_t stream_i
     if (r != 0) {
         log_upstream(self, dbg, "Failed to consume data: {} ({})", nghttp2_strerror(r), r);
     }
+}
+
+void Http2Upstream::handle_sleep() {
+    log_upstream(this, dbg, "...");
+    tcp_socket_set_timeout(m_socket.get(), std::nullopt);
+    m_health_check_info.reset();
+    log_upstream(this, dbg, "Done");
+}
+
+void Http2Upstream::handle_wake() {
+    log_upstream(this, dbg, "...");
+    timer_update();
+    log_upstream(this, dbg, "Done");
+}
+
+void Http2Upstream::timer_update() {
+    assert(vpn->upstream_config.timeout >= vpn->upstream_config.health_check_timeout);
+    tcp_socket_set_timeout(m_socket.get(),
+            this->vpn->upstream_config.timeout - this->vpn->upstream_config.health_check_timeout);
 }
 
 } // namespace ag

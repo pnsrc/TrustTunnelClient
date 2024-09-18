@@ -43,6 +43,13 @@ static const size_t SSL_READ_SIZE = 4096;
 
 static std::atomic_int g_next_id = 0; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+extern "C" {
+int socket_manager_timer_subscribe(SocketManager *manager, VpnEventLoop *loop, uint32_t timeout_ms,
+        void (*tick_handler)(void *arg, struct timeval now), void *arg);
+
+void socket_manager_timer_unsubscribe(SocketManager *manager, int id);
+}
+
 enum SocketFlags : uint32_t {
     /**
      * evdns may raise callbacks synchronously, but it's not obvious and error-prone
@@ -73,6 +80,8 @@ struct TcpSocket {
     ag::DeclPtr<SSL, &SSL_free> ssl;
     std::list<SslBuf> ssl_pending;
     VpnError pending_connect_error; // buffer for synchronously raised error (see `SF_CONNECT_CALLED`)
+    struct timeval timeout_ts;
+    int subscribe_id;
 };
 
 extern "C" bool socket_manager_complete_write(SocketManager *manager, struct bufferevent *bev);
@@ -137,6 +146,10 @@ void tcp_socket_destroy(TcpSocket *socket) {
     }
 
     log_sock(socket, trace, "Destroying socket...");
+
+    if (socket->parameters.socket_manager != nullptr) {
+        socket_manager_timer_unsubscribe(socket->parameters.socket_manager, socket->subscribe_id);
+    }
 
     if (socket->bev == nullptr) {
         goto clean_up;
@@ -371,9 +384,7 @@ static void on_event(struct bufferevent *bev, short what, void *ctx) {
         bufferevent_enable(bev, (what & BEV_EVENT_WRITING) ? EV_WRITE : 0);
         bufferevent_enable(bev, (what & BEV_EVENT_READING) ? EV_READ : 0);
 
-        log_sock(socket, dbg, "Timeout event");
-        VpnError e = {utils::AG_ETIMEDOUT, evutil_socket_error_to_string(utils::AG_ETIMEDOUT)};
-        callbacks->handler(callbacks->arg, TCP_SOCKET_EVENT_ERROR, &e);
+        abort();
     } else if (what & BEV_EVENT_ERROR) {
         log_sock(socket, dbg, "Error event");
         VpnError e = get_error(socket);
@@ -464,18 +475,13 @@ static struct bufferevent *wrap_fd(TcpSocket *socket, evutil_socket_t fd) {
     int options = BEV_OPT_DEFER_CALLBACKS | BEV_OPT_CLOSE_ON_FREE;
     struct event_base *base = vpn_event_loop_get_base(socket->parameters.ev_loop);
     bev = bufferevent_socket_new(base, fd, options);
-    timeval tv = ms_to_timeval(uint32_t(socket->parameters.timeout.count()));
 
     if (bev == nullptr) {
         log_sock(socket, err, "Failed to create bufferevent");
         goto fail;
     }
 
-    if (bufferevent_set_timeouts(bev, &tv, &tv) != 0) {
-        log_sock(socket, err, "Failed to set bufferevent timeouts");
-        bufferevent_setfd(bev, -1);
-        goto fail;
-    }
+    tcp_socket_set_timeout(socket, socket->parameters.timeout);
 
     return bev;
 
@@ -514,7 +520,6 @@ static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sock
     int options;
     struct event_base *base;
     int err;
-    struct timeval tv;
 
     evutil_socket_t fd = socket(dst->sa_family, SOCK_STREAM, 0);
     if (fd < 0) {
@@ -556,11 +561,7 @@ static struct bufferevent *create_bufferevent(TcpSocket *sock, const struct sock
         evbuffer_add_cb(bufferevent_get_output(bev), on_rate_limited_write, (void *) bev);
     }
 
-    tv = ms_to_timeval(uint32_t(sock->parameters.timeout.count()));
-    if (bufferevent_set_timeouts(bev, &tv, &tv) != 0) {
-        log_sock(sock, err, "Failed to set bufferevent timeouts");
-        goto fail;
-    }
+    tcp_socket_set_timeout(sock, sock->parameters.timeout);
 
     bufferevent_setcb(bev, nullptr, nullptr, (bufferevent_event_cb) &on_connect_event, sock);
     evbuffer_add_cb(bufferevent_get_output(bev), &on_sent_event, (void *) sock);
@@ -655,12 +656,39 @@ evutil_socket_t tcp_socket_get_fd(const TcpSocket *socket) {
     return bufferevent_getfd(socket->bev);
 }
 
-void tcp_socket_set_timeout(TcpSocket *socket, Millis x) {
-    socket->parameters.timeout = x;
-    const timeval tv = ms_to_timeval(uint32_t(x.count()));
-    int r = bufferevent_set_timeouts(socket->bev, &tv, nullptr);
-    (void) r;
-    assert(r == 0);
+static struct timeval get_next_timeout_ts(const TcpSocket *sock) {
+    struct timeval now;
+    event_base_gettimeofday_cached(vpn_event_loop_get_base(sock->parameters.ev_loop), &now);
+    struct timeval timeout_tv = ms_to_timeval(uint32_t(sock->parameters.timeout.count()));
+
+    struct timeval next_timeout_ts;
+    evutil_timeradd(&now, &timeout_tv, &next_timeout_ts);
+
+    return next_timeout_ts;
+}
+
+static void timer_callback(void *arg, struct timeval now) {
+    auto *sock = (TcpSocket *) arg;
+
+    if (timercmp(&sock->timeout_ts, &now, <)) {
+        log_sock(sock, dbg, "Timeout event");
+        VpnError e = {utils::AG_ETIMEDOUT, evutil_socket_error_to_string(utils::AG_ETIMEDOUT)};
+        sock->parameters.handler.handler(sock->parameters.handler.arg, TCP_SOCKET_EVENT_ERROR, &e);
+    }
+}
+
+void tcp_socket_set_timeout(TcpSocket *sock, std::optional<Millis> x) {
+    socket_manager_timer_unsubscribe(sock->parameters.socket_manager, sock->subscribe_id);
+    if (x) {
+        log_sock(sock, trace, "{}", *x);
+        sock->parameters.timeout = *x;
+        socket_manager_timer_unsubscribe(sock->parameters.socket_manager, sock->subscribe_id);
+        sock->timeout_ts = get_next_timeout_ts(sock);
+        sock->subscribe_id = socket_manager_timer_subscribe(sock->parameters.socket_manager, sock->parameters.ev_loop,
+                uint32_t(sock->parameters.timeout.count()), timer_callback, sock);
+    } else {
+        log_sock(sock, trace, "nullopt");
+    }
 }
 
 int make_fd_dual_stack(evutil_socket_t fd) {
@@ -1108,7 +1136,6 @@ VpnError do_handshake(TcpSocket *socket) {
         socket->flags &= ~SF_PAUSE_TLS;
 
         tcp_socket_set_read_enabled(socket, false);
-        bufferevent_set_timeouts(socket->bev, nullptr, nullptr);
         bufferevent_setcb(socket->bev, nullptr, nullptr, nullptr, nullptr);
 
         const TcpSocketHandler &handler = socket->parameters.handler;

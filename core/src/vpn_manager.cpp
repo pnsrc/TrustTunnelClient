@@ -619,31 +619,24 @@ void vpn_notify_sleep(Vpn *vpn, void (*completion_handler)(void *), void *arg) {
         return;
     }
 
-    struct vpn_notify_sleep_ctx_t {
-        void (*handler)(void *);
-        void *handler_arg;
-        Vpn *vpn;
-    };
-
     // Completion handler MUST be called even if the task doesn't run
-    vpn_event_loop_submit(vpn->ev_loop.get(),
-            {
-                    .arg = new vpn_notify_sleep_ctx_t{.handler = completion_handler, .handler_arg = arg, .vpn = vpn},
-                    .action =
-                            [](void *arg, TaskId id) {
-                                auto *ctx = (vpn_notify_sleep_ctx_t *) arg;
-                                ctx->vpn->client.handle_sleep();
-                            },
-                    .finalize =
-                            [](void *arg) {
-                                auto *ctx = (vpn_notify_sleep_ctx_t *) arg;
-                                assert(ctx->handler);
-                                ctx->handler(ctx->handler_arg);
-                                delete ctx;
-                            },
-            });
+    std::shared_ptr<void> complete(
+        nullptr, [=](void *) {
+            completion_handler(arg);
+        }
+    );
+
+    event_loop::submit(vpn->ev_loop.get(), [vpn, complete]{
+        vpn->client.handle_sleep();
+        event_loop::submit(vpn->ev_loop.get(), [complete] {
+        }).release();
+    }).release();
+
 
     log_vpn(vpn, dbg, "Done");
+
+    l.unlock();
+    // completion handler may be ran here unlocked
 }
 
 void vpn_notify_wake(Vpn *vpn) {
@@ -654,6 +647,8 @@ void vpn_notify_wake(Vpn *vpn) {
         log_vpn(vpn, warn, "Can't notify wake since event loop is not active");
         return;
     }
+
+    event_base_update_cache_time(vpn_event_loop_get_base(vpn->ev_loop.get()));
 
     vpn->submit([vpn] {
         vpn->client.handle_wake();

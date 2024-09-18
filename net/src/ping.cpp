@@ -78,6 +78,7 @@ struct Ping {
     std::string id;
 
     VpnEventLoop *loop;
+    ag::DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager;
     PingHandler handler;
 
     std::list<PingConn> pending;    // Waiting to start connection.
@@ -108,8 +109,6 @@ struct Ping {
     event_loop::AutoTaskId report_task_id;
 
     std::vector<sockaddr_storage> relay_addresses; // These are in reverse order compared to the ones in `PingInfo`.
-
-    ag::DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager;
 
     bool have_direct_result;
     bool have_round_winner;

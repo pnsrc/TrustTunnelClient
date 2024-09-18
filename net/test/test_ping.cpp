@@ -63,7 +63,7 @@ TEST_F(PingTest, Single) {
     static const std::pair<const char *, PingStatus> TEST_DATA[] = {
             {"1.1.1.1:443", PING_OK},
             {"[::1]:12", PING_SOCKET_ERROR},
-            {"1.2.3.4:80", PING_TIMEDOUT},
+            {"8.8.8.8:80", PING_TIMEDOUT},
             {"127.0.0.1:12", PING_SOCKET_ERROR},
     };
 
@@ -172,7 +172,7 @@ TEST_F(PingTest, Timeout) {
 TEST_F(PingTest, Multiple) {
     static const std::pair<const char *, PingStatus> TEST_DATA[] = {
             {"1.1.1.1:443", PING_OK},
-            {"1.2.3.4:80", PING_TIMEDOUT},
+            {"8.8.8.8:80", PING_TIMEDOUT},
 #ifndef _WIN32
             {"[::1]:12", PING_SOCKET_ERROR},
             {"127.0.0.1:12", PING_SOCKET_ERROR},
@@ -281,7 +281,7 @@ TEST_F(PingTest, DestroyInProgressPingAfterCallback) {
     static const std::pair<const char *, PingStatus> TEST_DATA[] = {
             {"1.1.1.1:443", PING_OK},
             {"[::1]:12", PING_SOCKET_ERROR},
-            {"1.2.3.4:80", PING_TIMEDOUT},
+            {"8.8.8.8:80", PING_TIMEDOUT},
             {"127.0.0.7:12", PING_SOCKET_ERROR},
     };
 
@@ -339,7 +339,7 @@ TEST_F(PingTest, DestroyInProgressPing) {
     static const std::pair<const char *, PingStatus> TEST_DATA[] = {
             {"[::1]:12", PING_SOCKET_ERROR},
             {"127.0.0.7:12", PING_SOCKET_ERROR},
-            {"1.2.3.4:80", PING_TIMEDOUT},
+            {"8.8.8.8:80", PING_TIMEDOUT},
     };
 
     std::vector<VpnEndpoint> addresses;
@@ -397,7 +397,7 @@ TEST_F(PingTest, MultipleRounds) {
     static const std::pair<const char *, PingStatus> TEST_DATA[] = {
             {"1.1.1.1:443", PING_OK},
             {"[::1]:12", PING_SOCKET_ERROR},
-            {"1.2.3.4:80", PING_TIMEDOUT},
+            {"8.8.8.8:80", PING_TIMEDOUT},
             {"127.0.0.1:12", PING_SOCKET_ERROR},
     };
     static const int ROUNDS = 3;

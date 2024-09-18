@@ -37,6 +37,7 @@
 #include "common/net_utils.h"
 #include "common/utils.h"
 #include "common/cache.h"
+#include "net/dns_utils.h"
 #include "net/http_header.h"
 #include "net/http_session.h"
 #include "vpn/platform.h"
@@ -674,6 +675,21 @@ Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
             continue;
         }
 
+#if defined __linux__
+        auto host_str = addr.host_str();
+        static const SocketAddress UNFILTERED_IPS[] = {
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V4[0], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V4[1], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V6[0], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V6[1], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+        };
+        if (addr.is_loopback()
+                || std::find(std::begin(UNFILTERED_IPS), std::end(UNFILTERED_IPS), addr) != std::end(UNFILTERED_IPS)) {
+            warnlog(g_logger, "Skipping potential route loop address: {}", addr.str());
+            continue;
+        }
+#endif // __linux__
+
         servers.main.emplace_back(SystemDnsServer{
                 .address = addr.host_str(),
         });
@@ -703,10 +719,29 @@ Result<SystemDnsServers, RetrieveSystemDnsError> retrieve_system_dns_servers() {
         line_view = line_view.substr(0,
                 std::distance(line_view.begin(),
                         std::find_if(line_view.begin(), line_view.end(), (int (*)(int)) std::isspace)));
-        SocketAddress addr{line_view, 53};
-        if (addr.valid()) {
-            servers.main.emplace_back(SystemDnsServer{std::string(line_view), std::nullopt});
+        SocketAddress addr{line_view, ag::dns_utils::PLAIN_DNS_PORT_NUMBER};
+
+        if (!addr.valid()) {
+            warnlog(g_logger, "Skipping invalid address: {}", line_view);
+            continue;
         }
+
+#if defined __linux__
+        auto host_str = addr.host_str();
+        static const SocketAddress UNFILTERED_IPS[] = {
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V4[0], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V4[1], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V6[0], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+                SocketAddress{AG_UNFILTERED_DNS_IPS_V6[1], ag::dns_utils::PLAIN_DNS_PORT_NUMBER},
+        };
+        if (addr.is_loopback()
+                || std::find(std::begin(UNFILTERED_IPS), std::end(UNFILTERED_IPS), addr) != std::end(UNFILTERED_IPS)) {
+            warnlog(g_logger, "Skipping potential route loop address: {}", addr.str());
+            continue;
+        }
+#endif // __linux__
+
+        servers.main.emplace_back(SystemDnsServer{std::string(line_view), std::nullopt});
     };
     return servers;
 }

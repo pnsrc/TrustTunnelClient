@@ -78,6 +78,9 @@ private:
     [[nodiscard]] size_t connections_num() const override;
     bool open_connection(uint64_t id, const TunnelAddressPair *addr, int proto, std::string_view app_name) override;
     void on_icmp_request(IcmpEchoRequestEvent &event) override;
+    void handle_sleep() override;
+    void handle_wake() override;
+    void timer_update();
 
     static void http_handler(void *arg, HttpEventId what, void *data);
     static void net_handler(void *arg, TcpSocketEvent what, void *data);

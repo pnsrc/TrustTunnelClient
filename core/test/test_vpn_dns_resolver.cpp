@@ -202,7 +202,8 @@ TEST_F(VpnDnsResolverTest, ForegroundsBlockBackgrounds) {
 }
 
 TEST_F(VpnDnsResolverTest, QueryTimeout) {
-    VpnDnsResolver::set_query_timeout(Millis{1});
+    // This should be bigger than 1ms (to prevent executing on current loop cycle), but lesser than 1000ms
+    VpnDnsResolver::set_query_timeout(Millis{300});
 
     ((VpnDnsResolver *) this->resolver.get())
             ->resolve(VDRQ_BACKGROUND, "example.org", VpnDnsResolver::RecordTypeSet{}.set(), {result_handler, this});

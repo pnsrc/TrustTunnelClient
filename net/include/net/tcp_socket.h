@@ -159,9 +159,9 @@ SSL *tcp_socket_get_ssl(TcpSocket *socket);
 /**
  * Set timeout value for operations
  * @param socket socket
- * @param x timeout
+ * @param x timeout, nullopt for no timeout
  */
-void tcp_socket_set_timeout(TcpSocket *socket, Millis x);
+void tcp_socket_set_timeout(TcpSocket *socket, std::optional<Millis> x);
 
 /**
  * Make socket to support both ipv4 and ipv6 connections

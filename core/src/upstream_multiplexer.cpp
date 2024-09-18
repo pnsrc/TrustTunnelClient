@@ -606,6 +606,9 @@ void UpstreamMultiplexer::handle_sleep() {
 
     this->timer_stop();
     this->m_health_check_upstream_id.reset();
+    for (auto &[_, info] : m_upstreams_pool) {
+        info->upstream->handle_sleep();
+    }
 
     log_mux(this, dbg, "Done");
 }
@@ -613,6 +616,9 @@ void UpstreamMultiplexer::handle_sleep() {
 void UpstreamMultiplexer::handle_wake() {
     log_mux(this, dbg, "...");
 
+    for (auto &[_, info] : m_upstreams_pool) {
+        info->upstream->handle_wake();
+    }
     this->timer_update();
     this->do_health_check();
 
@@ -622,6 +628,7 @@ void UpstreamMultiplexer::handle_wake() {
 void UpstreamMultiplexer::timer_update() {
     if (m_timeout_timer) {
         timeval tv = ms_to_timeval((this->vpn->upstream_config.timeout - this->vpn->upstream_config.health_check_timeout).count());
+        tracelog(m_log, "Updating timer: {}.{:06}", tv.tv_sec, tv.tv_usec);
         evtimer_add(m_timeout_timer.get(), &tv);
     }
 }
