@@ -15,6 +15,7 @@ using namespace ag;
 
 struct TestCtx {
     VpnEventLoop *loop = nullptr;
+    VpnNetworkManager *network_manager = nullptr;
     event_base *base = nullptr;
     DeclPtr<Ping, &ping_destroy> ping;
     std::unordered_map<std::string, PingResult> results;
@@ -24,6 +25,7 @@ struct TestCtx {
 
 struct TestCtxRounds {
     VpnEventLoop *loop = nullptr;
+    VpnNetworkManager *network_manager = nullptr;
     event_base *base = nullptr;
     DeclPtr<Ping, &ping_destroy> ping;
     std::unordered_map<std::string, std::vector<PingResult>> results;
@@ -37,6 +39,7 @@ public:
     }
 
     DeclPtr<VpnEventLoop, &vpn_event_loop_destroy> loop{vpn_event_loop_create()};
+    DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager{vpn_network_manager_get()};
 
     void run_event_loop() { // NOLINT(readability-make-member-function-const)
         // just not to hang
@@ -47,6 +50,7 @@ public:
     [[nodiscard]] TestCtx generate_test_ctx() const {
         TestCtx ctx = {};
         ctx.loop = this->loop.get();
+        ctx.network_manager = this->network_manager.get();
         ctx.base = vpn_event_loop_get_base(this->loop.get());
         return ctx;
     }
@@ -54,6 +58,7 @@ public:
     [[nodiscard]] TestCtxRounds generate_test_ctx_rounds() const {
         TestCtxRounds ctx = {};
         ctx.loop = this->loop.get();
+        ctx.network_manager = this->network_manager.get();
         ctx.base = vpn_event_loop_get_base(this->loop.get());
         return ctx;
     }
@@ -75,6 +80,7 @@ TEST_F(PingTest, Single) {
     TestCtx test_ctx = generate_test_ctx();
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 5000,
             .nrounds = 1,
@@ -136,6 +142,7 @@ TEST_F(PingTest, Timeout) {
 
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 500,
             .nrounds = 1,
@@ -186,6 +193,7 @@ TEST_F(PingTest, Multiple) {
         TestCtx &test_ctx = contexts.emplace_back(generate_test_ctx());
         PingInfo info = {
                 .loop = test_ctx.loop,
+                .network_manager = test_ctx.network_manager,
                 .endpoints = {&addr, 1},
                 .timeout_ms = 1500, /* windows will refuse connection to ::1 after 2 s*/
                 .nrounds = 1,
@@ -247,6 +255,7 @@ TEST_F(PingTest, AllAddressesInvalid) {
     TestCtx test_ctx = generate_test_ctx();
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 500,
             .nrounds = 1,
@@ -293,6 +302,7 @@ TEST_F(PingTest, DestroyInProgressPingAfterCallback) {
     TestCtx test_ctx = generate_test_ctx();
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 500,
             .nrounds = 1,
@@ -350,6 +360,7 @@ TEST_F(PingTest, DestroyInProgressPing) {
     TestCtx test_ctx = generate_test_ctx();
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 500,
             .nrounds = 1,
@@ -410,6 +421,7 @@ TEST_F(PingTest, MultipleRounds) {
     TestCtxRounds test_ctx = generate_test_ctx_rounds();
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 5000,
             .nrounds = ROUNDS,
@@ -472,6 +484,7 @@ TEST_F(PingTest, DISABLED_QueryAllInterfaces) {
     std::vector<uint32_t> interfaces = collect_operable_network_interfaces();
     PingInfo info = {
             .loop = test_ctx.loop,
+            .network_manager = test_ctx.network_manager,
             .endpoints = {addresses.data(), addresses.size()},
             .timeout_ms = 500,
             .interfaces_to_query = {interfaces.data(), interfaces.size()},

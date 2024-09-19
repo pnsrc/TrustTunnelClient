@@ -78,7 +78,7 @@ struct Ping {
     std::string id;
 
     VpnEventLoop *loop;
-    ag::DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager;
+    VpnNetworkManager *network_manager;
     PingHandler handler;
 
     std::list<PingConn> pending;    // Waiting to start connection.
@@ -537,7 +537,7 @@ Ping *ping_start(const PingInfo *info, PingHandler handler) {
 
     static std::atomic_int next_id{0};
 
-    self->network_manager.reset(vpn_network_manager_get());
+    self->network_manager = info->network_manager;
     if (!self->network_manager) {
         log_ping(self, err, "Failed to get a network manager");
         return nullptr;

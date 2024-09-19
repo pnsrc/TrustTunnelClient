@@ -63,9 +63,9 @@ static test_mock::LocationsPingerInfo make_deep_copy(const ag::LocationsPingerIn
 }
 
 LocationsPinger *ag::locations_pinger_start(
-        const ag::LocationsPingerInfo *info, LocationsPingerHandler handler, VpnEventLoop *ev_loop) {
+        const ag::LocationsPingerInfo *info, LocationsPingerHandler handler, VpnEventLoop *ev_loop, VpnNetworkManager *network_manager) {
     test_mock::Info &mock_info = MockedTest::g_infos[IDX_LOCATIONS_PINGER_START];
-    mock_info.args = collect_args(make_deep_copy(info), handler, ev_loop);
+    mock_info.args = collect_args(make_deep_copy(info), handler, ev_loop, network_manager);
     mock_info.notify_called();
     return mock_info.get_return_value<LocationsPinger *>();
 }

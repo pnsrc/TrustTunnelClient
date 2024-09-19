@@ -294,7 +294,7 @@ static void run_ping(void *ctx, void *) {
         pinger_info.relay_address_parallel = (sockaddr *) &*vpn->selected_endpoint->relay_address;
     }
 
-    vpn->pinger.reset(locations_pinger_start(&pinger_info, {pinger_handler, vpn}, vpn->ev_loop.get()));
+    vpn->pinger.reset(locations_pinger_start(&pinger_info, {pinger_handler, vpn}, vpn->ev_loop.get(), vpn->network_manager.get()));
 
     vpn->pending_error.reset();
     vpn->selected_endpoint.reset();

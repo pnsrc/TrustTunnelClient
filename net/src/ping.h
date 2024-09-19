@@ -4,6 +4,7 @@
 
 #include "net/utils.h"
 #include "vpn/event_loop.h"
+#include "net/network_manager.h"
 
 namespace ag {
 
@@ -31,6 +32,7 @@ struct PingInfo {
     const char *id = ""; ///< An ID string for correlating log messages
 
     VpnEventLoop *loop = nullptr;           ///< Event loop
+    VpnNetworkManager *network_manager = nullptr;
     std::span<const VpnEndpoint> endpoints; ///< List of endpoints to ping
 
     /// Each connection attempt timeout. Note that there might be several connection attempts.

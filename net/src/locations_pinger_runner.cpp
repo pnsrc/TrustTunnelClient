@@ -20,6 +20,7 @@ static std::atomic_int g_next_runner_id = 0;
 
 typedef struct LocationsPingerRunner {
     DeclPtr<VpnEventLoop, &vpn_event_loop_destroy> ev_loop{vpn_event_loop_create()};
+    DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager{vpn_network_manager_get()};
     DeclPtr<LocationsPinger, &locations_pinger_destroy> pinger;
     std::mutex stop_guard;
     std::condition_variable stop_barrier;
@@ -49,7 +50,7 @@ LocationsPingerRunner *locations_pinger_runner_create(const LocationsPingerInfo 
         return nullptr;
     }
     runner->handler = handler;
-    runner->pinger.reset(locations_pinger_start(info, {runner_handler, runner.get()}, runner->ev_loop.get()));
+    runner->pinger.reset(locations_pinger_start(info, {runner_handler, runner.get()}, runner->ev_loop.get(), runner->network_manager.get()));
     return runner.release();
 }
 

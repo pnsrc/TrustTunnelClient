@@ -35,6 +35,7 @@ public:
     }
 
     DeclPtr<VpnEventLoop, &vpn_event_loop_destroy> loop{vpn_event_loop_create()};
+    DeclPtr<VpnNetworkManager, &vpn_network_manager_destroy> network_manager{vpn_network_manager_get()};
 
     void SetUp() override {
     }
@@ -105,7 +106,7 @@ TEST_F(LocationsPingerTest, Single) {
                     },
                     &test_ctx,
             },
-            loop.get()));
+            loop.get(), network_manager.get()));
 
     run_event_loop();
 
@@ -142,7 +143,7 @@ TEST_F(LocationsPingerTest, WholeLocationFailed) {
                     },
                     &test_ctx,
             },
-            loop.get()));
+            loop.get(), network_manager.get()));
 
     run_event_loop();
 
@@ -188,7 +189,7 @@ TEST_F(LocationsPingerTest, Multiple) {
                     },
                     &test_ctx,
             },
-            loop.get()));
+            loop.get(), network_manager.get()));
 
     run_event_loop();
 
@@ -246,7 +247,7 @@ TEST_F(LocationsPingerTest, DISABLED_Timeout) {
                     },
                     &test_ctx,
             },
-            loop.get()));
+            loop.get(), network_manager.get()));
 
     run_event_loop();
 
@@ -289,7 +290,7 @@ TEST_F(LocationsPingerTest, StopFromCallback) {
                     },
                     &test_ctx,
             },
-            loop.get()));
+            loop.get(), network_manager.get()));
 
     run_event_loop();
 
@@ -329,7 +330,7 @@ TEST_F(LocationsPingerTest, StopNotFromCallback) {
                     },
                     &test_ctx,
             },
-            loop.get()));
+            loop.get(), network_manager.get()));
 
     vpn_event_loop_submit(test_ctx.loop,
             {

@@ -66,6 +66,7 @@ struct LocationsPinger {
     std::list<LocationsCtx> pending_locations;
     std::unordered_map<Ping *, LocationsCtx> locations;
     VpnEventLoop *loop;
+    VpnNetworkManager *network_manager;
     ag::Logger logger{"LOCATIONS_PINGER"};
     bool query_all_interfaces;
     std::vector<uint32_t> interfaces;
@@ -266,7 +267,7 @@ static void start_location_ping(LocationsPinger *pinger) {
     auto i = pinger->pending_locations.begin();
 
     log_location(pinger, i->info->id, dbg, "Starting location ping");
-    PingInfo ping_info = {i->info->id, pinger->loop, {i->info->endpoints.data, i->info->endpoints.size},
+    PingInfo ping_info = {i->info->id, pinger->loop, pinger->network_manager, {i->info->endpoints.data, i->info->endpoints.size},
             pinger->timeout_ms, {pinger->interfaces.data(), pinger->interfaces.size()}, pinger->rounds,
             pinger->use_quic, pinger->anti_dpi, pinger->handoff,
             {i->info->relay_addresses.data, i->info->relay_addresses.size}, pinger->relay_address_parallel,
@@ -294,12 +295,13 @@ static void start_location_ping(LocationsPinger *pinger) {
 }
 
 LocationsPinger *locations_pinger_start(
-        const LocationsPingerInfo *info, LocationsPingerHandler handler, VpnEventLoop *ev_loop) {
+        const LocationsPingerInfo *info, LocationsPingerHandler handler, VpnEventLoop *ev_loop, VpnNetworkManager *network_manager) {
     auto *pinger = new LocationsPinger{};
 
     pinger->handler = handler;
     pinger->locations.reserve(info->locations.size);
     pinger->loop = ev_loop;
+    pinger->network_manager = network_manager;
 #ifdef __MACH__
     pinger->query_all_interfaces = info->query_all_interfaces;
     if (info->query_all_interfaces) {

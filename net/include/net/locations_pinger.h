@@ -2,6 +2,7 @@
 
 #include "net/utils.h"
 #include "vpn/event_loop.h"
+#include "net/network_manager.h"
 
 namespace ag {
 
@@ -75,10 +76,11 @@ typedef struct {
  * @param info pinger info
  * @param handler pinger handler
  * @param ev_loop event loop for operation
+ * @param network_manager network manager
  * @return pinger context
  */
 LocationsPinger *locations_pinger_start(
-        const LocationsPingerInfo *info, LocationsPingerHandler handler, VpnEventLoop *ev_loop);
+        const LocationsPingerInfo *info, LocationsPingerHandler handler, VpnEventLoop *ev_loop, VpnNetworkManager *network_manager);
 
 /**
  * Stop pinging
