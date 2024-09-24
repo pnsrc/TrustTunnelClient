@@ -1,5 +1,7 @@
 # CHANGELOG
 
+## 0.93.28
+
 * Handler profiling is now disabled by default.
 
 ## 0.93.18
