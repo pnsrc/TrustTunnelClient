@@ -637,8 +637,9 @@ WIN_EXPORT void vpn_listener_config_destroy(VpnListenerConfig *config);
  * doesn't listen for incoming data by itself
  * @param vpn VPN client
  * @param packets packets
+ * @return true if processing has been scheduled, false it vpn is already stopped
  */
-void vpn_process_client_packets(Vpn *vpn, VpnPackets packets);
+bool vpn_process_client_packets(Vpn *vpn, VpnPackets packets);
 
 /**
  * Complete connect request according to action.
