@@ -687,12 +687,13 @@ VpnDnsUpstreamValidationStatus vpn_validate_dns_upstream(const char *address) {
 bool vpn_process_client_packets(Vpn *vpn, VpnPackets packets) {
     std::unique_lock l(vpn->stop_guard);
 
-    if (!vpn_get_event_loop(vpn)) {
-        auto packets_holder = std::make_shared<VpnPacketsHolder>(packets);
+    auto packets_holder = std::make_shared<VpnPacketsHolder>(packets);
+
+    if (!vpn->ev_loop) {
         return false;
     }
 
-    vpn->submit([vpn, packets_holder = std::make_shared<VpnPacketsHolder>(packets)]() mutable {
+    vpn->submit([vpn, packets_holder = std::move(packets_holder)]() mutable {
         auto packets = packets_holder->release();
         vpn->client.process_client_packets({packets.data(), (uint32_t) packets.size()});
     });
