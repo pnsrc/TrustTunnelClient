@@ -1149,9 +1149,7 @@ static void udp_event_handler(evutil_socket_t fd, short what, void *arg) {
             }
         } else if (r < 0) {
             VpnError error = make_vpn_error_from_fd(fd);
-            if (!AG_ERR_IS_EAGAIN(error.code)) { // NOLINT(readability-simplify-boolean-expr)
-                terminate_udp_association(listener, tcp_conn, error);
-            }
+            log_conn(listener, tcp_conn->id, 0, dbg, "recvfrom UDP assoc socket: ({}) {}", error.code, error.text);
         }
     } else if (what & EV_TIMEOUT) {
         terminate_udp_association(listener, tcp_conn, make_vpn_from_socket_error(ag::utils::AG_ETIMEDOUT));
