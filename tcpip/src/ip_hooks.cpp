@@ -252,6 +252,10 @@ static inline int process_udp(
 }
 
 static int finalize_icmp_request(TcpipCtx *ctx, IcmpRequestDescriptor *request, struct pbuf *buffer, u16_t header_len) {
+    if (ip_addr_isany_val(request->reply_src)) {
+        return DROP_PACKET(buffer);
+    }
+
     // It was set to the original destination address in `ip4_input_hook`, but in case the message
     // is not an echo reply the source address may not be the same as the original destination
     ip4_addr_copy(*ip_2_ip4(&ctx->netif->ip_addr), *ip_2_ip4(&request->reply_src));
@@ -286,6 +290,10 @@ static void icmp6_err_message_hook_exit() {
 }
 
 static int finalize_icmpv6_request(TcpipCtx *ctx, IcmpRequestDescriptor *request, struct pbuf *buffer, u16_t header_len) {
+    if (ip_addr_isany_val(request->reply_src)) {
+        return DROP_PACKET(buffer);
+    }
+
     // It was set to the original destination address in `ip6_input_hook`, but in case the message
     // is not an echo reply the source address may not be the same as the original destination
     ip6_addr_copy(*ip_2_ip6(&ctx->netif->ip6_addr[1]), *ip_2_ip6(&request->reply_src));
