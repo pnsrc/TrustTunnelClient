@@ -49,6 +49,14 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      - name: Conan cache
+        uses: actions/cache@v4
+        id: conan-cache
+        with:
+          path: ~/.conan2/
+          key: ${{ runner.os }}-qt-conan2-v1-${{ hashFiles('conanfile.py') }}
+          restore-keys: ${{ runner.os }}-qt-conan2-v1-
+
       - name: Verify required submodules
         if: matrix.os != 'windows-latest'
         run: |
@@ -124,7 +132,17 @@ jobs:
 
       - name: Configure Qt client (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON && break
+            if [ "$i" -eq 3 ]; then
+              echo "Configure failed after 3 attempts"
+              exit 1
+            fi
+            echo "Retrying configure in 15s..."
+            sleep 15
+          done
 
       - name: Build Qt client (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -132,7 +150,17 @@ jobs:
 
       - name: Configure Qt client (macOS)
         if: matrix.os == 'macos-latest'
-        run: DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON && break
+            if [ "$i" -eq 3 ]; then
+              echo "Configure failed after 3 attempts"
+              exit 1
+            fi
+            echo "Retrying configure in 15s..."
+            sleep 15
+          done
         env:
           CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
 
@@ -145,15 +173,21 @@ jobs:
       - name: Configure Qt client (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: >
-          cmake -S . -B build
-          -G Ninja
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DCMAKE_C_COMPILER=cl.exe
-          -DCMAKE_CXX_COMPILER=cl.exe
-          -DBUILD_TRUSTTUNNEL_QT=ON
-          -DDISABLE_HTTP3=ON
-          -DCMAKE_DISABLE_FIND_PACKAGE_quiche=ON
+        run: |
+          for ($i = 1; $i -le 3; $i++) {
+            cmake -S . -B build `
+              -G Ninja `
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+              -DCMAKE_C_COMPILER=cl.exe `
+              -DCMAKE_CXX_COMPILER=cl.exe `
+              -DBUILD_TRUSTTUNNEL_QT=ON `
+              -DDISABLE_HTTP3=ON `
+              -DCMAKE_DISABLE_FIND_PACKAGE_quiche=ON
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($i -eq 3) { throw "Configure failed after 3 attempts" }
+            Write-Host "Retrying configure in 15s..."
+            Start-Sleep -Seconds 15
+          }
 
       - name: Build Qt client (Windows)
         if: matrix.os == 'windows-latest'
@@ -198,3 +232,10 @@ jobs:
           name: trusttunnel-qt-${{ matrix.os }}
           path: dist/**
           if-no-files-found: error
+
+      - name: Cache built conan packages
+        uses: actions/cache/save@v4
+        if: steps.conan-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.conan2/
+          key: ${{ runner.os }}-qt-conan2-v1-${{ hashFiles('conanfile.py') }}
