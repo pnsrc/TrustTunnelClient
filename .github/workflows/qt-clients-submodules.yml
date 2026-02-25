@@ -151,3 +151,34 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: cmake --build build --target trusttunnel-qt trusttunnel-qt-helper --config RelWithDebInfo -j 4
+
+      - name: Package artifacts (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build/trusttunnel-qt/trusttunnel-qt dist/
+          cp build/trusttunnel-qt/trusttunnel-qt-helper dist/
+
+      - name: Package artifacts (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build/trusttunnel-qt/trusttunnel-qt-helper dist/
+          ditto build/trusttunnel-qt/trusttunnel-qt.app dist/trusttunnel-qt.app
+
+      - name: Package artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/trusttunnel-qt/trusttunnel-qt.exe dist/
+          Copy-Item build/trusttunnel-qt/trusttunnel-qt-helper.exe dist/
+
+      - name: Upload Qt client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusttunnel-qt-${{ matrix.os }}
+          path: dist/**
+          if-no-files-found: error
