@@ -1,0 +1,6 @@
+[submodule "trusttunnel-core"]
+	path = trusttunnel-core
+	url = https://github.com/pnsrc/trusttunnel-core
+[submodule "trusttunnel-qt"]
+	path = trusttunnel-qt
+	url = https://github.com/pnsrc/firetunnel
