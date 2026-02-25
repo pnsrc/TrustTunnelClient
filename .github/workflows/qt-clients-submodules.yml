@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository with submodules
@@ -50,9 +50,17 @@ jobs:
           fetch-depth: 1
 
       - name: Verify required submodules
+        if: matrix.os != 'windows-latest'
         run: |
           test -f trusttunnel-qt/CMakeLists.txt
           test -f trusttunnel-core/CMakeLists.txt
+
+      - name: Verify required submodules (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path trusttunnel-qt/CMakeLists.txt)) { throw "Missing trusttunnel-qt submodule" }
+          if (-not (Test-Path trusttunnel-core/CMakeLists.txt)) { throw "Missing trusttunnel-core submodule" }
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -74,10 +82,34 @@ jobs:
           pip install -r requirements.txt
           pip install conan~=${CONAN_VER}
 
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install ninja -y
+          pip install -r requirements.txt
+          pip install conan~=$env:CONAN_VER
+
+      - name: Set up MSVC (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.2'
+          cache: true
+          modules: 'qt5compat'
+
       - name: Bootstrap Conan dependencies
+        shell: bash
         run: ./scripts/bootstrap_conan_deps.py
 
       - name: Debug HTTP3 flags
+        if: matrix.os != 'windows-latest'
         run: |
           echo "DISABLE_HTTP3=$DISABLE_HTTP3"
           DISABLE_HTTP3=1 make -C trusttunnel-qt -n configure QT_DISABLE_HTTP3=ON | sed -n '1,120p'
@@ -101,3 +133,21 @@ jobs:
         run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
         env:
           CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
+
+      - name: Configure Qt client (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: >
+          cmake -S . -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_C_COMPILER=cl.exe
+          -DCMAKE_CXX_COMPILER=cl.exe
+          -DBUILD_TRUSTTUNNEL_QT=ON
+          -DDISABLE_HTTP3=ON
+          -DCMAKE_DISABLE_FIND_PACKAGE_quiche=ON
+
+      - name: Build Qt client (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: cmake --build build --target trusttunnel-qt trusttunnel-qt-helper --config RelWithDebInfo -j 4
