@@ -77,22 +77,27 @@ jobs:
       - name: Bootstrap Conan dependencies
         run: ./scripts/bootstrap_conan_deps.py
 
+      - name: Debug HTTP3 flags
+        run: |
+          echo "DISABLE_HTTP3=$DISABLE_HTTP3"
+          DISABLE_HTTP3=1 make -C trusttunnel-qt -n configure QT_DISABLE_HTTP3=ON | sed -n '1,120p'
+
       - name: Configure Qt client (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
 
       - name: Build Qt client (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
 
       - name: Configure Qt client (macOS)
         if: matrix.os == 'macos-latest'
-        run: make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
         env:
           CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
 
       - name: Build Qt client (macOS)
         if: matrix.os == 'macos-latest'
-        run: make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
         env:
           CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
