@@ -35,3 +35,8 @@ add_subdirectory(core)
 add_subdirectory(trusttunnel)
 
 enable_testing()
+
+option(BUILD_TRUSTTUNNEL_QT "Build Qt desktop client" OFF)
+if (BUILD_TRUSTTUNNEL_QT)
+    add_subdirectory(trusttunnel-qt)
+endif()

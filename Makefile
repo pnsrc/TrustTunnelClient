@@ -16,6 +16,8 @@ BUILD_DIR = build
 COMPILE_COMMANDS = $(BUILD_DIR)/compile_commands.json
 EXPORT_DIR ?= bin
 SETUP_WIZARD_DIR = trusttunnel/setup_wizard
+QT_DISABLE_HTTP3 ?= ON
+UNAME_S := $(shell uname -s)
 
 ifeq ($(OS), Windows_NT)
 NPROC ?= $(or $(NUMBER_OF_PROCESSORS),8)
@@ -85,6 +87,37 @@ build_trusttunnel_client: build_libs
 ## Build the setup wizard binary for the VPN client
 build_wizard:
 	cmake --build $(BUILD_DIR) --target setup_wizard
+
+.PHONY: build_qt_client
+## Build the Qt client binary
+build_qt_client: setup_cmake
+	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS) -DDISABLE_HTTP3=$(QT_DISABLE_HTTP3)
+	cmake --build $(BUILD_DIR) --target trusttunnel-qt trusttunnel-qt-helper
+
+.PHONY: build_qt_client_macos
+## Build Qt client on macOS (native only)
+build_qt_client_macos:
+ifeq ($(UNAME_S),Darwin)
+	$(MAKE) build_qt_client
+else
+	@echo "build_qt_client_macos is only supported on macOS (uname=Darwin), current: $(UNAME_S)"
+	@exit 1
+endif
+
+.PHONY: build_qt_client_linux
+## Build Qt client on Linux (native only)
+build_qt_client_linux:
+ifeq ($(UNAME_S),Linux)
+	$(MAKE) build_qt_client
+else
+	@echo "build_qt_client_linux is only supported on Linux, current: $(UNAME_S)"
+	@exit 1
+endif
+
+.PHONY: run_qt_client
+## Run the Qt client app bundle executable
+run_qt_client: build_qt_client
+	$(BUILD_DIR)/trusttunnel-qt/trusttunnel-qt.app/Contents/MacOS/trusttunnel-qt
 .PHONY: all
 ## Build all binaries
 all: build_trusttunnel_client build_wizard
