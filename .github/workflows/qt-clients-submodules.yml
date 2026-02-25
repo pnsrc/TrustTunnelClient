@@ -106,9 +106,15 @@ jobs:
           cache: true
           modules: 'qt5compat'
 
-      - name: Bootstrap Conan dependencies
+      - name: Bootstrap Conan dependencies (Linux/macOS)
+        if: matrix.os != 'windows-latest'
         shell: bash
-        run: ./scripts/bootstrap_conan_deps.py
+        run: python3 ./scripts/bootstrap_conan_deps.py
+
+      - name: Bootstrap Conan dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: python ./scripts/bootstrap_conan_deps.py
 
       - name: Debug HTTP3 flags
         if: matrix.os != 'windows-latest'
