@@ -69,6 +69,7 @@ jobs:
         run: |
           if (-not (Test-Path trusttunnel-qt/CMakeLists.txt)) { throw "Missing trusttunnel-qt submodule" }
           if (-not (Test-Path trusttunnel-core/CMakeLists.txt)) { throw "Missing trusttunnel-core submodule" }
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -163,12 +164,6 @@ jobs:
         env:
           CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
 
-      - name: Configure Qt client (macOS)
-        if: matrix.os == 'macos-latest'
-        run: DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
-        env:
-          CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
-
       - name: Build Qt client (macOS)
         if: matrix.os == 'macos-latest'
         run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
@@ -178,6 +173,7 @@ jobs:
       - name: Configure Qt client (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
+<<<<<<< HEAD
         run: |
           for ($i = 1; $i -le 3; $i++) {
             cmake -S . -B build `
@@ -193,11 +189,23 @@ jobs:
             Write-Host "Retrying configure in 15s..."
             Start-Sleep -Seconds 15
           }
+=======
+        run: >
+          cmake -S . -B build
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_C_COMPILER=cl.exe
+          -DCMAKE_CXX_COMPILER=cl.exe
+          -DBUILD_TRUSTTUNNEL_QT=ON
+          -DDISABLE_HTTP3=ON
+          -DCMAKE_DISABLE_FIND_PACKAGE_quiche=ON
+>>>>>>> ad9c6d0 (Add Windows CI build for Qt client)
 
       - name: Build Qt client (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: cmake --build build --target trusttunnel-qt trusttunnel-qt-helper --config RelWithDebInfo -j 4
+<<<<<<< HEAD
 
       - name: Deploy Qt runtime (Windows)
         if: matrix.os == 'windows-latest'
@@ -244,3 +252,5 @@ jobs:
         with:
           path: ~/.conan2/
           key: ${{ runner.os }}-qt-conan2-v1-${{ hashFiles('conanfile.py') }}
+=======
+>>>>>>> ad9c6d0 (Add Windows CI build for Qt client)
