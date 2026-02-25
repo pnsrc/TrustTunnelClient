@@ -1,0 +1,3 @@
+[console_scripts]
+clangd-tidy = clangd_tidy:main_cli
+clangd-tidy-diff = clangd_tidy:clang_tidy_diff
