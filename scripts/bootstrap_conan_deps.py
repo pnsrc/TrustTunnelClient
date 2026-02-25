@@ -20,7 +20,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import yaml
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 project_dir = os.path.dirname(work_dir)
@@ -73,11 +72,7 @@ subprocess.run(["git", "clone", nlc_url, nlc_dir], check=True)
 os.chdir(nlc_dir)
 
 # Reduce the chances of missing a necessary dependency exported with NLC
-# by exporting all recipes from all versions of NLC, starting with the minimum
-# necessary.
-min_nlc_version = min(nlc_versions)
-with open("conandata.yml", "r") as file:
-    items = yaml.safe_load(file)["commit_hash"]
+# by exporting all recipes from all versions that are explicitly required.
 
 for v in nlc_versions: # [k for k in items.keys() if k >= min_nlc_version]:
     subprocess.run(["git", "checkout", "master"], check=True)
