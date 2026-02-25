@@ -1,0 +1,87 @@
+name: Build Qt Client (Submodules)
+
+on:
+  push:
+    paths:
+      - 'trusttunnel-qt/**'
+      - 'trusttunnel-core/**'
+      - 'trusttunnel/**'
+      - 'core/**'
+      - 'common/**'
+      - 'net/**'
+      - 'tcpip/**'
+      - 'conanfile.py'
+      - 'conandata.yml'
+      - 'scripts/bootstrap_conan_deps.py'
+      - '.gitmodules'
+      - '.github/workflows/qt-clients-submodules.yml'
+  pull_request:
+    paths:
+      - 'trusttunnel-qt/**'
+      - 'trusttunnel-core/**'
+      - 'trusttunnel/**'
+      - 'core/**'
+      - 'common/**'
+      - 'net/**'
+      - 'tcpip/**'
+      - 'conanfile.py'
+      - 'conandata.yml'
+      - 'scripts/bootstrap_conan_deps.py'
+      - '.gitmodules'
+      - '.github/workflows/qt-clients-submodules.yml'
+  workflow_dispatch:
+
+env:
+  CONAN_VER: 2.12
+
+jobs:
+  build_qt:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify required submodules
+        run: |
+          test -f trusttunnel-qt/CMakeLists.txt
+          test -f trusttunnel-core/CMakeLists.txt
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build qt6-base-dev qt6-base-dev-tools
+          pip install -r requirements.txt
+          pip install conan~=${CONAN_VER}
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install ninja qt@6
+          pip install -r requirements.txt
+          pip install conan~=${CONAN_VER}
+
+      - name: Bootstrap Conan dependencies
+        run: ./scripts/bootstrap_conan_deps.py
+
+      - name: Build Qt client (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+
+      - name: Build Qt client (macOS)
+        if: matrix.os == 'macos-latest'
+        run: make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+        env:
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
