@@ -20,7 +20,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import importlib.util
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 project_dir = os.path.dirname(work_dir)
@@ -29,11 +28,6 @@ nlc_dir_name = "native-libs-common"
 dns_libs_url = sys.argv[2] if len(sys.argv) > 2 else 'https://github.com/AdguardTeam/DnsLibs.git'
 dns_libs_dir_name = "dns-libs"
 nlc_versions = []
-
-
-def ensure_pyyaml_available():
-    if importlib.util.find_spec("yaml") is None:
-        subprocess.run([sys.executable, "-m", "pip", "install", "pyyaml"], check=True)
 
 
 def on_rm_tree_error(func, path, _):
@@ -57,8 +51,6 @@ with open(os.path.join(project_dir, "conanfile.py"), "r") as file:
         elif line.startswith('self.requires("dns-libs/') \
                 and ('@adguard/oss"' in line):
             dns_libs_version = line.split('@')[0].split('/')[1]
-
-ensure_pyyaml_available()
 
 dns_libs_dir = os.path.join(work_dir, dns_libs_dir_name)
 
