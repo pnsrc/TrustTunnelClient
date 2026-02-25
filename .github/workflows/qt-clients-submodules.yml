@@ -173,7 +173,6 @@ jobs:
       - name: Configure Qt client (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
-<<<<<<< HEAD
         run: |
           for ($i = 1; $i -le 3; $i++) {
             cmake -S . -B build `
@@ -189,17 +188,6 @@ jobs:
             Write-Host "Retrying configure in 15s..."
             Start-Sleep -Seconds 15
           }
-=======
-        run: >
-          cmake -S . -B build
-          -G Ninja
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          -DCMAKE_C_COMPILER=cl.exe
-          -DCMAKE_CXX_COMPILER=cl.exe
-          -DBUILD_TRUSTTUNNEL_QT=ON
-          -DDISABLE_HTTP3=ON
-          -DCMAKE_DISABLE_FIND_PACKAGE_quiche=ON
->>>>>>> ad9c6d0 (Add Windows CI build for Qt client)
 
       - name: Build Qt client (Windows)
         if: matrix.os == 'windows-latest'
