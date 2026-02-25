@@ -205,7 +205,6 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: cmake --build build --target trusttunnel-qt trusttunnel-qt-helper --config RelWithDebInfo -j 4
-<<<<<<< HEAD
 
       - name: Deploy Qt runtime (Windows)
         if: matrix.os == 'windows-latest'
@@ -252,5 +251,3 @@ jobs:
         with:
           path: ~/.conan2/
           key: ${{ runner.os }}-qt-conan2-v1-${{ hashFiles('conanfile.py') }}
-=======
->>>>>>> ad9c6d0 (Add Windows CI build for Qt client)
