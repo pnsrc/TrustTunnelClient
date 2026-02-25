@@ -20,6 +20,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import importlib.util
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 project_dir = os.path.dirname(work_dir)
@@ -28,6 +29,11 @@ nlc_dir_name = "native-libs-common"
 dns_libs_url = sys.argv[2] if len(sys.argv) > 2 else 'https://github.com/AdguardTeam/DnsLibs.git'
 dns_libs_dir_name = "dns-libs"
 nlc_versions = []
+
+
+def ensure_pyyaml_available():
+    if importlib.util.find_spec("yaml") is None:
+        subprocess.run([sys.executable, "-m", "pip", "install", "pyyaml"], check=True)
 
 
 def on_rm_tree_error(func, path, _):
@@ -52,6 +58,8 @@ with open(os.path.join(project_dir, "conanfile.py"), "r") as file:
                 and ('@adguard/oss"' in line):
             dns_libs_version = line.split('@')[0].split('/')[1]
 
+ensure_pyyaml_available()
+
 dns_libs_dir = os.path.join(work_dir, dns_libs_dir_name)
 subprocess.run(["git", "clone", dns_libs_url, dns_libs_dir], check=True)
 os.chdir(dns_libs_dir)
@@ -61,7 +69,7 @@ with open("conanfile.py", "r") as file:
                 and ('@adguard/oss"' in line):
             nlc_versions.append(line.split('@')[0].split('/')[1])
 
-subprocess.run(["python3", os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
+subprocess.run([sys.executable, os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
 # Not leaving directory causes used-by-another-process error
 os.chdir("..")
 shutil.rmtree(dns_libs_dir, onerror=on_rm_tree_error)
@@ -77,7 +85,7 @@ os.chdir(nlc_dir)
 for v in nlc_versions: # [k for k in items.keys() if k >= min_nlc_version]:
     subprocess.run(["git", "checkout", "master"], check=True)
     try:
-        subprocess.run(["python3", os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
+        subprocess.run([sys.executable, os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
     except:
         if v in nlc_versions:
             raise
