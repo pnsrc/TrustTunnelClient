@@ -69,7 +69,6 @@ jobs:
         run: |
           if (-not (Test-Path trusttunnel-qt/CMakeLists.txt)) { throw "Missing trusttunnel-qt submodule" }
           if (-not (Test-Path trusttunnel-core/CMakeLists.txt)) { throw "Missing trusttunnel-core submodule" }
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
