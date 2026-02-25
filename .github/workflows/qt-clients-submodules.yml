@@ -33,6 +33,7 @@ on:
 
 env:
   CONAN_VER: 2.12
+  DISABLE_HTTP3: "1"
 
 jobs:
   build_qt:
@@ -76,9 +77,19 @@ jobs:
       - name: Bootstrap Conan dependencies
         run: ./scripts/bootstrap_conan_deps.py
 
+      - name: Configure Qt client (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+
       - name: Build Qt client (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+
+      - name: Configure Qt client (macOS)
+        if: matrix.os == 'macos-latest'
+        run: make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+        env:
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
 
       - name: Build Qt client (macOS)
         if: matrix.os == 'macos-latest'
