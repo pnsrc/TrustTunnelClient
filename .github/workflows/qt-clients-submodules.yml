@@ -143,6 +143,10 @@ jobs:
             sleep 15
           done
 
+      - name: Configure Qt client (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+
       - name: Build Qt client (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
@@ -160,6 +164,12 @@ jobs:
             echo "Retrying configure in 15s..."
             sleep 15
           done
+        env:
+          CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
+
+      - name: Configure Qt client (macOS)
+        if: matrix.os == 'macos-latest'
+        run: make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
         env:
           CMAKE_PREFIX_PATH: /opt/homebrew/opt/qt@6
 
