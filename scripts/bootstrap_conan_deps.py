@@ -61,7 +61,22 @@ with open(os.path.join(project_dir, "conanfile.py"), "r") as file:
 ensure_pyyaml_available()
 
 dns_libs_dir = os.path.join(work_dir, dns_libs_dir_name)
-subprocess.run(["git", "clone", dns_libs_url, dns_libs_dir], check=True)
+
+
+def clone_with_retry(url, dest, retries=3):
+    """Clone a git repo with retries to handle transient network/corruption issues."""
+    for attempt in range(1, retries + 1):
+        if os.path.exists(dest):
+            shutil.rmtree(dest, onerror=on_rm_tree_error)
+        result = subprocess.run(["git", "clone", url, dest])
+        if result.returncode == 0:
+            return
+        if attempt == retries:
+            result.check_returncode()
+
+
+# Clean up from previous runs to avoid clone errors
+clone_with_retry(dns_libs_url, dns_libs_dir)
 os.chdir(dns_libs_dir)
 with open("conanfile.py", "r") as file:
     for line in map(str.strip, file.readlines()):
@@ -76,7 +91,7 @@ shutil.rmtree(dns_libs_dir, onerror=on_rm_tree_error)
 
 os.chdir(work_dir)
 nlc_dir = os.path.join(work_dir, nlc_dir_name)
-subprocess.run(["git", "clone", nlc_url, nlc_dir], check=True)
+clone_with_retry(nlc_url, nlc_dir)
 os.chdir(nlc_dir)
 
 # Reduce the chances of missing a necessary dependency exported with NLC

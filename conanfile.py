@@ -2,6 +2,7 @@ from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 from conan.tools.files import patch, copy
 from conan.tools.apple import is_apple_os
+import os
 from os.path import join
 import re
 
