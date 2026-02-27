@@ -114,6 +114,19 @@ jobs:
           cache: true
           modules: 'qt5compat'
 
+      - name: Download Wintun (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $wintunUrl = 'https://www.wintun.net/builds/wintun-0.14.1.zip'
+          $zipPath = Join-Path $Env:RUNNER_TEMP 'wintun.zip'
+          Invoke-WebRequest -Uri $wintunUrl -OutFile $zipPath
+          $extractDir = Join-Path $Env:RUNNER_TEMP 'wintun'
+          Expand-Archive -Force -Path $zipPath -DestinationPath $extractDir
+          Copy-Item -Force (Join-Path $extractDir 'wintun/bin/amd64/wintun.dll') build/
+          Copy-Item -Force (Join-Path $extractDir 'wintun/bin/amd64/wintun.dll') trusttunnel-qt/
+          Copy-Item -Force (Join-Path $extractDir 'wintun/LICENSE.txt') trusttunnel-qt/WINTUN_LICENSE.txt
+
       - name: Bootstrap Conan dependencies (Linux/macOS)
         if: matrix.os != 'windows-latest'
         shell: bash
@@ -225,6 +238,7 @@ jobs:
         run: |
           if (-not (Test-Path dist/trusttunnel-qt.exe)) { throw "dist/trusttunnel-qt.exe is missing" }
           if (-not (Test-Path dist/Qt6Core.dll)) { throw "Qt runtime was not deployed" }
+          if (-not (Test-Path dist/wintun.dll)) { Copy-Item build/wintun.dll dist/ }
 
       - name: Upload Qt client artifact
         uses: actions/upload-artifact@v4
