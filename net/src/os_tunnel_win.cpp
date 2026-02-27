@@ -74,9 +74,17 @@ static void CALLBACK log_wintun(WINTUN_LOGGER_LEVEL level, DWORD64 /*timestamp*/
     }
 }
 
+// Track module loaded by us so we can free it in deinit.
+static HMODULE g_loaded_wintun = nullptr;
+
 static bool initialize_wintun(HMODULE wintun) {
     if (!wintun) {
-        return false;
+        // Try to load from the standard search path if the handle wasn't provided.
+        wintun = LoadLibraryW(L"wintun.dll");
+        if (!wintun) {
+            return false;
+        }
+        g_loaded_wintun = wintun;
     }
 #define X(name) ((*(FARPROC *) &name = GetProcAddress(wintun, #name)) == NULL)
     if (X(WintunCreateAdapter) || X(WintunCloseAdapter) || X(WintunOpenAdapter) || X(WintunGetAdapterLUID)
@@ -434,6 +442,10 @@ void ag::VpnWinTunnel::deinit() {
     m_wintun_session = nullptr;
     m_wintun_adapter = nullptr;
     m_system_dns_setup_success = false;
+    if (g_loaded_wintun) {
+        FreeLibrary(g_loaded_wintun);
+        g_loaded_wintun = nullptr;
+    }
 }
 
 evutil_socket_t ag::VpnWinTunnel::get_fd() {
