@@ -92,7 +92,7 @@ build_wizard:
 ## Build the Qt client binary
 build_qt_client: setup_cmake
 	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS) -DDISABLE_HTTP3=$(QT_DISABLE_HTTP3)
-	cmake --build $(BUILD_DIR) --target trusttunnel-qt trusttunnel-qt-helper
+	cmake --build $(BUILD_DIR) --target trusttunnel-qt
 
 .PHONY: build_qt_client_macos
 ## Build Qt client on macOS (native only)
