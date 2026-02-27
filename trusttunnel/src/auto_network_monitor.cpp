@@ -45,7 +45,11 @@ bool AutoNetworkMonitor::start() {
     });
 
     std::string_view bound_if = m_client->get_bound_if();
-    bool is_bound_if_override = !bound_if.empty();
+    bool requested_bound_if = !bound_if.empty();
+    bool bound_if_applied = requested_bound_if && update_interface(bound_if);
+    // If the requested interface can't be resolved (e.g. on Windows with friendly names),
+    // fall back to auto-detected interface instead of failing the whole monitor startup.
+    bool is_bound_if_override = requested_bound_if && bound_if_applied;
 
     m_network_monitor = ag::utils::create_network_monitor(
             [this, is_bound_if_override](const std::string &if_name, bool is_connected) {
@@ -54,10 +58,6 @@ bool AutoNetworkMonitor::start() {
                 }
                 m_client->notify_network_change(is_connected ? ag::VPN_NS_CONNECTED : ag::VPN_NS_NOT_CONNECTED);
             });
-
-    if (is_bound_if_override && !update_interface(bound_if)) {
-        return false;
-    }
 
     event_loop::dispatch_sync(m_network_monitor_loop.get(), [this, is_bound_if_override]() {
         m_network_monitor->start(vpn_event_loop_get_base(m_network_monitor_loop.get()));
