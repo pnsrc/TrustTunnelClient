@@ -1,5 +1,8 @@
 [submodule "trusttunnel-qt"]
 	path = trusttunnel-qt
 	url = https://github.com/pnsrc/firetunnel
-[submodule "trusttunnel-qt"]
-	branch = master
+	branch = main
+[submodule "trusttunnel-core"]
+	path = trusttunnel-core
+	url = https://github.com/pnsrc/trusttunnel-core
+	branch = main
