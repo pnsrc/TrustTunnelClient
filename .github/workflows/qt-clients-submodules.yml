@@ -46,8 +46,11 @@ jobs:
       - name: Checkout repository with submodules
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          fetch-depth: 1
+          submodules: true
+          fetch-depth: 0
+
+      - name: Update submodules to tracked branches
+        run: git submodule update --init --recursive --remote
 
       - name: Conan cache
         uses: actions/cache@v4
