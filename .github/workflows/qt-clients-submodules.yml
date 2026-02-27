@@ -123,6 +123,7 @@ jobs:
           Invoke-WebRequest -Uri $wintunUrl -OutFile $zipPath
           $extractDir = Join-Path $Env:RUNNER_TEMP 'wintun'
           Expand-Archive -Force -Path $zipPath -DestinationPath $extractDir
+          New-Item -ItemType Directory -Force -Path build | Out-Null
           Copy-Item -Force (Join-Path $extractDir 'wintun/bin/amd64/wintun.dll') build/
           Copy-Item -Force (Join-Path $extractDir 'wintun/bin/amd64/wintun.dll') trusttunnel-qt/
           Copy-Item -Force (Join-Path $extractDir 'wintun/LICENSE.txt') trusttunnel-qt/WINTUN_LICENSE.txt
@@ -205,7 +206,7 @@ jobs:
       - name: Build Qt client (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
-        run: cmake --build build --target trusttunnel-qt trusttunnel-qt-helper --config RelWithDebInfo -j 4
+        run: cmake --build build --target trusttunnel-qt --config RelWithDebInfo -j 4
 
       - name: Deploy Qt runtime (Windows)
         if: matrix.os == 'windows-latest'
@@ -213,7 +214,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/trusttunnel-qt/trusttunnel-qt.exe dist/
-          Copy-Item build/trusttunnel-qt/trusttunnel-qt-helper.exe dist/
           windeployqt --release --compiler-runtime --dir dist dist/trusttunnel-qt.exe
 
       - name: Package artifacts (Linux)
@@ -222,14 +222,12 @@ jobs:
         run: |
           mkdir -p dist
           cp build/trusttunnel-qt/trusttunnel-qt dist/
-          cp build/trusttunnel-qt/trusttunnel-qt-helper dist/
 
       - name: Package artifacts (macOS)
         if: matrix.os == 'macos-latest'
         shell: bash
         run: |
           mkdir -p dist
-          cp build/trusttunnel-qt/trusttunnel-qt-helper dist/
           ditto build/trusttunnel-qt/trusttunnel-qt.app dist/trusttunnel-qt.app
 
       - name: Package artifacts (Windows)
