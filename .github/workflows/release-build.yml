@@ -1,0 +1,114 @@
+name: Release Qt Client
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CONAN_VER: 2.12
+  DISABLE_HTTP3: "1"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Update submodules to tracked branches
+        run: git submodule update --init --recursive --remote
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build qt6-base-dev qt6-base-dev-tools
+          pip install conan~=${CONAN_VER}
+
+      - name: Install dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install ninja qt@6
+          pip install conan~=${CONAN_VER}
+        env:
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install ninja -y
+          python -m pip install --upgrade pip
+          python -m pip install conan~=$env:CONAN_VER
+
+      - name: Set up MSVC (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.2'
+          cache: true
+          modules: 'qt5compat'
+
+      - name: Bootstrap Conan dependencies
+        shell: bash
+        run: |
+          python3 ./scripts/bootstrap_conan_deps.py
+
+      - name: Configure
+        shell: bash
+        run: |
+          DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+        env:
+          CMAKE_PREFIX_PATH: ${{ matrix.os == 'macos-latest' && '/opt/homebrew/opt/qt@6' || '' }}
+
+      - name: Build
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+        shell: bash
+        env:
+          CMAKE_PREFIX_PATH: ${{ matrix.os == 'macos-latest' && '/opt/homebrew/opt/qt@6' || '' }}
+
+      - name: Archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusttunnel-qt-${{ matrix.os }}
+          path: trusttunnel-qt/build
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TrustTunnelClient ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
