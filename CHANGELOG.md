@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.7
+
+- [Feature] Custom DNS server configuration (plain, DoT, DoH, QUIC, SDNS stamps)
+- [Feature] Domain bypass rules — exclude domains/CIDR patterns from VPN tunnel
+- [Feature] Adapter conflict scanner — detect Radmin VPN, Hamachi, OpenVPN TAP, WireGuard, etc.
+- [Feature] Network settings tab in Settings dialog
+- [Feature] Silent adapter conflict check on VPN connect (Windows)
+
 ## 1.0.9
 
 - [Feature] Support [deep-link](https://github.com/TrustTunnel/TrustTunnel/blob/master/DEEP_LINK.md) config import.
