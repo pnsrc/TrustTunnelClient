@@ -82,21 +82,30 @@ jobs:
       - name: Configure
         shell: cmd
         run: |
-          set DISABLE_HTTP3=1
-          make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+          cmake -S . -B build -G Ninja ^
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
+            -DBUILD_TRUSTTUNNEL_QT=ON ^
+            -DDISABLE_HTTP3:BOOL=ON ^
+            -DCMAKE_DISABLE_FIND_PACKAGE_quiche=ON
 
       - name: Build
         shell: cmd
-        run: |
-          set DISABLE_HTTP3=1
-          make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+        run: cmake --build build --target trusttunnel-qt -j 4
 
       - name: Deploy Qt runtime
         shell: pwsh
         run: |
+          # Ninja (single-config) puts exe directly in target dir
           $exe = "build/trusttunnel-qt/trusttunnel-qt.exe"
           if (!(Test-Path $exe)) {
+            # Fallback for multi-config generators
             $exe = "build/trusttunnel-qt/RelWithDebInfo/trusttunnel-qt.exe"
+          }
+          if (!(Test-Path $exe)) {
+            Write-Error "Cannot find trusttunnel-qt.exe"
+            Get-ChildItem -Recurse build/trusttunnel-qt/ -Filter *.exe |
+              ForEach-Object { Write-Host $_.FullName }
+            exit 1
           }
           $deployDir = Split-Path $exe
           windeployqt6 --release --no-translations --no-opengl-sw $exe
