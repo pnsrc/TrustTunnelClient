@@ -127,8 +127,8 @@ jobs:
           Push-Location trusttunnel-qt
           & $nsis /DPRODUCT_VERSION=$ver /DBUILD_DIR="$buildDir" win\installer.nsi
           Pop-Location
-          # Move installer to workspace root
-          Move-Item "trusttunnel-qt\TrustTunnel-$ver-Setup.exe" .
+          # NSIS writes OutFile relative to the .nsi script location (win/)
+          Move-Item "trusttunnel-qt\win\TrustTunnel-$ver-Setup.exe" .
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
