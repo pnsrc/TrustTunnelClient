@@ -165,6 +165,16 @@ static std::optional<TrustTunnelConfig::TunListener> parse_tun_listener_config(c
     return std::nullopt;
 #endif
 
+#ifdef _WIN32
+    // "en0" is the macOS default; it is meaningless on Windows and would
+    // cause if_nametoindex() to return 0, leaving the outbound interface
+    // unset and breaking socket protection (traffic loops through TUN).
+    if (bound_if == "en0") {
+        warnlog(g_logger, "Ignoring macOS-default bound_if=\"en0\" on Windows; auto-detection will be used");
+        bound_if.clear();
+    }
+#endif
+
     TrustTunnelConfig::TunListener tun = {
             .mtu_size = (*tun_config)["mtu_size"].value<uint32_t>().value_or(DEFAULT_MTU),
             .bound_if = std::move(bound_if),
@@ -267,6 +277,14 @@ std::optional<TrustTunnelConfig> TrustTunnelConfig::build_config(const toml::tab
                 result.dns_upstreams.emplace_back(addr.value());
             }
         }
+    }
+    // If no DNS upstreams are configured, add sensible public defaults so that
+    // the DNS proxy does not fall back to potentially broken system resolvers
+    // (e.g. Hyper-V virtual DNS fec0:0:0:ffff::*).
+    if (result.dns_upstreams.empty()) {
+        infolog(g_logger, "dns_upstreams is empty, using default public DNS (1.1.1.1, 8.8.8.8)");
+        result.dns_upstreams.emplace_back("1.1.1.1");
+        result.dns_upstreams.emplace_back("8.8.8.8");
     }
 
     const toml::table *endpoint_config = config["endpoint"].as_table();

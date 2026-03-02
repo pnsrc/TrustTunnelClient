@@ -533,7 +533,20 @@ ag::VpnWinTunnel::~VpnWinTunnel() {
     CloseHandle(m_wintun_quit_event);
 }
 
+// Track the active tunnel so we can clean it up if the caller creates
+// a new one without destroying the old one first (e.g. during VPN core
+// recovery).  This prevents WintunStartSession failing with
+// ERROR_ALREADY_INITIALIZED (0x000004DF).
+static ag::VpnWinTunnel *g_active_tunnel = nullptr;
+
 void *ag::vpn_win_tunnel_create(ag::VpnOsTunnelSettings *settings, ag::VpnWinTunnelSettings *win_settings) {
+    if (g_active_tunnel) {
+        warnlog(logger, "Previous WinTUN tunnel was not destroyed; cleaning up before creating a new one");
+        g_active_tunnel->deinit();
+        delete g_active_tunnel;
+        g_active_tunnel = nullptr;
+    }
+
     auto *tunnel = new ag::VpnWinTunnel{};
     auto res = tunnel->init(settings, win_settings);
     if (res.code != 0) {
@@ -541,10 +554,14 @@ void *ag::vpn_win_tunnel_create(ag::VpnOsTunnelSettings *settings, ag::VpnWinTun
         delete tunnel;
         return nullptr;
     }
+    g_active_tunnel = tunnel;
     return tunnel;
 }
 
 void ag::vpn_win_tunnel_destroy(void *win_tunnel) {
+    if (win_tunnel == g_active_tunnel) {
+        g_active_tunnel = nullptr;
+    }
     delete (VpnWinTunnel *) win_tunnel;
 }
 
