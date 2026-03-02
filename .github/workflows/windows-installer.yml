@@ -1,0 +1,128 @@
+name: Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version string (e.g. 0.3.0)'
+        required: false
+        default: '0.3.0'
+
+env:
+  CONAN_VER: "2.12"
+  QT_VERSION: "6.7.2"
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Update submodules
+        run: git submodule update --init --recursive --remote
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            VER="${GITHUB_REF_NAME#v}"
+          else
+            VER="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          choco install ninja nsis -y
+          python -m pip install --upgrade pip
+          python -m pip install conan~=$env:CONAN_VER
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+          modules: 'qt5compat'
+
+      - name: Bootstrap Conan dependencies
+        shell: bash
+        run: python3 ./scripts/bootstrap_conan_deps.py
+
+      - name: Configure
+        shell: bash
+        run: |
+          DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+
+      - name: Build
+        shell: bash
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+
+      - name: Deploy Qt runtime
+        shell: pwsh
+        run: |
+          $exe = "build/trusttunnel-qt/trusttunnel-qt.exe"
+          if (!(Test-Path $exe)) {
+            $exe = "build/trusttunnel-qt/RelWithDebInfo/trusttunnel-qt.exe"
+          }
+          $deployDir = Split-Path $exe
+          windeployqt6 --release --no-translations --no-opengl-sw $exe
+          Write-Host "Deployed to $deployDir"
+          echo "DEPLOY_DIR=$deployDir" >> $env:GITHUB_ENV
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.version }}"
+          $buildDir = $env:DEPLOY_DIR -replace '/', '\'
+          Push-Location trusttunnel-qt
+          makensis /DPRODUCT_VERSION=$ver /DBUILD_DIR="$buildDir" win\installer.nsi
+          Pop-Location
+          # Move installer to workspace root
+          Move-Item "trusttunnel-qt\TrustTunnel-$ver-Setup.exe" .
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrustTunnel-${{ steps.version.outputs.version }}-Setup
+          path: TrustTunnel-${{ steps.version.outputs.version }}-Setup.exe
+
+  release:
+    needs: build-installer
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TrustTunnel ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: artifacts/**/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
