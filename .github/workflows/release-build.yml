@@ -112,29 +112,88 @@ jobs:
           set DISABLE_HTTP3=1
           make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
 
-      - name: Archive artifact
+      - name: Determine version
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # ── Package: Linux ─────────────────────────────────────────
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp build/trusttunnel-qt/trusttunnel-qt dist/
+          strip dist/trusttunnel-qt
+          cp LICENSE dist/
+          tar czf TrustTunnel-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz -C dist .
+
+      # ── Package: macOS ──────────────────────────────────────────
+      - name: Package (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          APP=build/trusttunnel-qt/trusttunnel-qt.app
+          if [ -d "$APP" ]; then
+            macdeployqt "$APP" -dmg
+            mv build/trusttunnel-qt/trusttunnel-qt.dmg \
+               TrustTunnel-${{ steps.version.outputs.version }}-macos.dmg
+          else
+            # Fallback: plain binary
+            mkdir -p dist
+            cp build/trusttunnel-qt/trusttunnel-qt dist/
+            cp LICENSE dist/
+            tar czf TrustTunnel-${{ steps.version.outputs.version }}-macos-arm64.tar.gz -C dist .
+          fi
+
+      # ── Package: Windows ────────────────────────────────────────
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.version }}"
+          $exe = "build/trusttunnel-qt/trusttunnel-qt.exe"
+          if (!(Test-Path $exe)) {
+            $exe = "build/trusttunnel-qt/RelWithDebInfo/trusttunnel-qt.exe"
+          }
+          $deployDir = "dist-win"
+          New-Item -ItemType Directory -Force $deployDir | Out-Null
+          Copy-Item $exe $deployDir
+          Copy-Item LICENSE $deployDir
+          windeployqt6 --release --no-translations --no-opengl-sw "$deployDir\trusttunnel-qt.exe"
+          Compress-Archive -Path "$deployDir\*" `
+            -DestinationPath "TrustTunnel-$ver-windows-x86_64.zip"
+
+      - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
-          name: trusttunnel-qt-${{ matrix.os }}
-          path: trusttunnel-qt/build
+          name: release-${{ matrix.os }}
+          path: |
+            TrustTunnel-*.tar.gz
+            TrustTunnel-*.dmg
+            TrustTunnel-*.zip
 
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Download artifacts
+      - name: Download all release assets
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          pattern: release-*
+          merge-multiple: true
+          path: assets
 
-      - name: Create release
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: TrustTunnelClient ${{ github.ref_name }}
           draft: false
           prerelease: false
           files: |
-            artifacts/**
+            assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
