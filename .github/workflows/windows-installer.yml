@@ -116,12 +116,14 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ steps.version.outputs.version }}"
-          $buildDir = $env:DEPLOY_DIR -replace '/', '\'
+          # Resolve to absolute path so NSIS finds files regardless of cwd
+          $buildDir = (Resolve-Path $env:DEPLOY_DIR).Path
           $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
           if (!(Test-Path $nsis)) {
             $nsis = "$env:ProgramFiles\NSIS\makensis.exe"
           }
           Write-Host "Using NSIS: $nsis"
+          Write-Host "BUILD_DIR: $buildDir"
           Push-Location trusttunnel-qt
           & $nsis /DPRODUCT_VERSION=$ver /DBUILD_DIR="$buildDir" win\installer.nsi
           Pop-Location
