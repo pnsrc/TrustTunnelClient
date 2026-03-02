@@ -117,8 +117,13 @@ jobs:
         run: |
           $ver = "${{ steps.version.outputs.version }}"
           $buildDir = $env:DEPLOY_DIR -replace '/', '\'
+          $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (!(Test-Path $nsis)) {
+            $nsis = "$env:ProgramFiles\NSIS\makensis.exe"
+          }
+          Write-Host "Using NSIS: $nsis"
           Push-Location trusttunnel-qt
-          makensis /DPRODUCT_VERSION=$ver /DBUILD_DIR="$buildDir" win\installer.nsi
+          & $nsis /DPRODUCT_VERSION=$ver /DBUILD_DIR="$buildDir" win\installer.nsi
           Pop-Location
           # Move installer to workspace root
           Move-Item "trusttunnel-qt\TrustTunnel-$ver-Setup.exe" .

@@ -254,6 +254,12 @@ Error<TrustTunnelClient::ConnectResultError> TrustTunnelClient::connect_to_serve
                             .password = m_config.location.password.c_str(),
                             .anti_dpi = m_config.location.anti_dpi,
                     },
+            // Use FALL_INTO_RECOVERY so the core keeps retrying with backoff
+            // instead of giving up after a fixed number of ping attempts.
+            // This is essential for persistent VPN clients: temporary network
+            // issues (e.g. Wi-Fi reconnect, firewall race on Windows) should
+            // not cause a permanent disconnect.
+            .retry_info = {.policy = VPN_CRP_FALL_INTO_RECOVERY},
     };
 
     {
