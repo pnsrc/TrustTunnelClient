@@ -68,23 +68,49 @@ jobs:
           cache: true
           modules: 'qt5compat'
 
+      - name: Fix MSYS2 link shadowing MSVC (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $msysLink = "C:\Program Files\Git\usr\bin\link.exe"
+          if (Test-Path $msysLink) {
+            Rename-Item $msysLink "link.exe.bak" -Force
+            Write-Host "Renamed $msysLink to avoid shadowing MSVC link.exe"
+          }
+
       - name: Bootstrap Conan dependencies
         shell: bash
         run: |
           python3 ./scripts/bootstrap_conan_deps.py
 
-      - name: Configure
+      - name: Configure (Unix)
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
         env:
           CMAKE_PREFIX_PATH: ${{ matrix.os == 'macos-latest' && '/opt/homebrew/opt/qt@6' || '' }}
 
-      - name: Build
-        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+      - name: Configure (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: cmd
+        run: |
+          set DISABLE_HTTP3=1
+          make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+
+      - name: Build (Unix)
+        if: matrix.os != 'windows-latest'
         shell: bash
+        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
         env:
           CMAKE_PREFIX_PATH: ${{ matrix.os == 'macos-latest' && '/opt/homebrew/opt/qt@6' || '' }}
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: cmd
+        run: |
+          set DISABLE_HTTP3=1
+          make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
 
       - name: Archive artifact
         uses: actions/upload-artifact@v4

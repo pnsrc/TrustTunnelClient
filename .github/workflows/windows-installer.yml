@@ -64,18 +64,32 @@ jobs:
           cache: true
           modules: 'qt5compat'
 
+      - name: Fix MSYS2 link shadowing MSVC
+        shell: pwsh
+        run: |
+          # Conan recipes run nmake under bash, which finds /usr/bin/link
+          # (Unix coreutil) instead of MSVC link.exe. Rename it.
+          $msysLink = "C:\Program Files\Git\usr\bin\link.exe"
+          if (Test-Path $msysLink) {
+            Rename-Item $msysLink "link.exe.bak" -Force
+            Write-Host "Renamed $msysLink to avoid shadowing MSVC link.exe"
+          }
+
       - name: Bootstrap Conan dependencies
-        shell: bash
-        run: python3 ./scripts/bootstrap_conan_deps.py
+        shell: cmd
+        run: python scripts/bootstrap_conan_deps.py
 
       - name: Configure
-        shell: bash
+        shell: cmd
         run: |
-          DISABLE_HTTP3=1 make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
+          set DISABLE_HTTP3=1
+          make -C trusttunnel-qt configure QT_DISABLE_HTTP3=ON
 
       - name: Build
-        shell: bash
-        run: DISABLE_HTTP3=1 make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
+        shell: cmd
+        run: |
+          set DISABLE_HTTP3=1
+          make -C trusttunnel-qt build QT_DISABLE_HTTP3=ON JOBS=4
 
       - name: Deploy Qt runtime
         shell: pwsh
