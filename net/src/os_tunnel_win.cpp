@@ -116,11 +116,24 @@ static GUID uuid_v5(std::string_view uuid_namespace, std::string_view uuid_data)
 }
 
 static WINTUN_ADAPTER_HANDLE create_wintun_adapter(std::string_view adapter_name, std::string_view tunnel_type) {
+    // Clean up any stale adapters left from previous runs or different configurations
+    // (e.g. "test tunnel" from development/testing) that may hold conflicting routes/DNS.
+    static constexpr std::wstring_view legacy_names[] = {
+            L"test tunnel",
+            L"Test Tunnel",
+    };
+    for (const auto &legacy : legacy_names) {
+        if (WINTUN_ADAPTER_HANDLE stale = WintunOpenAdapter(legacy.data())) {
+            dbglog(logger, "Removing stale adapter: {}", ag::utils::from_wstring(legacy.data()));
+            WintunCloseAdapter(stale);
+        }
+    }
+
     std::wstring adapter_name_wide = ag::utils::to_wstring(adapter_name);
     std::wstring tunnel_type_wide = ag::utils::to_wstring(tunnel_type);
     WINTUN_ADAPTER_HANDLE adapter = WintunOpenAdapter(adapter_name_wide.c_str());
     if (!adapter) {
-        dbglog(logger, "WintunOpenAdapter: {}", ag::sys::strerror(ag::sys::last_error()));
+        dbglog(logger, "WintunOpenAdapter(\"{}\"): {}", adapter_name, ag::sys::strerror(ag::sys::last_error()));
         GUID guid = uuid_v5("VpnLibsTunnels", adapter_name);
         adapter = WintunCreateAdapter(adapter_name_wide.c_str(), tunnel_type_wide.c_str(), &guid);
         if (!adapter) {
