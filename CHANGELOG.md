@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 0.8
+
+- [Feature] VPN adapter discovery & deactivation in Advanced settings (Windows) — detect and disable
+  third-party adapters (Radmin VPN, Hamachi, WireGuard, Tailscale, Cloudflare WARP, etc.) that may
+  conflict with the FireTunnel WinTUN adapter.
+- [Feature] SSH traffic bypass option — route SSH (port 22) connections outside the VPN tunnel.
+- [Feature] P2P traffic bypass option — route BitTorrent / DHT traffic outside the VPN tunnel.
+- [Internal] New `NetworkAdapterManager` class for cross-platform adapter enumeration.
+
 ## 0.7
 
 - [Feature] Custom DNS server configuration (plain, DoT, DoH, QUIC, SDNS stamps)
