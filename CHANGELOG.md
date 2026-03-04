@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 0.10b
+
+- [Feature] Settings dialog reorganized into logical sections: General, Connection, Network, Adapters, Logging, Maintenance, About, Licenses.
+- [Feature] Embedded SVG icon pack — consistent icons across macOS, Windows and Linux (no more QIcon::fromTheme).
+- [Fix] Domain bypass now works correctly — protect_handler binds bypass sockets to physical interface.
+- [Fix] "Too many open files" — fd watchdog, raised fd limit, forced clean reconnect on recovery.
+- [Feature] Log viewer context menu (Copy, Select All, Copy All, Clear).
+- [Feature] "Open log file" button in Logging settings.
+- [Fix] Persistent log file handle — no longer opens/closes per line.
+- [Fix] Log spam deduplication with QSet.
+
 ## 0.9
 
 - [Fix] macOS/Linux builds now included in GitHub release artifacts.
