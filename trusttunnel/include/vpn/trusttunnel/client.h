@@ -27,6 +27,7 @@ struct VpnCallbacks {
     std::function<void(VpnStateChangedEvent *)> state_changed_handler;
     std::function<void(VpnClientOutputEvent *)> client_output_handler;
     std::function<void(VpnConnectionInfoEvent *)> connection_info_handler;
+    std::function<void(VpnTunnelConnectionStatsEvent *)> tunnel_stats_handler;
 };
 
 class TrustTunnelClient {

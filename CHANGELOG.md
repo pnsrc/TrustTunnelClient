@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 0.11b
+
+- [Feature] Minimalist dark/light UI redesign — ConnectionRing, bottom nav bar, QStackedWidget pages.
+- [Feature] Traffic graph with real-time Rx/Tx via VPN_EVENT_TUNNEL_CONNECTION_STATS.
+- [Feature] SVG nav icons dynamically recolored per theme (QSvgRenderer).
+- [Feature] Ring text color adapts to light/dark theme.
+- [Feature] Traffic graph visibility toggle in Settings (Logging tab).
+- [Feature] Dual speed display in ring sub-text (↓ Rx ↑ Tx).
+- [Fix] Traffic counters always zero on macOS — switched from client_output_handler to tunnel_stats_handler.
+- [Fix] SVG icons rendering black in dark theme — runtime currentColor replacement.
+- [Fix] Light theme: white text on white background in ring and nav bar.
+
 ## 0.10b
 
 - [Feature] Settings dialog reorganized into logical sections: General, Connection, Network, Adapters, Logging, Maintenance, About, Licenses.

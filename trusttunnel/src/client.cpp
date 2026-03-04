@@ -416,10 +416,16 @@ void TrustTunnelClient::vpn_handler(void *, VpnEvent what, void *data) {
     }
     case VPN_EVENT_ENDPOINT_CONNECTION_STATS:
     case VPN_EVENT_DNS_UPSTREAM_UNAVAILABLE:
-    case VPN_EVENT_TUNNEL_CONNECTION_STATS:
     case VPN_EVENT_TUNNEL_CONNECTION_CLOSED:
         // do nothing
         break;
+    case VPN_EVENT_TUNNEL_CONNECTION_STATS: {
+        auto *event = (VpnTunnelConnectionStatsEvent *) data;
+        if (m_callbacks.tunnel_stats_handler) {
+            m_callbacks.tunnel_stats_handler(event);
+        }
+        break;
+    }
     case VPN_EVENT_VERIFY_CERTIFICATE: {
         auto *event = (VpnVerifyCertificateEvent *) data;
         if (m_config.location.skip_verification) {
