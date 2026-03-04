@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.9
+
+- [Fix] macOS/Linux builds now included in GitHub release artifacts.
+- [Fix] CI: added missing Linux Qt6/GL dependencies, macOS `macdeployqt` PATH.
+- [Fix] CI: `fail-fast: false` — platform builds run independently.
+- [Fix] Release job creates GitHub release even if one platform fails.
+- [Fix] WinTUN driver DLL bundled in release and installer builds.
+
 ## 0.8
 
 - [Feature] VPN adapter discovery & deactivation in Advanced settings (Windows) — detect and disable
