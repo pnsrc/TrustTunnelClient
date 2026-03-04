@@ -12,6 +12,7 @@ env:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -35,13 +36,18 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build qt6-base-dev qt6-base-dev-tools
+          sudo apt-get install -y ninja-build \
+            qt6-base-dev qt6-base-dev-tools qt6-tools-dev qt6-tools-dev-tools \
+            libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            libxcb-xinerama0 libxcb-cursor0
           pip install conan~=${CONAN_VER}
 
       - name: Install dependencies (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           brew install ninja qt@6
+          echo "/opt/homebrew/opt/qt@6/bin" >> $GITHUB_PATH
+          echo "Qt6_DIR=/opt/homebrew/opt/qt@6/lib/cmake/Qt6" >> $GITHUB_ENV
           pip install conan~=${CONAN_VER}
         env:
           HOMEBREW_NO_INSTALL_CLEANUP: 1
@@ -67,6 +73,19 @@ jobs:
           version: '6.7.2'
           cache: true
           modules: 'qt5compat'
+
+      - name: Download Wintun (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $wintunUrl = 'https://www.wintun.net/builds/wintun-0.14.1.zip'
+          $zipPath = Join-Path $Env:RUNNER_TEMP 'wintun.zip'
+          Invoke-WebRequest -Uri $wintunUrl -OutFile $zipPath
+          $extractDir = Join-Path $Env:RUNNER_TEMP 'wintun'
+          Expand-Archive -Force -Path $zipPath -DestinationPath $extractDir
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          Copy-Item -Force (Join-Path $extractDir 'wintun/bin/amd64/wintun.dll') build/
+          Copy-Item -Force (Join-Path $extractDir 'wintun/LICENSE.txt') build/WINTUN_LICENSE.txt
 
       - name: Fix MSYS2 link shadowing MSVC (Windows)
         if: matrix.os == 'windows-latest'
@@ -122,28 +141,36 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
+          VER=${{ steps.version.outputs.version }}
           mkdir -p dist
-          cp build/trusttunnel-qt/trusttunnel-qt dist/
+          BIN=build/trusttunnel-qt/trusttunnel-qt
+          if [ ! -f "$BIN" ]; then
+            BIN=$(find build -name trusttunnel-qt -type f ! -name '*.o' | head -1)
+          fi
+          cp "$BIN" dist/
           strip dist/trusttunnel-qt
           cp LICENSE dist/
-          tar czf TrustTunnel-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz -C dist .
+          tar czf TrustTunnel-${VER}-linux-x86_64.tar.gz -C dist .
 
       # ── Package: macOS ──────────────────────────────────────────
       - name: Package (macOS)
         if: matrix.os == 'macos-latest'
         shell: bash
         run: |
+          VER=${{ steps.version.outputs.version }}
           APP=build/trusttunnel-qt/trusttunnel-qt.app
+          DEPLOYQT=$(command -v macdeployqt || echo /opt/homebrew/opt/qt@6/bin/macdeployqt)
           if [ -d "$APP" ]; then
-            macdeployqt "$APP" -dmg
+            "$DEPLOYQT" "$APP" -dmg
             mv build/trusttunnel-qt/trusttunnel-qt.dmg \
-               TrustTunnel-${{ steps.version.outputs.version }}-macos.dmg
+               TrustTunnel-${VER}-macos.dmg
           else
-            # Fallback: plain binary
+            # Fallback: plain binary archive
             mkdir -p dist
-            cp build/trusttunnel-qt/trusttunnel-qt dist/
+            BIN=$(find build -name trusttunnel-qt -type f | head -1)
+            cp "$BIN" dist/
             cp LICENSE dist/
-            tar czf TrustTunnel-${{ steps.version.outputs.version }}-macos-arm64.tar.gz -C dist .
+            tar czf TrustTunnel-${VER}-macos-arm64.tar.gz -C dist .
           fi
 
       # ── Package: Windows ────────────────────────────────────────
@@ -152,22 +179,39 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ steps.version.outputs.version }}"
+          # Ninja (single-config) puts exe directly in target dir
           $exe = "build/trusttunnel-qt/trusttunnel-qt.exe"
           if (!(Test-Path $exe)) {
+            # Multi-config generators (MSVC) use a config subdirectory
             $exe = "build/trusttunnel-qt/RelWithDebInfo/trusttunnel-qt.exe"
+          }
+          if (!(Test-Path $exe)) {
+            # Last resort: search recursively
+            $found = Get-ChildItem -Recurse build/ -Filter trusttunnel-qt.exe | Select-Object -First 1
+            if ($found) { $exe = $found.FullName }
+            else { throw "Cannot find trusttunnel-qt.exe" }
           }
           $deployDir = "dist-win"
           New-Item -ItemType Directory -Force $deployDir | Out-Null
           Copy-Item $exe $deployDir
           Copy-Item LICENSE $deployDir
+          # WinTUN driver DLL — required for TUN mode on Windows
+          if (Test-Path "build/wintun.dll") {
+            Copy-Item "build/wintun.dll" $deployDir
+          }
+          if (Test-Path "build/WINTUN_LICENSE.txt") {
+            Copy-Item "build/WINTUN_LICENSE.txt" $deployDir
+          }
           windeployqt6 --release --no-translations --no-opengl-sw "$deployDir\trusttunnel-qt.exe"
           Compress-Archive -Path "$deployDir\*" `
             -DestinationPath "TrustTunnel-$ver-windows-x86_64.zip"
 
       - name: Upload release asset
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.os }}
+          if-no-files-found: warn
           path: |
             TrustTunnel-*.tar.gz
             TrustTunnel-*.dmg
@@ -175,6 +219,7 @@ jobs:
 
   release:
     needs: build
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     permissions:
       contents: write
