@@ -69,6 +69,11 @@ class MainActivity : AppCompatActivity() {
             val state = intent.getStringExtra(TrustTunnelVpnService.EXTRA_STATE) ?: return
             vpnState = state
             updateStatusUI(state)
+            // Show connection stats (JSON blob from native core) if present
+            val stats = intent.getStringExtra(TrustTunnelVpnService.EXTRA_STATS)
+            if (!stats.isNullOrBlank()) {
+                updateStats(stats)
+            }
         }
     }
 
@@ -217,8 +222,39 @@ class MainActivity : AppCompatActivity() {
                 connectionButton.text = getString(R.string.connect)
                 statusCard.setCardBackgroundColor(getColor(R.color.claude_surface_variant))
                 statusText.setTextColor(getColor(R.color.claude_on_surface))
+                statsText.text = getString(R.string.no_stats)
             }
         }
+    }
+
+    // ── Stats display ─────────────────────────────────────────────────────────
+
+    /**
+     * Parse a simplified stats summary from the JSON blob emitted by the native core.
+     * We look for "bytesReceived" and "bytesSent" (or similar fields).
+     */
+    private fun updateStats(json: String) {
+        runCatching {
+            // Simple regex-based extraction to avoid requiring a JSON dependency
+            fun extract(key: String): Long? =
+                Regex(""""$key"\s*:\s*(\d+)""").find(json)?.groupValues?.get(1)?.toLong()
+
+            val rx = extract("bytesReceived") ?: extract("rx") ?: extract("received")
+            val tx = extract("bytesSent")     ?: extract("tx") ?: extract("sent")
+
+            if (rx != null || tx != null) {
+                val rxStr = rx?.let { formatBytes(it) } ?: "—"
+                val txStr = tx?.let { formatBytes(it) } ?: "—"
+                statsText.text = "↓ $rxStr  ↑ $txStr"
+            }
+        }
+    }
+
+    private fun formatBytes(bytes: Long): String = when {
+        bytes < 1_024L           -> "${bytes} B"
+        bytes < 1_048_576L       -> "${"%.1f".format(bytes / 1_024.0)} KB"
+        bytes < 1_073_741_824L   -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
+        else                     -> "${"%.2f".format(bytes / 1_073_741_824.0)} GB"
     }
 
     // ── QR scanner ─────────────────────────────────────────────────────────────

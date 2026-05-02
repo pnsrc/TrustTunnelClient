@@ -1,5 +1,6 @@
 package com.trusttunnel.android
 
+import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.ArrayAdapter
@@ -8,6 +9,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.materialswitch.MaterialSwitch
 
 class SettingsActivity : AppCompatActivity() {
@@ -16,6 +18,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var notificationsCheck: MaterialSwitch
     private lateinit var logLevelSpinner: Spinner
     private lateinit var saveButton: MaterialButton
+    private lateinit var viewLogsCard: MaterialCardView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +39,7 @@ class SettingsActivity : AppCompatActivity() {
         notificationsCheck = findViewById(R.id.notificationsCheck)
         logLevelSpinner    = findViewById(R.id.logLevelSpinner)
         saveButton         = findViewById(R.id.saveButton)
+        viewLogsCard       = findViewById(R.id.viewLogsCard)
     }
 
     private fun loadSettings() {
@@ -53,6 +57,9 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         saveButton.setOnClickListener { saveSettings() }
+        viewLogsCard.setOnClickListener {
+            startActivity(Intent(this, LogActivity::class.java))
+        }
     }
 
     private fun saveSettings() {

@@ -1,0 +1,27 @@
+<configuration>
+
+    <!--
+      Logback-Android special variables:
+        ${DATA_DIR}  → Context.getFilesDir()   (app-private internal storage)
+        ${EXT_DIR}   → Context.getExternalFilesDir(null)
+    -->
+
+    <appender name="FILE"
+        class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${DATA_DIR}/logs/trusttunnel.log</file>
+        <rollingPolicy
+            class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${DATA_DIR}/logs/trusttunnel.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <!-- keep 3 days of history -->
+            <maxHistory>3</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{20} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="DEBUG">
+        <appender-ref ref="FILE" />
+    </root>
+
+</configuration>

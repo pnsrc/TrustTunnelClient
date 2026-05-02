@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark-mode overrides for Material3 DayNight theme -->
+<resources>
+    <!-- Primary: lighter purple for dark background -->
+    <color name="claude_purple">#CFBCFF</color>
+    <color name="claude_purple_dark">#E9DDFF</color>
+    <color name="claude_purple_container">#4F378B</color>
+
+    <!-- Secondary: lighter orange -->
+    <color name="claude_orange">#FFB77C</color>
+    <color name="claude_orange_dark">#FFDBCA</color>
+    <color name="claude_orange_light">#FFB77C</color>
+    <color name="claude_orange_container">#6B3300</color>
+
+    <!-- Semantic — lighter for dark backgrounds -->
+    <color name="claude_green">#6EDB8F</color>
+    <color name="claude_green_container">#005227</color>
+    <color name="claude_red">#FFB4AB</color>
+    <color name="claude_red_container">#93000A</color>
+
+    <!-- Surfaces -->
+    <color name="claude_background">#13111A</color>
+    <color name="claude_surface">#1E1A2B</color>
+    <color name="claude_surface_variant">#49454F</color>
+    <color name="claude_on_surface">#E6E1E5</color>
+    <color name="claude_gray">#CAC4D0</color>
+    <color name="claude_gray_light">#2D2438</color>
+
+    <!-- System -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

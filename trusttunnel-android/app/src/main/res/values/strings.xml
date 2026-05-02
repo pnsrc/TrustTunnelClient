@@ -44,4 +44,13 @@
     <string name="notifications">Notifications</string>
     <string name="logging">Diagnostics</string>
     <string name="log_level">Log Level</string>
+    <string name="view_logs">View Logs</string>
+
+    <!-- Log viewer -->
+    <string name="logs_title">Logs</string>
+    <string name="logs_empty">No log entries yet. Connect to the VPN to generate logs.</string>
+    <string name="logs_read_error">Error reading log file: %s</string>
+    <string name="logs_refresh">Refresh</string>
+    <string name="logs_copy">Copy</string>
+    <string name="logs_copied">Logs copied to clipboard</string>
 </resources>
