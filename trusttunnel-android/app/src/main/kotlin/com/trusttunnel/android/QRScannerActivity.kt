@@ -1,26 +1,29 @@
 package com.trusttunnel.android
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.trusttunnel.android.data.ConfigManager
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class QRScannerActivity : AppCompatActivity() {
+
     private lateinit var previewView: PreviewView
     private lateinit var barcodeScanner: BarcodeScanner
     private lateinit var cameraExecutor: ExecutorService
@@ -35,13 +38,14 @@ class QRScannerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_qr_scanner)
 
-        previewView = findViewById(R.id.previewView)
-        val backButton: Button = findViewById(R.id.backButton)
-        configManager = ConfigManager(this)
+        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        toolbar.setNavigationOnClickListener { finish() }
+
+        previewView    = findViewById(R.id.previewView)
+        configManager  = ConfigManager(this)
         barcodeScanner = BarcodeScanning.getClient()
         cameraExecutor = Executors.newSingleThreadExecutor()
-
-        backButton.setOnClickListener { finish() }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
@@ -49,38 +53,29 @@ class QRScannerActivity : AppCompatActivity() {
             startCamera()
         } else {
             ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_CODE
+                this, arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_CODE
             )
         }
     }
 
     private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
-        cameraProviderFuture.addListener({
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+        val future = ProcessCameraProvider.getInstance(this)
+        future.addListener({
+            val provider = future.get()
 
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
 
-            val imageAnalyzer = ImageAnalysis.Builder()
+            val analyzer = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
-                .also {
-                    it.setAnalyzer(cameraExecutor) { imageProxy ->
-                        processImage(imageProxy)
-                    }
-                }
-
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                .also { it.setAnalyzer(cameraExecutor, ::processImage) }
 
             try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageAnalyzer
+                provider.unbindAll()
+                provider.bindToLifecycle(
+                    this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analyzer
                 )
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -88,61 +83,51 @@ class QRScannerActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    @ExperimentalGetImage
     private fun processImage(imageProxy: ImageProxy) {
         if (!isScanningEnabled) {
             imageProxy.close()
             return
         }
-
-        @androidx.camera.core.ExperimentalGetImage
-        val image = imageProxy.image
-        if (image != null) {
-            val inputImage = InputImage.fromMediaImage(image, imageProxy.imageInfo.rotationDegrees)
-
-            barcodeScanner.process(inputImage)
+        val mediaImage = imageProxy.image
+        if (mediaImage != null) {
+            val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            barcodeScanner.process(input)
                 .addOnSuccessListener { barcodes ->
                     for (barcode in barcodes) {
-                        val qrContent = barcode.rawValue
-                        if (!qrContent.isNullOrEmpty()) {
-                            handleQRCode(qrContent)
+                        val raw = barcode.rawValue ?: continue
+                        if (raw.isNotEmpty()) {
                             isScanningEnabled = false
+                            handleQRCode(raw)
                             break
                         }
                     }
                 }
-                .addOnFailureListener {
-                    // Handle error
-                }
-                .addOnCompleteListener {
-                    imageProxy.close()
-                }
+                .addOnCompleteListener { imageProxy.close() }
+        } else {
+            imageProxy.close()
         }
     }
 
-    private fun handleQRCode(qrContent: String) {
-        val config = configManager.parseQRCode(qrContent)
+    private fun handleQRCode(content: String) {
+        val config = configManager.parseQRCode(content)
         if (config != null) {
             configManager.saveConfig(config)
             Toast.makeText(
                 this,
-                "Config \"${config.name}\" imported successfully!",
+                String.format(getString(R.string.qr_imported), config.name),
                 Toast.LENGTH_SHORT
             ).show()
-
-            val intent = Intent()
-            intent.putExtra("config_name", config.name)
-            setResult(RESULT_OK, intent)
+            setResult(RESULT_OK)
             finish()
         } else {
-            Toast.makeText(this, "Invalid QR code format", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.qr_invalid), Toast.LENGTH_SHORT).show()
             isScanningEnabled = true
         }
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
+        requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAMERA_PERMISSION_CODE) {

@@ -2,15 +2,20 @@ package com.trusttunnel.android
 
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.widget.*
+import android.widget.ArrayAdapter
+import android.widget.Spinner
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 
 class SettingsActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
-    private lateinit var killswitchCheck: CheckBox
-    private lateinit var notificationsCheck: CheckBox
+    private lateinit var killswitchCheck: MaterialSwitch
+    private lateinit var notificationsCheck: MaterialSwitch
     private lateinit var logLevelSpinner: Spinner
-    private lateinit var saveButton: Button
+    private lateinit var saveButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,13 +28,14 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun initializeViews() {
-        val backButton: Button = findViewById(R.id.backButton)
-        killswitchCheck = findViewById(R.id.killswitchCheck)
-        notificationsCheck = findViewById(R.id.notificationsCheck)
-        logLevelSpinner = findViewById(R.id.logLevelSpinner)
-        saveButton = findViewById(R.id.saveButton)
+        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        toolbar.setNavigationOnClickListener { finish() }
 
-        backButton.setOnClickListener { finish() }
+        killswitchCheck    = findViewById(R.id.killswitchCheck)
+        notificationsCheck = findViewById(R.id.notificationsCheck)
+        logLevelSpinner    = findViewById(R.id.logLevelSpinner)
+        saveButton         = findViewById(R.id.saveButton)
     }
 
     private fun loadSettings() {

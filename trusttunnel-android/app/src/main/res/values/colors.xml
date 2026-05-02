@@ -1,19 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Claude Brand Colors -->
+    <!-- Primary: purple -->
     <color name="claude_purple">#9D7EB8</color>
-    <color name="claude_purple_dark">#6B5B73</color>
-    <color name="claude_orange">#FF9500</color>
-    <color name="claude_orange_light">#FFB347</color>
-    <color name="claude_green">#10B981</color>
-    <color name="claude_red">#EF4444</color>
-    <color name="claude_gray">#6B7280</color>
-    <color name="claude_gray_light">#F3F4F6</color>
-    <color name="claude_background">#FAFAFA</color>
-    <color name="claude_surface">#FFFFFF</color>
+    <color name="claude_purple_dark">#3D2A52</color>
+    <color name="claude_purple_container">#EFE5FF</color>
 
-    <!-- System Colors -->
+    <!-- Secondary: orange -->
+    <color name="claude_orange">#C75B00</color>
+    <color name="claude_orange_dark">#4D2000</color>
+    <color name="claude_orange_light">#FF9500</color>
+    <color name="claude_orange_container">#FFDCBE</color>
+
+    <!-- Semantic -->
+    <color name="claude_green">#1B6B3A</color>
+    <color name="claude_green_container">#A6F4C5</color>
+    <color name="claude_red">#BA1A1A</color>
+    <color name="claude_red_container">#FFDAD6</color>
+
+    <!-- Surfaces -->
+    <color name="claude_background">#FFFBFF</color>
+    <color name="claude_surface">#FFFBFF</color>
+    <color name="claude_surface_variant">#E8DEF8</color>
+    <color name="claude_on_surface">#1C1B1F</color>
+    <color name="claude_gray">#49454F</color>
+    <color name="claude_gray_light">#F3F4F6</color>
+
+    <!-- System -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-
 </resources>

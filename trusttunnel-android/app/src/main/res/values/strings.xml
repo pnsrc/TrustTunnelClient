@@ -3,10 +3,12 @@
     <string name="app_name">TrustTunnel</string>
 
     <!-- Status -->
-    <string name="status_connected">Connected</string>
-    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connected">Status: Connected</string>
+    <string name="status_disconnected">Status: Disconnected</string>
+    <string name="status_connecting">Status: Connecting…</string>
     <string name="connected">CONNECTED</string>
     <string name="disconnected">DISCONNECTED</string>
+    <string name="connecting">CONNECTING…</string>
 
     <!-- Buttons -->
     <string name="connect">Connect</string>
@@ -18,14 +20,28 @@
 
     <!-- Labels -->
     <string name="configuration">Configuration</string>
+    <string name="no_configs">No configurations. Scan a QR code to add one.</string>
     <string name="scan_qr">Scan QR Code</string>
-    <string name="point_camera_at_qr">Point your camera at a QR code</string>
-    <string name="no_stats">No activity</string>
+    <string name="point_camera_at_qr">Point camera at QR code to import config</string>
+    <string name="no_stats">—</string>
+
+    <!-- VPN -->
+    <string name="vpn_permission_required">VPN permission required</string>
+    <string name="vpn_select_config">Please select a configuration first</string>
+    <string name="vpn_notification_title">TrustTunnel VPN</string>
+    <string name="vpn_notification_connected">VPN is active</string>
+    <string name="vpn_notification_connecting">Connecting…</string>
+    <string name="vpn_channel_name">Connection Status</string>
+
+    <!-- QR -->
+    <string name="qr_imported">Config \"%s\" imported</string>
+    <string name="qr_invalid">Invalid QR code format</string>
 
     <!-- Settings -->
-    <string name="connection_settings">Connection Settings</string>
+    <string name="connection_settings">Connection</string>
     <string name="kill_switch">Kill Switch</string>
+    <string name="kill_switch_desc">Block traffic when VPN disconnects</string>
     <string name="notifications">Notifications</string>
-    <string name="logging">Logging Level</string>
-
+    <string name="logging">Diagnostics</string>
+    <string name="log_level">Log Level</string>
 </resources>
