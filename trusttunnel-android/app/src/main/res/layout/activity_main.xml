@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/claude_background">
+
+    <!-- Header with status -->
+    <LinearLayout
+        android:id="@+id/connectionStatusView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/status_disconnected"
+            android:textSize="14sp"
+            android:textColor="@color/claude_gray"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/disconnected"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/claude_gray" />
+
+    </LinearLayout>
+
+    <!-- Config selection -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:background="@color/claude_surface">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/configuration"
+            android:textSize="12sp"
+            android:textColor="@color/claude_gray"
+            android:layout_marginBottom="8dp" />
+
+        <Spinner
+            android:id="@+id/configSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/spinner_background"
+            android:padding="12dp" />
+
+    </LinearLayout>
+
+    <!-- Stats -->
+    <TextView
+        android:id="@+id/statsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/no_stats"
+        android:textSize="12sp"
+        android:textColor="@color/claude_gray"
+        android:padding="24dp"
+        android:gravity="center" />
+
+    <!-- Action buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/connectionButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/connect"
+            android:textSize="16sp"
+            android:textColor="@android:color/white"
+            android:backgroundTint="@color/claude_purple"
+            android:layout_marginBottom="16dp"
+            style="@style/Widget.AppCompat.Button" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/qrButton"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/qr_scan"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:backgroundTint="@color/claude_orange"
+                android:layout_marginEnd="8dp"
+                style="@style/Widget.AppCompat.Button" />
+
+            <Button
+                android:id="@+id/settingsButton"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/settings"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:backgroundTint="@color/claude_purple"
+                style="@style/Widget.AppCompat.Button" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/claude_background">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center_vertical"
+        android:background="@color/claude_purple_dark">
+
+        <Button
+            android:id="@+id/backButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:text="@string/back"
+            android:textSize="14sp"
+            android:textColor="@android:color/white"
+            android:backgroundTint="@color/claude_purple"
+            style="@style/Widget.AppCompat.Button" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/settings"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:gravity="center" />
+
+        <View
+            android:layout_width="48dp"
+            android:layout_height="48dp" />
+
+    </LinearLayout>
+
+    <!-- Settings content -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <!-- Connection settings -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/connection_settings"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/claude_purple"
+                android:layout_marginBottom="16dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/kill_switch"
+                    android:textSize="14sp"
+                    android:textColor="@android:color/black" />
+
+                <CheckBox
+                    android:id="@+id/killswitchCheck"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="24dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/notifications"
+                    android:textSize="14sp"
+                    android:textColor="@android:color/black" />
+
+                <CheckBox
+                    android:id="@+id/notificationsCheck"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <!-- Logging -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/logging"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/claude_purple"
+                android:layout_marginBottom="16dp" />
+
+            <Spinner
+                android:id="@+id/logLevelSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/spinner_background"
+                android:padding="12dp"
+                android:layout_marginBottom="24dp" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- Save button -->
+    <Button
+        android:id="@+id/saveButton"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="@string/save"
+        android:textSize="16sp"
+        android:textColor="@android:color/white"
+        android:backgroundTint="@color/claude_purple"
+        android:layout_margin="24dp"
+        style="@style/Widget.AppCompat.Button" />
+
+</LinearLayout>

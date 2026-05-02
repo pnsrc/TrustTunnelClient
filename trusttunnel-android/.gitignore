@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+.gradletasknamecache
+
+# Android
+.idea/
+.DS_Store
+*.apk
+*.aar
+*.so
+*.zip
+*.tar.gz
+*.rar
+
+# Local configuration
+local.properties
+
+# IDE
+.classpath
+.cproject
+.settings/
+*.launch
+
+# Log files
+*.log
