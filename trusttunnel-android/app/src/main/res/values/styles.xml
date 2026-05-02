@@ -13,8 +13,10 @@
         <item name="colorSurface">@color/claude_surface</item>
         <item name="colorOnSurface">@color/claude_on_surface</item>
         <item name="colorSurfaceVariant">@color/claude_surface_variant</item>
-        <item name="colorBackground">@color/claude_background</item>
-        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <!-- Use android:colorBackground (standard attr) instead of colorBackground
+             which is a Material3 semantic role attr not resolvable at aapt link time -->
+        <item name="android:colorBackground">@color/claude_background</item>
+        <item name="android:statusBarColor">@color/claude_surface</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
