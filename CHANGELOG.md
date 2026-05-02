@@ -1,52 +1,34 @@
 # CHANGELOG
 
-## 0.11b
+## 1.0.62
 
-- [Feature] Minimalist dark/light UI redesign — ConnectionRing, bottom nav bar, QStackedWidget pages.
-- [Feature] Traffic graph with real-time Rx/Tx via VPN_EVENT_TUNNEL_CONNECTION_STATS.
-- [Feature] SVG nav icons dynamically recolored per theme (QSvgRenderer).
-- [Feature] Ring text color adapts to light/dark theme.
-- [Feature] Traffic graph visibility toggle in Settings (Logging tab).
-- [Feature] Dual speed display in ring sub-text (↓ Rx ↑ Tx).
-- [Fix] Traffic counters always zero on macOS — switched from client_output_handler to tunnel_stats_handler.
-- [Fix] SVG icons rendering black in dark theme — runtime currentColor replacement.
-- [Fix] Light theme: white text on white background in ring and nav bar.
+- [Feature] Improve control over TUN device configuration.
+    - Add `device_name` field that controls the TUN interface name on Linux, the requested `utun<N>` unit on macOS,
+      and the Wintun adapter name on Windows.
+    - Add `use_existing` boolean field that allows opening an existing TUN device specified by `device_name`. Linux only.
+    - Correctly handle `included_routes = []` and skip route/rule setup and cleanup in this case
+      (except DNS routes controlled by `change_system_dns`).
+    - Remove the Windows-specific `adapter_name` configuration field; Windows adapter naming is now configured via
+      `device_name`.
 
-## 0.10b
+## 1.0.56
 
-- [Feature] Settings dialog reorganized into logical sections: General, Connection, Network, Adapters, Logging, Maintenance, About, Licenses.
-- [Feature] Embedded SVG icon pack — consistent icons across macOS, Windows and Linux (no more QIcon::fromTheme).
-- [Fix] Domain bypass now works correctly — protect_handler binds bypass sockets to physical interface.
-- [Fix] "Too many open files" — fd watchdog, raised fd limit, forced clean reconnect on recovery.
-- [Feature] Log viewer context menu (Copy, Select All, Copy All, Clear).
-- [Feature] "Open log file" button in Logging settings.
-- [Fix] Persistent log file handle — no longer opens/closes per line.
-- [Fix] Log spam deduplication with QSet.
+- [Feature] Add wildcard port syntax (`*:port`) to `VpnSettings::exclusions`.
+            Any connection to the specified port is matched regardless of the destination address.
 
-## 0.9
+## 1.0.49
 
-- [Fix] macOS/Linux builds now included in GitHub release artifacts.
-- [Fix] CI: added missing Linux Qt6/GL dependencies, macOS `macdeployqt` PATH.
-- [Fix] CI: `fail-fast: false` — platform builds run independently.
-- [Fix] Release job creates GitHub release even if one platform fails.
-- [Fix] WinTUN driver DLL bundled in release and installer builds.
+- [Fix] Protect service socket for DNS query forwarding with securely generated password #62
 
-## 0.8
+## 1.0.45
 
-- [Feature] VPN adapter discovery & deactivation in Advanced settings (Windows) — detect and disable
-  third-party adapters (Radmin VPN, Hamachi, WireGuard, Tailscale, Cloudflare WARP, etc.) that may
-  conflict with the FireTunnel WinTUN adapter.
-- [Feature] SSH traffic bypass option — route SSH (port 22) connections outside the VPN tunnel.
-- [Feature] P2P traffic bypass option — route BitTorrent / DHT traffic outside the VPN tunnel.
-- [Internal] New `NetworkAdapterManager` class for cross-platform adapter enumeration.
+- [Feature] Support importing DNS upstreams and server name from deep-link.
+            The `dns_upstreams` field is moved to `[endpoint]` section.
+            For backward compatibility, `dns_upstreams` in the root config section is still supported for old configs.
 
-## 0.7
+## 1.0.18
 
-- [Feature] Custom DNS server configuration (plain, DoT, DoH, QUIC, SDNS stamps)
-- [Feature] Domain bypass rules — exclude domains/CIDR patterns from VPN tunnel
-- [Feature] Adapter conflict scanner — detect Radmin VPN, Hamachi, OpenVPN TAP, WireGuard, etc.
-- [Feature] Network settings tab in Settings dialog
-- [Feature] Silent adapter conflict check on VPN connect (Windows)
+Added support for updated `tt://?` deep-link format.
 
 ## 1.0.9
 

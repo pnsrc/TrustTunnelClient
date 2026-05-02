@@ -45,9 +45,6 @@ post_quantum_group_enabled = {}
 
 {}
 exclusions = []
-
-{}
-dns_upstreams = []
 "#,
         Settings::doc_loglevel().to_toml_comment(),
         Settings::default_loglevel(),
@@ -59,7 +56,6 @@ dns_upstreams = []
         Settings::doc_post_quantum_group_enabled().to_toml_comment(),
         Settings::default_post_quantum_group_enabled(),
         Settings::doc_exclusions().to_toml_comment(),
-        Settings::doc_dns_upstreams().to_toml_comment(),
     )
 });
 
@@ -89,6 +85,9 @@ certificate = ""
 upstream_protocol = "{}"
 {}
 anti_dpi = false
+
+{}
+dns_upstreams = []
 "#,
         Endpoint::doc().to_toml_comment(),
         Endpoint::doc_hostname().to_toml_comment(),
@@ -104,6 +103,7 @@ anti_dpi = false
         Endpoint::doc_upstream_protocol().to_toml_comment(),
         Endpoint::default_upstream_protocol(),
         Endpoint::doc_anti_dpi().to_toml_comment(),
+        Endpoint::doc_dns_upstreams().to_toml_comment(),
     )
 });
 
@@ -145,6 +145,10 @@ excluded_routes = [{}]
 mtu_size = {}
 {}
 change_system_dns = {}
+{}
+device_name = "{}"
+{}
+use_existing = {}
 "#,
         TunListener::doc_bound_if().to_toml_comment(),
         TunListener::default_bound_if(),
@@ -164,5 +168,9 @@ change_system_dns = {}
         TunListener::default_mtu_size(),
         TunListener::doc_change_system_dns().to_toml_comment(),
         TunListener::default_change_system_dns(),
+        TunListener::doc_device_name().to_toml_comment(),
+        TunListener::default_device_name(),
+        TunListener::doc_use_existing().to_toml_comment(),
+        TunListener::default_use_existing(),
     )
 });

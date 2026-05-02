@@ -14,11 +14,11 @@
 #include <winternl.h>
 #include <ws2ipdef.h>
 
+#include "common/guid_utils.h"
 #include "common/socket_address.h"
 #include "common/utils.h"
 #include "net/network_manager.h"
 #include "net/os_tunnel.h"
-#include "vpn/guid_utils.h"
 #include "vpn/utils.h"
 
 // Need to link with Iphlpapi.lib and Ws2_32.lib
@@ -234,7 +234,7 @@ ag::VpnError ag::VpnWinTunnel::init(
     if (!wintun_init_success) {
         return {-1, "Unable to init wintun library"};
     }
-    m_wintun_adapter = create_wintun_adapter(win_settings->adapter_name, win_settings->tunnel_type);
+    m_wintun_adapter = create_wintun_adapter(settings->device_name, win_settings->tunnel_type);
     if (m_wintun_adapter == nullptr) {
         return {-1, "Unable to create wintun adapter"};
     }
@@ -322,14 +322,9 @@ bool ag::VpnWinTunnel::setup_mtu() {
 static DWORD set_dns_via_registry(std::string_view dns_list, std::string_view if_guid, bool ipv6 = false) {
     HKEY current_key{};
     DWORD error = ERROR_SUCCESS;
-    std::string_view interfaces_path;
-    if (ipv6) {
-        interfaces_path = WINREG_INTERFACES_PATH_V6;
-    } else {
-        interfaces_path = WINREG_INTERFACES_PATH_V4;
-    }
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, interfaces_path.data(), 0, KEY_ALL_ACCESS, &current_key) == ERROR_SUCCESS) {
-        // set dns for specified interface
+    std::string_view interfaces_path = ipv6 ? WINREG_INTERFACES_PATH_V6 : WINREG_INTERFACES_PATH_V4;
+    error = RegOpenKeyExA(HKEY_LOCAL_MACHINE, interfaces_path.data(), 0, KEY_ALL_ACCESS, &current_key);
+    if (error == ERROR_SUCCESS) {
         error = RegSetKeyValueA(current_key, if_guid.data(), "NameServer", REG_SZ, dns_list.data(), dns_list.size());
         RegCloseKey(current_key);
     }

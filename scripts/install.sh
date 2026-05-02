@@ -596,7 +596,7 @@ report_success() {
   echo
   echo "TrustTunnel Client has been installed successfully!"
   echo
-  echo "You may want to configure the client first, see 'cd ${output_dir} && setup_wizard -h'"
+  echo "You may want to configure the client first, see 'cd ${output_dir} && ./setup_wizard -h'"
   echo "The client executable is located at '${output_dir}/trusttunnel_client'"
   echo
 }
@@ -607,7 +607,7 @@ output_dir=''
 verbose='1'
 cpu=''
 os=''
-version='1.0.14'
+version='1.0.49'
 uninstall='0'
 remove_command="rm -f"
 is_root='0'

@@ -20,7 +20,7 @@ import shutil
 import stat
 import subprocess
 import sys
-import importlib.util
+import yaml
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 project_dir = os.path.dirname(work_dir)
@@ -29,11 +29,6 @@ nlc_dir_name = "native-libs-common"
 dns_libs_url = sys.argv[2] if len(sys.argv) > 2 else 'https://github.com/AdguardTeam/DnsLibs.git'
 dns_libs_dir_name = "dns-libs"
 nlc_versions = []
-
-
-def ensure_pyyaml_available():
-    if importlib.util.find_spec("yaml") is None:
-        subprocess.run([sys.executable, "-m", "pip", "install", "pyyaml"], check=True)
 
 
 def on_rm_tree_error(func, path, _):
@@ -49,6 +44,13 @@ def on_rm_tree_error(func, path, _):
         raise
 
 
+def remove_dir_if_exists(dir_path):
+    """Remove a directory if it exists, handling read-only files on Windows."""
+    if os.path.exists(dir_path):
+        os.chdir(work_dir)
+        shutil.rmtree(dir_path, onerror=on_rm_tree_error)
+
+
 with open(os.path.join(project_dir, "conanfile.py"), "r") as file:
     for line in map(str.strip, file.readlines()):
         if line.startswith('self.requires("native_libs_common/') \
@@ -58,56 +60,44 @@ with open(os.path.join(project_dir, "conanfile.py"), "r") as file:
                 and ('@adguard/oss"' in line):
             dns_libs_version = line.split('@')[0].split('/')[1]
 
-ensure_pyyaml_available()
-
 dns_libs_dir = os.path.join(work_dir, dns_libs_dir_name)
+remove_dir_if_exists(dns_libs_dir)
+try:
+    subprocess.run(["git", "clone", dns_libs_url, dns_libs_dir], check=True)
+    os.chdir(dns_libs_dir)
+    with open("conanfile.py", "r") as file:
+        for line in map(str.strip, file.readlines()):
+            if line.startswith('self.requires("native_libs_common/') \
+                    and ('@adguard/oss"' in line):
+                nlc_versions.append(line.split('@')[0].split('/')[1])
 
-
-def clone_with_retry(url, dest, retries=3):
-    """Clone a git repo with retries to handle transient network/corruption issues."""
-    for attempt in range(1, retries + 1):
-        if os.path.exists(dest):
-            shutil.rmtree(dest, onerror=on_rm_tree_error)
-        result = subprocess.run(["git", "clone", url, dest])
-        if result.returncode == 0:
-            return
-        if attempt == retries:
-            result.check_returncode()
-
-
-# Clean up from previous runs to avoid clone errors
-clone_with_retry(dns_libs_url, dns_libs_dir)
-os.chdir(dns_libs_dir)
-with open("conanfile.py", "r") as file:
-    for line in map(str.strip, file.readlines()):
-        if line.startswith('self.requires("native_libs_common/') \
-                and ('@adguard/oss"' in line):
-            nlc_versions.append(line.split('@')[0].split('/')[1])
-
-subprocess.run([sys.executable, os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
-# Not leaving directory causes used-by-another-process error
-os.chdir("..")
-shutil.rmtree(dns_libs_dir, onerror=on_rm_tree_error)
+    subprocess.run(["python3", os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
+finally:
+    remove_dir_if_exists(dns_libs_dir)
 
 os.chdir(work_dir)
 nlc_dir = os.path.join(work_dir, nlc_dir_name)
-clone_with_retry(nlc_url, nlc_dir)
-os.chdir(nlc_dir)
+remove_dir_if_exists(nlc_dir)
+try:
+    subprocess.run(["git", "clone", nlc_url, nlc_dir], check=True)
+    os.chdir(nlc_dir)
 
-# Reduce the chances of missing a necessary dependency exported with NLC
-# by exporting all recipes from all versions that are explicitly required.
+    # Reduce the chances of missing a necessary dependency exported with NLC
+    # by exporting all recipes from all versions of NLC, starting with the minimum
+    # necessary.
+    min_nlc_version = min(nlc_versions)
+    with open("conandata.yml", "r") as file:
+        items = yaml.safe_load(file)["commit_hash"]
 
-for v in nlc_versions: # [k for k in items.keys() if k >= min_nlc_version]:
-    subprocess.run(["git", "checkout", "master"], check=True)
-    try:
-        subprocess.run([sys.executable, os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
-    except:
-        if v in nlc_versions:
-            raise
-        else:
-            # Some native_libs_common versions have broken Conan recipes: ignore them.
-            continue
-
-# Not leaving directory causes used-by-another-process error
-os.chdir("..")
-shutil.rmtree(nlc_dir, onerror=on_rm_tree_error)
+    for v in nlc_versions: # [k for k in items.keys() if k >= min_nlc_version]:
+        subprocess.run(["git", "checkout", "master"], check=True)
+        try:
+            subprocess.run(["python3", os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
+        except:
+            if v in nlc_versions:
+                raise
+            else:
+                # Some native_libs_common versions have broken Conan recipes: ignore them.
+                continue
+finally:
+    remove_dir_if_exists(nlc_dir)

@@ -21,8 +21,9 @@
 
 namespace ag {
 
-AutoNetworkMonitor::AutoNetworkMonitor(TrustTunnelClient *client)
-        : m_client(client) {
+AutoNetworkMonitor::AutoNetworkMonitor(TrustTunnelClient *client, std::string bound_if)
+        : m_client(client)
+        , m_bound_if(std::move(bound_if)) {
 }
 
 AutoNetworkMonitor::~AutoNetworkMonitor() {
@@ -35,6 +36,12 @@ static bool update_interface(std::string_view if_name) {
         vpn_network_manager_set_outbound_interface(if_index);
         return true;
     }
+#ifdef _WIN32
+    if (auto idx = ag::utils::to_integer<uint32_t>(if_name)) {
+        vpn_network_manager_set_outbound_interface(*idx);
+        return true;
+    }
+#endif
     return false;
 }
 
@@ -44,12 +51,7 @@ bool AutoNetworkMonitor::start() {
         vpn_event_loop_run(m_network_monitor_loop.get());
     });
 
-    std::string_view bound_if = m_client->get_bound_if();
-    bool requested_bound_if = !bound_if.empty();
-    bool bound_if_applied = requested_bound_if && update_interface(bound_if);
-    // If the requested interface can't be resolved (e.g. on Windows with friendly names),
-    // fall back to auto-detected interface instead of failing the whole monitor startup.
-    bool is_bound_if_override = requested_bound_if && bound_if_applied;
+    bool is_bound_if_override = !m_bound_if.empty();
 
     m_network_monitor = ag::utils::create_network_monitor(
             [this, is_bound_if_override](const std::string &if_name, bool is_connected) {
@@ -58,6 +60,10 @@ bool AutoNetworkMonitor::start() {
                 }
                 m_client->notify_network_change(is_connected ? ag::VPN_NS_CONNECTED : ag::VPN_NS_NOT_CONNECTED);
             });
+
+    if (is_bound_if_override && !update_interface(m_bound_if)) {
+        return false;
+    }
 
     event_loop::dispatch_sync(m_network_monitor_loop.get(), [this, is_bound_if_override]() {
         m_network_monitor->start(vpn_event_loop_get_base(m_network_monitor_loop.get()));

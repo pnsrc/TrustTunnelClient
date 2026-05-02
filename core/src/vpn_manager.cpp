@@ -651,6 +651,7 @@ VpnExclusionValidationStatus vpn_validate_exclusion(const char *text) {
     case DFVS_OK_ADDR:
     case DFVS_OK_CIDR:
     case DFVS_OK_DOMAIN:
+    case DFVS_OK_PORT:
         return VPN_EVS_OK;
     case DFVS_MALFORMED:
         return VPN_EVS_MALFORMED;
@@ -695,7 +696,7 @@ static int ssl_verify_callback(const char *host_name, const sockaddr *host_ip, c
     const Vpn *vpn = (Vpn *) arg;
 
     int result = 0;
-    VpnVerifyCertificateEvent event = {ctx.cert, ctx.chain, 0};
+    VpnVerifyCertificateEvent event = {ctx.cert, ctx.chain, ctx.verification_type, 0};
     vpn->handler.func(vpn->handler.arg, VPN_EVENT_VERIFY_CERTIFICATE, &event);
     if (event.result == 0) {
         result = 1;

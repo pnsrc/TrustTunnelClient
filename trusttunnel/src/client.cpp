@@ -49,6 +49,10 @@ int TrustTunnelClient::disconnect() {
         vpn_close(vpn);
     }
 
+    if (m_tunnel != nullptr) {
+        std::exchange(m_tunnel, nullptr)->deinit();
+    }
+
     return 0;
 }
 
@@ -72,13 +76,6 @@ void TrustTunnelClient::notify_wake() {
 
 bool TrustTunnelClient::process_client_packets(VpnPackets packets) {
     return m_vpn && vpn_process_client_packets(m_vpn, packets);
-}
-
-std::string_view TrustTunnelClient::get_bound_if() const {
-    if (const auto *tun = std::get_if<TrustTunnelConfig::TunListener>(&m_config.listener)) {
-        return tun->bound_if;
-    }
-    return {};
 }
 
 Error<TrustTunnelClient::ConnectResultError> TrustTunnelClient::set_system_dns() {
@@ -143,9 +140,13 @@ Error<TrustTunnelClient::ConnectResultError> TrustTunnelClient::vpn_runner(Liste
         return make_error(ConnectResultError{}, "Failed to create listener");
     }
 
+    // Backward compatibility for legacy configs
+    const auto &effective_dns = m_config.location.dns_upstreams.has_value() ? *m_config.location.dns_upstreams
+                                                                            : m_config.legacy_dns_upstreams;
+
     std::vector<const char *> dns_upstreams;
-    dns_upstreams.reserve(m_config.dns_upstreams.size());
-    for (const std::string &upstream : m_config.dns_upstreams) {
+    dns_upstreams.reserve(effective_dns.size());
+    for (const std::string &upstream : effective_dns) {
         dns_upstreams.emplace_back(upstream.c_str());
     }
 
@@ -333,7 +334,9 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
             .included_routes = {.data = included_routes.data(), .size = uint32_t(included_routes.size())},
             .excluded_routes = {.data = excluded_routes.data(), .size = uint32_t(excluded_routes.size())},
             .mtu = int(config.mtu_size),
-            .dns_servers = config.change_system_dns ? defaults->dns_servers : VpnAddressArray{}};
+            .dns_servers = config.change_system_dns ? defaults->dns_servers : VpnAddressArray{},
+            .device_name = !config.device_name.empty() ? config.device_name.c_str() : defaults->device_name,
+            .use_existing = config.use_existing};
 
     m_tunnel = ag::make_vpn_tunnel();
     if (m_tunnel == nullptr) {
@@ -349,6 +352,14 @@ VpnListener *TrustTunnelClient::make_tun_listener(ListenerSettings listener_sett
         return nullptr;
     }
     VpnWinTunnelSettings win_settings = *vpn_win_tunnel_settings_defaults();
+    if (config.device_name.empty()) {
+        // Fallback to hostname if no name is specified
+        if (!m_config.location.endpoints.empty()) {
+            static std::string fallback_name;
+            fallback_name = AG_FMT("TrustTunnel ({})", m_config.location.endpoints[0].hostname);
+            tunnel_settings.device_name = fallback_name.c_str();
+        }
+    }
     win_settings.wintun_lib = m_wintun;
     win_settings.block_untunneled = m_config.killswitch_enabled;
     win_settings.block_untunneled_exclude_ports = m_config.killswitch_allow_ports.c_str();
@@ -428,17 +439,21 @@ void TrustTunnelClient::vpn_handler(void *, VpnEvent what, void *data) {
     }
     case VPN_EVENT_VERIFY_CERTIFICATE: {
         auto *event = (VpnVerifyCertificateEvent *) data;
-        if (m_config.location.skip_verification) {
-            dbglog(m_logger, "Skipping certificate verification");
-            event->result = VPN_SKIP_VERIFICATION_FLAG;
-        } else if (m_config.location.ca_store) {
-            const char *err = tls_verify_cert(event->cert, event->chain, m_config.location.ca_store.get());
-            if (err != nullptr) {
-                errlog(m_logger, "Failed to verify certificate: {}", err);
-                event->result = -1;
+        if (event->verification_type == VT_ENDPOINT) {
+            if (m_config.location.skip_verification) {
+                dbglog(m_logger, "Skipping certificate verification");
+                event->result = VPN_SKIP_VERIFICATION_FLAG;
+            } else if (m_config.location.ca_store) {
+                const char *err = tls_verify_cert(event->cert, event->chain, m_config.location.ca_store.get());
+                if (err != nullptr) {
+                    errlog(m_logger, "Failed to verify certificate: {}", err);
+                    event->result = -1;
+                } else {
+                    dbglog(m_logger, "Certificate verified successfully");
+                    event->result = 0;
+                }
             } else {
-                dbglog(m_logger, "Certificate verified successfully");
-                event->result = 0;
+                m_callbacks.verify_handler(event);
             }
         } else {
             m_callbacks.verify_handler(event);

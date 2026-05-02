@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "common/logger.h"
+#include "common/net_utils.h"
 #include "common/utils.h"
 #include "net/dns_utils.h"
 #include "vpn/internal/vpn_client.h"
@@ -132,7 +133,7 @@ void ag::DnsHandlerServerUpstreamBase::close_session() {
 
 uint64_t ag::DnsHandlerServerUpstreamBase::open_connection(
         const TunnelAddressPair *addr, int proto, std::string_view app_name) {
-    if (addr->dstport() != dns_utils::PLAIN_DNS_PORT_NUMBER) {
+    if (addr->dstport() != utils::PLAIN_DNS_PORT_NUMBER) {
         assert(0);
         return NON_ID;
     }
@@ -615,6 +616,8 @@ bool ag::DnsHandler::start_dns_proxy() {
     m_dns_proxy = std::make_unique<DnsProxyAccessor>(
             DnsProxyAccessor::Parameters{.upstreams = std::move(m_parameters.dns_upstreams),
                     .socks_listener_address = m_parameters.dns_proxy_listener_address,
+                    .socks_listener_username = m_parameters.dns_proxy_listener_username,
+                    .socks_listener_password = m_parameters.dns_proxy_listener_password,
                     .cert_verify_handler = m_parameters.cert_verify_handler,
 #if defined(__APPLE__) && TARGET_OS_IPHONE
                     .qos_settings = {.qos_class = ServerUpstream::vpn->parameters.qos_settings.qos_class,

@@ -8,6 +8,8 @@ internal struct TunConfig: Codable {
 
 internal struct Endpoint: Codable {
     let addresses: [String]
+    let dns_upstreams: [String]?
+    let name: String
 }
 
 internal struct VpnConfig: Codable {
@@ -15,7 +17,6 @@ internal struct VpnConfig: Codable {
         let tun: TunConfig
     }
     let listener: Listener
-    let dns_upstreams: [String]
     let endpoint: Endpoint
     let killswitch_enabled: Bool
 }

@@ -110,7 +110,6 @@ pub extern "C" fn trusttunnel_deeplink_string_free(ptr: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::SocketAddr;
     use trusttunnel_deeplink::{DeepLinkConfig, Protocol};
 
     #[test]
@@ -159,7 +158,7 @@ mod tests {
     fn test_roundtrip() {
         let config = DeepLinkConfig {
             hostname: "vpn.example.com".to_string(),
-            addresses: vec!["1.2.3.4:443".parse::<SocketAddr>().unwrap()],
+            addresses: vec!["1.2.3.4:443".parse().unwrap()],
             username: "alice".to_string(),
             password: "s3cr3t".to_string(),
             client_random_prefix: Some("aabb".to_string()),
@@ -169,6 +168,8 @@ mod tests {
             certificate: None,
             upstream_protocol: Protocol::Http2,
             anti_dpi: false,
+            dns_upstreams: vec!["tls://dns.adguard-dns.com".to_string()],
+            name: Some("Example VPN".to_string()),
         };
 
         let uri = trusttunnel_deeplink::encode(&config).expect("encode should succeed");
@@ -190,6 +191,14 @@ mod tests {
         assert!(
             toml_str.contains("aabb"),
             "Output must contain client_random"
+        );
+        assert!(
+            toml_str.contains("dns.adguard-dns.com"),
+            "Output must contain dns_upstreams value"
+        );
+        assert!(
+            toml_str.contains("Example VPN"),
+            "Output must contain name value"
         );
     }
 }
