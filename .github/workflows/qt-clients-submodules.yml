@@ -99,8 +99,10 @@ jobs:
         run: |
           choco install ninja -y
           python -m pip install --upgrade pip
+          # Install pyyaml first — it must be present before bootstrap_conan_deps.py runs.
+          # Do this before requirements.txt so a failure in that file can't block pyyaml.
+          python -m pip install "pyyaml>=6.0.3"
           python -m pip install -r requirements.txt
-          python -m pip install pyyaml
           python -m pip install conan~=$env:CONAN_VER
 
       - name: Set up MSVC (Windows)
