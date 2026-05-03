@@ -45,14 +45,16 @@ class TrustTunnelVpnService : VpnService() {
         const val ACTION_DISCONNECT  = "com.trusttunnel.android.DISCONNECT"
         const val EXTRA_CONFIG_TOML  = "config_toml"
 
-        const val BROADCAST_STATE    = "com.trusttunnel.android.VPN_STATE"
-        const val EXTRA_STATE        = "state"
-        const val STATE_CONNECTED    = "CONNECTED"
-        const val STATE_CONNECTING   = "CONNECTING"
-        const val STATE_DISCONNECTED = "DISCONNECTED"
-        const val STATE_ERROR        = "ERROR"
-        const val EXTRA_ERROR_MSG    = "error_msg"
-        const val EXTRA_STATS        = "stats"
+        const val BROADCAST_STATE     = "com.trusttunnel.android.VPN_STATE"
+        const val EXTRA_STATE         = "state"
+        const val STATE_CONNECTED     = "CONNECTED"
+        const val STATE_CONNECTING    = "CONNECTING"
+        const val STATE_DISCONNECTED  = "DISCONNECTED"
+        const val STATE_ERROR         = "ERROR"
+        const val EXTRA_ERROR_MSG     = "error_msg"
+        const val EXTRA_STATS         = "stats"
+        /** Epoch-ms when VPN reached CONNECTED state; sent in STATE_CONNECTED broadcasts. */
+        const val EXTRA_CONNECTED_AT  = "connected_at"
 
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID      = "trusttunnel_vpn"
@@ -62,6 +64,7 @@ class TrustTunnelVpnService : VpnService() {
     @Volatile private var vpnClient: VpnClient? = null
     @Volatile private var fallbackTun: ParcelFileDescriptor? = null
     @Volatile private var connectThread: Thread? = null
+    @Volatile private var connectedAt: Long = 0L
 
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
@@ -222,10 +225,18 @@ class TrustTunnelVpnService : VpnService() {
             Log.d(TAG, "VpnState → $s")
             when (s) {
                 VpnState.CONNECTED -> {
+                    connectedAt = System.currentTimeMillis()
                     broadcastState(STATE_CONNECTED)
                     startForegroundCompat(buildNotification(STATE_CONNECTED))
                 }
-                VpnState.DISCONNECTED        -> broadcastState(STATE_DISCONNECTED)
+                VpnState.DISCONNECTED -> {
+                    // Broadcast first so UI updates immediately.
+                    broadcastState(STATE_DISCONNECTED)
+                    // Post stop to main-thread: this callback fires from inside
+                    // startNative() on the vpn-connect thread — calling stop()
+                    // synchronously here would deadlock on the sync lock.
+                    android.os.Handler(mainLooper).post { stopVpn(null) }
+                }
                 VpnState.CONNECTING          -> broadcastState(STATE_CONNECTING)
                 VpnState.WAITING_RECOVERY,
                 VpnState.RECOVERING,
@@ -251,7 +262,13 @@ class TrustTunnelVpnService : VpnService() {
     // ── Connect thread ─────────────────────────────────────────────────────────
 
     private fun cancelConnectThread() {
-        connectThread?.interrupt()
+        connectThread?.let { thread ->
+            thread.interrupt()
+            // Wait up to 3 s for the thread to finish.  Without join(),
+            // teardownVpnClient() can run concurrently while connectInBackground()
+            // is still inside client.start(), causing a race on vpnClient.
+            runCatching { thread.join(3_000) }
+        }
         connectThread = null
     }
 
@@ -290,7 +307,10 @@ class TrustTunnelVpnService : VpnService() {
     // ── Notifications ─────────────────────────────────────────────────────────
 
     private fun startForegroundCompat(notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED was introduced in API 34.
+        // Passing it on API 29-33 (where the 3-arg overload exists but the
+        // type value is unknown to the system) can throw an exception.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NOTIFICATION_ID, notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
@@ -321,12 +341,26 @@ class TrustTunnelVpnService : VpnService() {
         else
             getString(R.string.vpn_notification_connecting)
 
+        // "Disconnect" action lets the user stop VPN without opening the app.
+        val disconnectPi = PendingIntent.getService(
+            this, 1,
+            Intent(this, TrustTunnelVpnService::class.java).apply { action = ACTION_DISCONNECT },
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.vpn_notification_title))
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(tap)
             .setOngoing(true)
+            .addAction(
+                Notification.Action.Builder(
+                    null,
+                    getString(R.string.disconnect),
+                    disconnectPi
+                ).build()
+            )
             .build()
     }
 
@@ -341,6 +375,9 @@ class TrustTunnelVpnService : VpnService() {
             putExtra(EXTRA_STATE, vpnState)
             error?.let { putExtra(EXTRA_ERROR_MSG, it) }
             stats?.let { putExtra(EXTRA_STATS, it) }
+            if (vpnState == STATE_CONNECTED && connectedAt > 0L) {
+                putExtra(EXTRA_CONNECTED_AT, connectedAt)
+            }
             setPackage(packageName)
         })
     }

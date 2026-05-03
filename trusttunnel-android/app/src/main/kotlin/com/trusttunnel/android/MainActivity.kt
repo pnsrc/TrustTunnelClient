@@ -9,10 +9,13 @@ import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.ArrayAdapter
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -32,11 +35,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var connectionButton: MaterialButton
     private lateinit var configSpinner: Spinner
     private lateinit var qrButton: MaterialButton
+    private lateinit var logsButton: MaterialButton
     private lateinit var settingsButton: MaterialButton
     private lateinit var statsText: TextView
+    private lateinit var deleteConfigButton: MaterialButton
 
     private var configs: List<VpnConfig> = emptyList()
     private var vpnState: String = TrustTunnelVpnService.STATE_DISCONNECTED
+
+    // Uptime tracking
+    private val uptimeHandler = Handler(Looper.getMainLooper())
+    private var connectedAt: Long = 0L
+    private val uptimeTicker = object : Runnable {
+        override fun run() {
+            if (vpnState == TrustTunnelVpnService.STATE_CONNECTED && connectedAt > 0L) {
+                val elapsed = (System.currentTimeMillis() - connectedAt) / 1000L
+                val h = elapsed / 3600
+                val m = (elapsed % 3600) / 60
+                val s = elapsed % 60
+                val uptimeStr = if (h > 0) "%d:%02d:%02d".format(h, m, s)
+                                else "%02d:%02d".format(m, s)
+                statsText.text = getString(R.string.uptime_label, uptimeStr)
+                uptimeHandler.postDelayed(this, 1_000)
+            }
+        }
+    }
 
     companion object {
         private const val REQ_CAMERA = 101
@@ -68,7 +91,21 @@ class MainActivity : AppCompatActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             val state = intent.getStringExtra(TrustTunnelVpnService.EXTRA_STATE) ?: return
             vpnState = state
+
+            // Capture connection time for uptime counter
+            if (state == TrustTunnelVpnService.STATE_CONNECTED) {
+                val ts = intent.getLongExtra(TrustTunnelVpnService.EXTRA_CONNECTED_AT, 0L)
+                if (ts > 0L) connectedAt = ts
+                uptimeHandler.removeCallbacks(uptimeTicker)
+                uptimeHandler.post(uptimeTicker)
+            } else if (state == TrustTunnelVpnService.STATE_DISCONNECTED ||
+                       state == TrustTunnelVpnService.STATE_ERROR) {
+                uptimeHandler.removeCallbacks(uptimeTicker)
+                connectedAt = 0L
+            }
+
             updateStatusUI(state)
+
             // Show connection stats (JSON blob from native core) if present
             val stats = intent.getStringExtra(TrustTunnelVpnService.EXTRA_STATS)
             if (!stats.isNullOrBlank()) {
@@ -106,28 +143,39 @@ class MainActivity : AppCompatActivity() {
         runCatching { unregisterReceiver(vpnStateReceiver) }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        uptimeHandler.removeCallbacks(uptimeTicker)
+    }
+
     // ── View setup ─────────────────────────────────────────────────────────────
 
     private fun bindViews() {
         val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
 
-        statusCard       = findViewById(R.id.statusCard)
-        statusLabel      = findViewById(R.id.statusLabel)
-        statusText       = findViewById(R.id.statusText)
-        connectionButton = findViewById(R.id.connectionButton)
-        configSpinner    = findViewById(R.id.configSpinner)
-        qrButton         = findViewById(R.id.qrButton)
-        settingsButton   = findViewById(R.id.settingsButton)
-        statsText        = findViewById(R.id.statsText)
+        statusCard        = findViewById(R.id.statusCard)
+        statusLabel       = findViewById(R.id.statusLabel)
+        statusText        = findViewById(R.id.statusText)
+        connectionButton  = findViewById(R.id.connectionButton)
+        configSpinner     = findViewById(R.id.configSpinner)
+        qrButton          = findViewById(R.id.qrButton)
+        logsButton        = findViewById(R.id.logsButton)
+        settingsButton    = findViewById(R.id.settingsButton)
+        statsText         = findViewById(R.id.statsText)
+        deleteConfigButton = findViewById(R.id.deleteConfigButton)
     }
 
     private fun setupListeners() {
         connectionButton.setOnClickListener { onConnectClicked() }
         qrButton.setOnClickListener { openQrScanner() }
+        logsButton.setOnClickListener {
+            startActivity(Intent(this, LogActivity::class.java))
+        }
         settingsButton.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        deleteConfigButton.setOnClickListener { confirmDeleteConfig() }
     }
 
     // ── Config loading ─────────────────────────────────────────────────────────
@@ -142,7 +190,9 @@ class MainActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         configSpinner.adapter = adapter
-        connectionButton.isEnabled = configs.isNotEmpty()
+        val hasConfigs = configs.isNotEmpty()
+        connectionButton.isEnabled = hasConfigs
+        deleteConfigButton.isEnabled = hasConfigs
     }
 
     // ── Connect / disconnect ───────────────────────────────────────────────────
@@ -160,10 +210,8 @@ class MainActivity : AppCompatActivity() {
     private fun prepareAndConnect() {
         val prepareIntent = VpnService.prepare(this)
         if (prepareIntent != null) {
-            // Need to ask user for VPN permission
             vpnPermissionLauncher.launch(prepareIntent)
         } else {
-            // Already prepared
             startVpn()
         }
     }
@@ -191,6 +239,24 @@ class MainActivity : AppCompatActivity() {
         updateStatusUI(TrustTunnelVpnService.STATE_DISCONNECTED)
     }
 
+    // ── Delete config ──────────────────────────────────────────────────────────
+
+    private fun confirmDeleteConfig() {
+        val idx = configSpinner.selectedItemPosition
+        if (idx < 0 || idx >= configs.size) return
+        val config = configs[idx]
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.delete_config_title))
+            .setMessage(getString(R.string.delete_config_message, config.name))
+            .setPositiveButton(getString(R.string.delete)) { _, _ ->
+                configManager.deleteConfig(config.id)
+                loadConfigs()
+                showSnackbar(getString(R.string.config_deleted, config.name))
+            }
+            .setNegativeButton(getString(android.R.string.cancel), null)
+            .show()
+    }
+
     // ── Status UI ──────────────────────────────────────────────────────────────
 
     private fun updateStatusUI(state: String) {
@@ -215,6 +281,7 @@ class MainActivity : AppCompatActivity() {
                 connectionButton.text = getString(R.string.connect)
                 statusCard.setCardBackgroundColor(getColor(R.color.claude_red_container))
                 statusText.setTextColor(getColor(R.color.claude_red))
+                statsText.text = getString(R.string.no_stats)
             }
             else -> { // DISCONNECTED
                 statusLabel.text = getString(R.string.status_disconnected)
@@ -227,15 +294,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ── Stats display ─────────────────────────────────────────────────────────
+    // ── Stats / uptime display ────────────────────────────────────────────────
 
-    /**
-     * Parse a simplified stats summary from the JSON blob emitted by the native core.
-     * We look for "bytesReceived" and "bytesSent" (or similar fields).
-     */
     private fun updateStats(json: String) {
         runCatching {
-            // Simple regex-based extraction to avoid requiring a JSON dependency
             fun extract(key: String): Long? =
                 Regex(""""$key"\s*:\s*(\d+)""").find(json)?.groupValues?.get(1)?.toLong()
 
@@ -251,7 +313,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatBytes(bytes: Long): String = when {
-        bytes < 1_024L           -> "${bytes} B"
+        bytes < 1_024L           -> "$bytes B"
         bytes < 1_048_576L       -> "${"%.1f".format(bytes / 1_024.0)} KB"
         bytes < 1_073_741_824L   -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
         else                     -> "${"%.2f".format(bytes / 1_073_741_824.0)} GB"

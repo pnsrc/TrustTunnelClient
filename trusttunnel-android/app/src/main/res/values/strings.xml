@@ -14,9 +14,11 @@
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="qr_scan">Scan QR</string>
+    <string name="logs">Logs</string>
     <string name="settings">Settings</string>
     <string name="back">Back</string>
     <string name="save">Save</string>
+    <string name="delete">Delete</string>
 
     <!-- Labels -->
     <string name="configuration">Configuration</string>
@@ -45,6 +47,14 @@
     <string name="logging">Diagnostics</string>
     <string name="log_level">Log Level</string>
     <string name="view_logs">View Logs</string>
+
+    <!-- Config management -->
+    <string name="delete_config_title">Delete config</string>
+    <string name="delete_config_message">Delete \"%s\"?</string>
+    <string name="config_deleted">\"%s\" deleted</string>
+
+    <!-- Uptime -->
+    <string name="uptime_label">Connected · %s</string>
 
     <!-- Log viewer -->
     <string name="logs_title">Logs</string>

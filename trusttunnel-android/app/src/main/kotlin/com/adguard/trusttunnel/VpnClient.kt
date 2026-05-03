@@ -1,6 +1,7 @@
 package com.adguard.trusttunnel
 
 import android.os.ParcelFileDescriptor
+import androidx.annotation.Keep
 import com.adguard.trusttunnel.log.NativeLogger
 import com.adguard.trusttunnel.log.NativeLoggerLevel
 import org.slf4j.LoggerFactory
@@ -100,15 +101,19 @@ class VpnClient(
     // The native library looks up these methods by JNI descriptor "(I)V" /
     // "(Ljava/lang/String;)V" — a mismatch causes NoSuchMethodError → SIGABRT.
 
-    fun protectSocket(socket: Int): Boolean = callbacks?.protectSocket(socket) ?: false
+    // @Keep prevents R8/ProGuard from renaming or removing these methods when
+    // minification is enabled — they are only "used" by native code via JNI.
+    @Keep fun protectSocket(socket: Int): Boolean = callbacks?.protectSocket(socket) ?: false
 
-    fun verifyCertificate(cert: ByteArray?, chain: List<ByteArray?>?): Boolean =
+    @Keep fun verifyCertificate(cert: ByteArray?, chain: List<ByteArray?>?): Boolean =
         callbacks?.verifyCertificate(cert, chain) ?: false
 
+    @Keep
     fun onStateChanged(state: Int) {          // return type Unit → JVM "(I)V" ✓
         callbacks?.onStateChanged(state)
     }
 
+    @Keep
     fun onConnectionInfo(info: String) {      // return type Unit → JVM "(Ljava/lang/String;)V" ✓
         callbacks?.onConnectionInfo(info)
     }
