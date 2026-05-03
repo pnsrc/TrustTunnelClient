@@ -41,7 +41,10 @@ android {
             // Two directories up from app/ lands at the repo root; then into
             // platform/android/lib/src/main/cpp/CMakeLists.txt.
             path = file("../../platform/android/lib/src/main/cpp/CMakeLists.txt")
-            version = "3.24+"
+            // Do NOT specify version here.  The Android SDK only ships cmake up
+            // to 3.22.1, but our CMakeLists.txt files require >= 3.24.
+            // In CI (and local dev) we point AGP at the system cmake via
+            // cmake.dir in local.properties, which overrides the version field.
         }
     }
 

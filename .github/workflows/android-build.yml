@@ -83,6 +83,19 @@ jobs:
           ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;${NDK_VERSION}"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> $GITHUB_ENV
 
+      - name: Point AGP at the system CMake (>= 3.24)
+        run: |
+          # The Android SDK only ships cmake up to 3.22.1, but our CMakeLists.txt
+          # files require cmake >= 3.24.  Setting cmake.dir in local.properties
+          # tells AGP to use the system cmake binary and ignores the version field
+          # in build.gradle.kts.  ubuntu-latest ships cmake 3.28+.
+          CMAKE_BIN=$(which cmake)
+          CMAKE_INSTALL_ROOT=$(dirname "${CMAKE_BIN}")/..
+          echo "Using system cmake: $(cmake --version | head -1) at ${CMAKE_BIN}"
+          echo "cmake.dir=${CMAKE_INSTALL_ROOT}" >> trusttunnel-android/local.properties
+          # Ensure ninja is also available (needed by CMake in Android builds)
+          which ninja || sudo apt-get install -y ninja-build
+
       - name: Build debug APK
         working-directory: trusttunnel-android
         run: |
