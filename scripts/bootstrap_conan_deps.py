@@ -71,7 +71,7 @@ try:
                     and ('@adguard/oss"' in line):
                 nlc_versions.append(line.split('@')[0].split('/')[1])
 
-    subprocess.run(["python3", os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
+    subprocess.run([sys.executable, os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
 finally:
     remove_dir_if_exists(dns_libs_dir)
 
@@ -92,7 +92,7 @@ try:
     for v in nlc_versions: # [k for k in items.keys() if k >= min_nlc_version]:
         subprocess.run(["git", "checkout", "master"], check=True)
         try:
-            subprocess.run(["python3", os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
+            subprocess.run([sys.executable, os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
         except:
             if v in nlc_versions:
                 raise
