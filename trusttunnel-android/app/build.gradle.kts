@@ -60,9 +60,6 @@ dependencies {
     implementation("org.slf4j:slf4j-api:1.7.36")
     implementation("com.github.tony19:logback-android:2.0.0")
 
-    // TrustTunnel native library (VpnClient, VpnState, VpnClientListener)
-    implementation(project(":trusttunnel-lib"))
-
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
