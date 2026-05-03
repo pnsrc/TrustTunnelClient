@@ -1,25 +1,32 @@
 package com.trusttunnel.android
 
 import android.app.Application
-import com.github.tony19.logback.android.LogbackAndroid
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.android.AndroidContextUtil
+import org.slf4j.LoggerFactory
 
 /**
  * Custom Application entry point.
  *
- * logback-android needs to be initialised with the app Context before any
- * Logger is obtained, so that the ${DATA_DIR} / ${EXT_DIR} property
- * substitutions in assets/logback.xml resolve to the correct paths.
+ * logback-android 2.x auto-initialises via a ContentProvider registered in
+ * the library's merged manifest.  Calling [AndroidContextUtil.setupLoggingContext]
+ * here is a belt-and-suspenders measure: it guarantees that the ${DATA_DIR}
+ * property substitution in assets/logback.xml resolves to the correct
+ * app-private path even on edge-case startup paths where the ContentProvider
+ * fires after the first Logger is obtained.
  *
- * Without this call the RollingFileAppender silently fails to create
- * the log file (the path resolves to a bare "/logs/trusttunnel.log"
- * which is unwritable), leaving only the Logcat appender active.
+ * Without a correct DATA_DIR the RollingFileAppender silently fails to create
+ * the log file (the path resolves to a bare "/logs/trusttunnel.log" which is
+ * unwritable), leaving only the Logcat appender active.
  */
 class TrustTunnelApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Wire logback-android to this application's Context.
-        // Must be called before any LoggerFactory.getLogger() usage.
-        LogbackAndroid.setup(this)
+        // Ensure the app Context is available to logback-android before any
+        // Logger is obtained.  LoggerFactory.getILoggerFactory() returns the
+        // already-initialised LoggerContext (or triggers initialisation now).
+        val lc = LoggerFactory.getILoggerFactory() as? LoggerContext ?: return
+        AndroidContextUtil(this).setupLoggingContext(lc)
     }
 }
