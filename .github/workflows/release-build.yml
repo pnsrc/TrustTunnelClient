@@ -58,6 +58,10 @@ jobs:
         run: |
           choco install ninja -y
           python -m pip install --upgrade pip
+          # pyyaml must be installed before bootstrap_conan_deps.py runs.
+          # Conan lists it as a dependency but pip does not guarantee it ends up
+          # importable from Git Bash's python3, so install it explicitly here.
+          python -m pip install "pyyaml>=6.0.3"
           python -m pip install conan~=$env:CONAN_VER
 
       - name: Set up MSVC (Windows)
@@ -97,10 +101,15 @@ jobs:
             Write-Host "Renamed $msysLink to avoid shadowing MSVC link.exe"
           }
 
-      - name: Bootstrap Conan dependencies
+      - name: Bootstrap Conan dependencies (Linux/macOS)
+        if: matrix.os != 'windows-latest'
         shell: bash
-        run: |
-          python3 ./scripts/bootstrap_conan_deps.py
+        run: python3 ./scripts/bootstrap_conan_deps.py
+
+      - name: Bootstrap Conan dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: python ./scripts/bootstrap_conan_deps.py
 
       - name: Configure (Unix)
         if: matrix.os != 'windows-latest'

@@ -50,6 +50,8 @@ jobs:
         run: |
           choco install ninja nsis -y
           python -m pip install --upgrade pip
+          # pyyaml must be importable before bootstrap_conan_deps.py runs.
+          python -m pip install "pyyaml>=6.0.3"
           python -m pip install conan~=$env:CONAN_VER
 
       - name: Set up MSVC
