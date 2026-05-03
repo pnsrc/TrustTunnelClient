@@ -6,9 +6,13 @@
         ${EXT_DIR}   → Context.getExternalFilesDir(null)
     -->
 
+    <!-- File appender: writes to internal storage, survives process restarts -->
     <appender name="FILE"
         class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${DATA_DIR}/logs/trusttunnel.log</file>
+        <!-- Flush every line — critical for catching crashes:
+             without immediateFlush a SIGABRT discards the in-memory buffer. -->
+        <immediateFlush>true</immediateFlush>
         <rollingPolicy
             class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${DATA_DIR}/logs/trusttunnel.%d{yyyy-MM-dd}.log</fileNamePattern>
@@ -20,8 +24,22 @@
         </encoder>
     </appender>
 
+    <!-- Logcat appender: fallback so logs always appear in adb logcat
+         even if the file appender fails to initialise (e.g. DATA_DIR not
+         resolved yet on very first launch). -->
+    <appender name="LOGCAT"
+        class="ch.qos.logback.classic.android.LogcatAppender">
+        <tagEncoder>
+            <pattern>%logger{0}</pattern>
+        </tagEncoder>
+        <encoder>
+            <pattern>[%-5level] %msg%n</pattern>
+        </encoder>
+    </appender>
+
     <root level="DEBUG">
         <appender-ref ref="FILE" />
+        <appender-ref ref="LOGCAT" />
     </root>
 
 </configuration>

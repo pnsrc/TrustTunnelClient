@@ -92,11 +92,26 @@ class VpnClient(
     }
 
     // ── Callbacks invoked from native code via JNI ─────────────────────────────
+    //
+    // IMPORTANT: onStateChanged and onConnectionInfo MUST use block-body syntax
+    // (not expression-body).  With expression body `= callbacks?.foo()` Kotlin
+    // infers the return type as Unit? (nullable Unit) when callbacks is nullable,
+    // which compiles to JVM signature (...)Ljava/lang/Object; instead of (...)V.
+    // The native library looks up these methods by JNI descriptor "(I)V" /
+    // "(Ljava/lang/String;)V" — a mismatch causes NoSuchMethodError → SIGABRT.
+
     fun protectSocket(socket: Int): Boolean = callbacks?.protectSocket(socket) ?: false
+
     fun verifyCertificate(cert: ByteArray?, chain: List<ByteArray?>?): Boolean =
         callbacks?.verifyCertificate(cert, chain) ?: false
-    fun onStateChanged(state: Int) = callbacks?.onStateChanged(state)
-    fun onConnectionInfo(info: String) = callbacks?.onConnectionInfo(info)
+
+    fun onStateChanged(state: Int) {          // return type Unit → JVM "(I)V" ✓
+        callbacks?.onStateChanged(state)
+    }
+
+    fun onConnectionInfo(info: String) {      // return type Unit → JVM "(Ljava/lang/String;)V" ✓
+        callbacks?.onConnectionInfo(info)
+    }
 
     // ── JNI stubs (implemented in trusttunnel_android.so) ─────────────────────
     private external fun createNative(config: String): Long
