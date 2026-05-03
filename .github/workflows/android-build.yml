@@ -60,16 +60,6 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install "pyyaml>=6.0.3" conan~=${CONAN_VER}
 
-      - name: Set up Rust + cargo-ndk
-        run: |
-          # Rust is pre-installed on ubuntu-latest; just add the Android target
-          # and install cargo-ndk, which the quiche Conan recipe uses to cross-
-          # compile the Rust portion of quiche for aarch64 Android.
-          rustup target add aarch64-linux-android x86_64-linux-android
-          # Pin to 3.5.4 — the latest version compatible with rustc 1.85
-          # (rust-toolchain.toml pins the project to 1.85; cargo-ndk 4.x needs 1.86+)
-          cargo install cargo-ndk@3.5.4 --locked
-
       - name: Cache Conan packages
         uses: actions/cache@v4
         id: conan-cache
@@ -80,6 +70,7 @@ jobs:
 
       - name: Cache cargo registry + cargo-ndk binary
         uses: actions/cache@v4
+        id: cargo-cache
         with:
           path: |
             ~/.cargo/registry
@@ -88,8 +79,23 @@ jobs:
           key: android-cargo-v1-${{ hashFiles('rust-toolchain.toml') }}
           restore-keys: android-cargo-v1-
 
-      - name: Bootstrap Conan dependencies
-        run: python3 ./scripts/bootstrap_conan_deps.py
+      - name: Set up Rust + cargo-ndk
+        run: |
+          # Add Android targets to the project toolchain (1.85 from rust-toolchain.toml).
+          rustup target add aarch64-linux-android x86_64-linux-android
+          # Also add to the system stable toolchain.  quiche has no
+          # rust-toolchain.toml in its source tree, so when cargo runs inside
+          # ~/.conan2/.../quiche/ it falls back to the DEFAULT stable toolchain,
+          # not the project-pinned 1.85.  Without this the build fails with
+          # "can't find crate for `core`" for aarch64-linux-android.
+          rustup target add aarch64-linux-android x86_64-linux-android --toolchain stable
+          # Install cargo-ndk only on cache miss — on a hit the binary is already
+          # restored from cache above, so we skip the compilation (saves ~3 min).
+          # Pin to 3.5.4 — the latest version compatible with rustc 1.85
+          # (rust-toolchain.toml pins the project to 1.85; cargo-ndk 4.x needs 1.86+)
+          if [[ "${{ steps.cargo-cache.outputs.cache-hit }}" != "true" ]]; then
+            cargo install cargo-ndk@3.5.4 --locked
+          fi
 
       - name: Accept Android SDK licenses
         run: |
@@ -102,6 +108,15 @@ jobs:
         run: |
           ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;${NDK_VERSION}"
           echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+          # Override ANDROID_NDK_ROOT as well — the runner pre-sets this to the
+          # bundled NDK 27, but cargo-ndk reads ANDROID_NDK_ROOT first and warns
+          # (or errors) when it doesn't match ANDROID_NDK_HOME.
+          # IMPORTANT: this must happen BEFORE Bootstrap Conan so that quiche's
+          # cargo-ndk invocation already sees the correct NDK path.
+          echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+
+      - name: Bootstrap Conan dependencies
+        run: python3 ./scripts/bootstrap_conan_deps.py
 
       - name: Point AGP at the system CMake (>= 3.24)
         run: |
