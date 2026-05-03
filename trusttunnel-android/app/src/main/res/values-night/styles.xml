@@ -1,21 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark-mode variant: status bar icons should be light (dark background) -->
-    <style name="Theme.TrustTunnel" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/claude_purple</item>
-        <item name="colorOnPrimary">@color/black</item>
-        <item name="colorPrimaryContainer">@color/claude_purple_container</item>
-        <item name="colorOnPrimaryContainer">@color/claude_purple_dark</item>
-        <item name="colorSecondary">@color/claude_orange</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <item name="colorSecondaryContainer">@color/claude_orange_container</item>
-        <item name="colorOnSecondaryContainer">@color/claude_orange_dark</item>
-        <item name="colorSurface">@color/claude_surface</item>
-        <item name="colorOnSurface">@color/claude_on_surface</item>
-        <item name="colorSurfaceVariant">@color/claude_surface_variant</item>
-        <item name="android:colorBackground">@color/claude_background</item>
-        <item name="android:statusBarColor">@color/claude_surface</item>
-        <!-- Dark background → light (white) status bar icons -->
-        <item name="android:windowLightStatusBar">false</item>
+    <!-- DayNight theme inherits dark-mode colours automatically from values-night/colors.xml -->
+    <style name="Theme.FireTunnel" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/fire_primary</item>
+        <item name="colorOnPrimary">@color/fire_on_primary</item>
+        <item name="colorPrimaryContainer">@color/fire_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/fire_on_primary_container</item>
+        <item name="colorSecondary">@color/fire_secondary</item>
+        <item name="colorOnSecondary">@color/fire_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/fire_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/fire_on_secondary_container</item>
     </style>
 </resources>

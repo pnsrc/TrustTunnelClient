@@ -1,4 +1,4 @@
-package com.trusttunnel.android
+package me.pnsrc.firetunnel
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -19,48 +19,45 @@ import com.adguard.trusttunnel.VpnClientListener
 import com.adguard.trusttunnel.VpnState
 
 /**
- * TrustTunnel VPN foreground service.
+ * FireTunnel VPN foreground service.
  *
  * Threading model
  * ───────────────
- * Android requires [startForeground] to be called on the main thread within
- * 5 s of [startForegroundService].  All blocking work (TUN interface creation,
- * native client start) therefore runs on a dedicated "vpn-connect" background
- * thread.  Only the notification and broadcast calls happen on the main thread.
+ * [startForeground] is called immediately on the main thread within 5 s of
+ * [startForegroundService].  All blocking work (TUN setup, native client start)
+ * runs on a dedicated "vpn-connect" background thread.
  *
- * Native library
- * ──────────────
- * [VpnClient.tryLoadLibrary] is called during [onCreate].  If it fails
- * (library absent, e.g. debug build without NDK), the service establishes the
- * TUN interface as a no-op tunnel — Android shows the VPN key icon and the app
- * keeps running, but traffic is not forwarded until the .so is compiled and
- * linked.
+ * State cache
+ * ───────────
+ * [lastKnownState] is a process-wide in-memory cache so that [HomeFragment]
+ * can restore the correct UI state when re-created after a tab switch.
  */
-class TrustTunnelVpnService : VpnService() {
+class FireTunnelVpnService : VpnService() {
 
     companion object {
-        private const val TAG = "TrustTunnelVpn"
+        private const val TAG = "FireTunnelVpn"
 
-        const val ACTION_CONNECT     = "com.trusttunnel.android.CONNECT"
-        const val ACTION_DISCONNECT  = "com.trusttunnel.android.DISCONNECT"
-        const val EXTRA_CONFIG_TOML  = "config_toml"
+        const val ACTION_CONNECT    = "me.pnsrc.firetunnel.CONNECT"
+        const val ACTION_DISCONNECT = "me.pnsrc.firetunnel.DISCONNECT"
+        const val EXTRA_CONFIG_TOML = "config_toml"
 
-        const val BROADCAST_STATE     = "com.trusttunnel.android.VPN_STATE"
-        const val EXTRA_STATE         = "state"
-        const val STATE_CONNECTED     = "CONNECTED"
-        const val STATE_CONNECTING    = "CONNECTING"
-        const val STATE_DISCONNECTED  = "DISCONNECTED"
-        const val STATE_ERROR         = "ERROR"
-        const val EXTRA_ERROR_MSG     = "error_msg"
-        const val EXTRA_STATS         = "stats"
-        /** Epoch-ms when VPN reached CONNECTED state; sent in STATE_CONNECTED broadcasts. */
-        const val EXTRA_CONNECTED_AT  = "connected_at"
+        const val BROADCAST_STATE    = "me.pnsrc.firetunnel.VPN_STATE"
+        const val EXTRA_STATE        = "state"
+        const val STATE_CONNECTED    = "CONNECTED"
+        const val STATE_CONNECTING   = "CONNECTING"
+        const val STATE_DISCONNECTED = "DISCONNECTED"
+        const val STATE_ERROR        = "ERROR"
+        const val EXTRA_ERROR_MSG    = "error_msg"
+        const val EXTRA_STATS        = "stats"
+        const val EXTRA_CONNECTED_AT = "connected_at"
 
         private const val NOTIFICATION_ID = 1
-        private const val CHANNEL_ID      = "trusttunnel_vpn"
+        private const val CHANNEL_ID      = "firetunnel_vpn"
+
+        /** In-process VPN state cache — read by HomeFragment on resume. */
+        @Volatile var lastKnownState: String = STATE_DISCONNECTED
     }
 
-    // Accessed from both main thread and connect thread — always via @Volatile
     @Volatile private var vpnClient: VpnClient? = null
     @Volatile private var fallbackTun: ParcelFileDescriptor? = null
     @Volatile private var connectThread: Thread? = null
@@ -73,7 +70,6 @@ class TrustTunnelVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        // Load native library once; safe to call if already loaded.
         VpnClient.tryLoadLibrary()
         connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager
     }
@@ -82,34 +78,20 @@ class TrustTunnelVpnService : VpnService() {
         when (intent?.action) {
             ACTION_CONNECT -> {
                 val toml = intent.getStringExtra(EXTRA_CONFIG_TOML) ?: ""
-
-                // ① Call startForeground IMMEDIATELY on the main thread.
-                //   Android throws ForegroundServiceDidNotStartInTimeException
-                //   if this is delayed past ~5 s.
                 broadcastState(STATE_CONNECTING)
                 startForegroundCompat(buildNotification(STATE_CONNECTING))
-
-                // ② Do all blocking VPN setup on a background thread.
                 cancelConnectThread()
-                connectThread = Thread(
-                    { connectInBackground(toml, startId) },
-                    "vpn-connect"
-                ).also { it.start() }
+                connectThread = Thread({ connectInBackground(toml, startId) }, "vpn-connect")
+                    .also { it.start() }
             }
-
             ACTION_DISCONNECT -> stopVpn(startId)
-
-            else -> {
-                // Service restarted by system with null intent (START_NOT_STICKY
-                // prevents this, but handle it defensively).
-                stopSelf(startId)
-            }
+            else -> stopSelf(startId)
         }
         return START_NOT_STICKY
     }
 
     override fun onRevoke() {
-        Log.i(TAG, "VPN permission revoked by user")
+        Log.i(TAG, "VPN permission revoked")
         stopVpn(null)
     }
 
@@ -133,8 +115,6 @@ class TrustTunnelVpnService : VpnService() {
         }
 
         if (!VpnClient.nativeLibraryLoaded) {
-            // No native library → keep TUN open as a stub so Android shows the
-            // VPN key.  Traffic is NOT forwarded.
             Log.w(TAG, "Native library absent — TUN up but no forwarding")
             fallbackTun = tun
             broadcastState(STATE_CONNECTED)
@@ -142,11 +122,9 @@ class TrustTunnelVpnService : VpnService() {
             return
         }
 
-        // Native library is loaded — start the real VPN client.
         try {
             val client = VpnClient(configToml, buildClientListener())
             vpnClient = client
-            // VpnClient.start() transfers ownership of tun via detachFd().
             val started = client.start(tun)
             if (!started) {
                 Log.e(TAG, "VpnClient.start() returned false")
@@ -157,7 +135,6 @@ class TrustTunnelVpnService : VpnService() {
             }
             registerNetworkCallback()
             Log.i(TAG, "VPN started (native)")
-            // Connected state is reported via onStateChanged callback.
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error starting VPN", e)
             broadcastState(STATE_ERROR, e.message ?: "Unknown error")
@@ -167,7 +144,7 @@ class TrustTunnelVpnService : VpnService() {
         }
     }
 
-    // ── VPN stop ──────────────────────────────────────────────────────────────
+    // ── Stop ──────────────────────────────────────────────────────────────────
 
     private fun stopVpn(startId: Int?) {
         cancelConnectThread()
@@ -184,19 +161,15 @@ class TrustTunnelVpnService : VpnService() {
 
     private fun buildTunInterface(): ParcelFileDescriptor? = try {
         Builder()
-            .setSession("TrustTunnel")
+            .setSession("FireTunnel")
             .setMtu(1500)
             .addAddress("172.20.2.13", 32)
             .addAddress("fdfd:29::2", 64)
-            // DNS — overridden by native core once it starts.
-            // Using AdGuard DNS as a safe default.
             .addDnsServer("46.243.231.30")
             .addDnsServer("46.243.231.31")
             .addDnsServer("2a10:50c0::2:ff")
-            // Route all traffic through the tunnel
             .addRoute("0.0.0.0", 0)
             .addRoute("::", 0)
-            // Exclude our own process so the VPN socket isn't tunnelled
             .addDisallowedApplication(packageName)
             .establish()
     } catch (e: Exception) {
@@ -216,8 +189,7 @@ class TrustTunnelVpnService : VpnService() {
         override fun protectSocket(socket: Int): Boolean = protect(socket)
 
         override fun verifyCertificate(
-            certificate: ByteArray?,
-            rawChain: List<ByteArray?>?
+            certificate: ByteArray?, rawChain: List<ByteArray?>?
         ): Boolean = true
 
         override fun onStateChanged(state: Int) {
@@ -230,14 +202,10 @@ class TrustTunnelVpnService : VpnService() {
                     startForegroundCompat(buildNotification(STATE_CONNECTED))
                 }
                 VpnState.DISCONNECTED -> {
-                    // Broadcast first so UI updates immediately.
                     broadcastState(STATE_DISCONNECTED)
-                    // Post stop to main-thread: this callback fires from inside
-                    // startNative() on the vpn-connect thread — calling stop()
-                    // synchronously here would deadlock on the sync lock.
                     android.os.Handler(mainLooper).post { stopVpn(null) }
                 }
-                VpnState.CONNECTING          -> broadcastState(STATE_CONNECTING)
+                VpnState.CONNECTING,
                 VpnState.WAITING_RECOVERY,
                 VpnState.RECOVERING,
                 VpnState.WAITING_FOR_NETWORK -> broadcastState(STATE_CONNECTING)
@@ -252,10 +220,7 @@ class TrustTunnelVpnService : VpnService() {
     // ── VpnClient teardown ─────────────────────────────────────────────────────
 
     private fun teardownVpnClient() {
-        runCatching {
-            vpnClient?.stop()
-            vpnClient?.close()
-        }
+        runCatching { vpnClient?.stop(); vpnClient?.close() }
         vpnClient = null
     }
 
@@ -264,9 +229,6 @@ class TrustTunnelVpnService : VpnService() {
     private fun cancelConnectThread() {
         connectThread?.let { thread ->
             thread.interrupt()
-            // Wait up to 3 s for the thread to finish.  Without join(),
-            // teardownVpnClient() can run concurrently while connectInBackground()
-            // is still inside client.start(), causing a race on vpnClient.
             runCatching { thread.join(3_000) }
         }
         connectThread = null
@@ -277,21 +239,14 @@ class TrustTunnelVpnService : VpnService() {
     private fun registerNetworkCallback() {
         val cm = connectivityManager ?: return
         val cb = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                Log.d(TAG, "Network available")
-                vpnClient?.notifyNetworkChange(true)
-            }
-            override fun onLost(network: Network) {
-                Log.d(TAG, "Network lost")
-                vpnClient?.notifyNetworkChange(false)
-            }
+            override fun onAvailable(network: Network) { vpnClient?.notifyNetworkChange(true) }
+            override fun onLost(network: Network)      { vpnClient?.notifyNetworkChange(false) }
         }
         runCatching {
             cm.registerNetworkCallback(
                 NetworkRequest.Builder()
                     .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .build(),
-                cb
+                    .build(), cb
             )
         }
         networkCallback = cb
@@ -307,14 +262,9 @@ class TrustTunnelVpnService : VpnService() {
     // ── Notifications ─────────────────────────────────────────────────────────
 
     private fun startForegroundCompat(notification: Notification) {
-        // FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED was introduced in API 34.
-        // Passing it on API 29-33 (where the 3-arg overload exists but the
-        // type value is unknown to the system) can throw an exception.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID, notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
-            )
+            startForeground(NOTIFICATION_ID, notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -324,53 +274,37 @@ class TrustTunnelVpnService : VpnService() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
             nm.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    getString(R.string.vpn_channel_name),
-                    NotificationManager.IMPORTANCE_LOW
-                )
+                NotificationChannel(CHANNEL_ID, getString(R.string.vpn_channel_name),
+                    NotificationManager.IMPORTANCE_LOW)
             )
         }
         val tap = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
-        val text = if (state == STATE_CONNECTED)
-            getString(R.string.vpn_notification_connected)
-        else
-            getString(R.string.vpn_notification_connecting)
-
-        // "Disconnect" action lets the user stop VPN without opening the app.
         val disconnectPi = PendingIntent.getService(
             this, 1,
-            Intent(this, TrustTunnelVpnService::class.java).apply { action = ACTION_DISCONNECT },
+            Intent(this, FireTunnelVpnService::class.java).apply { action = ACTION_DISCONNECT },
             PendingIntent.FLAG_IMMUTABLE
         )
+        val text = if (state == STATE_CONNECTED) getString(R.string.vpn_notification_connected)
+                   else getString(R.string.vpn_notification_connecting)
 
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.vpn_notification_title))
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_vpn)
             .setContentIntent(tap)
             .setOngoing(true)
             .addAction(
-                Notification.Action.Builder(
-                    null,
-                    getString(R.string.disconnect),
-                    disconnectPi
-                ).build()
+                Notification.Action.Builder(null, getString(R.string.disconnect), disconnectPi).build()
             )
             .build()
     }
 
-    // ── State broadcast ───────────────────────────────────────────────────────
+    // ── Broadcast ─────────────────────────────────────────────────────────────
 
-    private fun broadcastState(
-        vpnState: String,
-        error: String? = null,
-        stats: String? = null
-    ) {
+    private fun broadcastState(vpnState: String, error: String? = null, stats: String? = null) {
+        lastKnownState = vpnState
         sendBroadcast(Intent(BROADCAST_STATE).apply {
             putExtra(EXTRA_STATE, vpnState)
             error?.let { putExtra(EXTRA_ERROR_MSG, it) }

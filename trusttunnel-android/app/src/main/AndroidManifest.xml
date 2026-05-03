@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.trusttunnel.android">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -12,14 +11,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:name=".TrustTunnelApp"
+        android:name=".FireTunnelApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.TrustTunnel"
+        android:theme="@style/Theme.FireTunnel"
         tools:targetApi="31">
 
         <activity
@@ -33,14 +32,8 @@
             </intent-filter>
         </activity>
 
-        <!--
-            TrustTunnelVpnService extends android.net.VpnService.
-            The BIND_VPN_SERVICE permission is required so only the system
-            can bind to it.  The android.net.VpnService intent-filter makes
-            it discoverable as an Always-On VPN candidate.
-        -->
         <service
-            android:name=".TrustTunnelVpnService"
+            android:name=".FireTunnelVpnService"
             android:enabled="true"
             android:exported="true"
             android:foregroundServiceType="systemExempted"
@@ -57,11 +50,6 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
-        <activity
-            android:name=".LogActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 

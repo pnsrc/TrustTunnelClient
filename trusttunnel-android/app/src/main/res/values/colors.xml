@@ -1,31 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Primary: purple -->
-    <color name="claude_purple">#9D7EB8</color>
-    <color name="claude_purple_dark">#3D2A52</color>
-    <color name="claude_purple_container">#EFE5FF</color>
+    <!--
+        FireTunnel brand — Deep Orange seed for Material You fallback.
+        On Android 12+ DynamicColors.applyToActivitiesIfAvailable() replaces
+        these with wallpaper-derived tones automatically.
+    -->
+    <color name="fire_primary">#C94B1A</color>
+    <color name="fire_on_primary">#FFFFFF</color>
+    <color name="fire_primary_container">#FFDBCF</color>
+    <color name="fire_on_primary_container">#380C00</color>
 
-    <!-- Secondary: orange -->
-    <color name="claude_orange">#C75B00</color>
-    <color name="claude_orange_dark">#4D2000</color>
-    <color name="claude_orange_light">#FF9500</color>
-    <color name="claude_orange_container">#FFDCBE</color>
+    <color name="fire_secondary">#775850</color>
+    <color name="fire_on_secondary">#FFFFFF</color>
+    <color name="fire_secondary_container">#FFD9D2</color>
+    <color name="fire_on_secondary_container">#2C1511</color>
 
-    <!-- Semantic -->
-    <color name="claude_green">#1B6B3A</color>
-    <color name="claude_green_container">#A6F4C5</color>
-    <color name="claude_red">#BA1A1A</color>
-    <color name="claude_red_container">#FFDAD6</color>
-
-    <!-- Surfaces -->
-    <color name="claude_background">#FFFBFF</color>
-    <color name="claude_surface">#FFFBFF</color>
-    <color name="claude_surface_variant">#E8DEF8</color>
-    <color name="claude_on_surface">#1C1B1F</color>
-    <color name="claude_gray">#49454F</color>
-    <color name="claude_gray_light">#F3F4F6</color>
-
-    <!-- System -->
-    <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
 </resources>

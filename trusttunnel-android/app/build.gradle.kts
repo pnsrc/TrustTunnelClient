@@ -5,13 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.trusttunnel.android"
+    namespace = "me.pnsrc.firetunnel"
     compileSdk = 35
-    // Must match the NDK used to build platform/android/lib
     ndkVersion = "28.1.13356709"
 
     defaultConfig {
-        applicationId = "com.trusttunnel.android"
+        applicationId = "me.pnsrc.firetunnel"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -19,11 +18,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // ── Native core ──────────────────────────────────────────────────────
-        // Build libtrusttunnel_android.so from the shared platform C++ layer.
-        // The CMakeLists.txt at platform/android/lib/src/main/cpp bootstraps
-        // Conan and links against the full VPN core, so conan must be in PATH
-        // before Gradle invokes CMake.
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
@@ -38,13 +32,7 @@ android {
 
     externalNativeBuild {
         cmake {
-            // Two directories up from app/ lands at the repo root; then into
-            // platform/android/lib/src/main/cpp/CMakeLists.txt.
             path = file("../../platform/android/lib/src/main/cpp/CMakeLists.txt")
-            // Do NOT specify version here.  The Android SDK only ships cmake up
-            // to 3.22.1, but our CMakeLists.txt files require >= 3.24.
-            // In CI (and local dev) we point AGP at the system cmake via
-            // cmake.dir in local.properties, which overrides the version field.
         }
     }
 
@@ -74,8 +62,10 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
 
-    // Camera & ML Kit (for QR code scanning)
+    // Camera & ML Kit (QR scanning)
     implementation("androidx.camera:camera-core:1.3.0")
     implementation("androidx.camera:camera-camera2:1.3.0")
     implementation("androidx.camera:camera-lifecycle:1.3.0")

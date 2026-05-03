@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TrustTunnel</string>
+    <string name="app_name">FireTunnel</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_vpn">VPN</string>
+    <string name="nav_configs">Configs</string>
+    <string name="nav_rules">Rules</string>
+    <string name="nav_logs">Logs</string>
 
     <!-- Status -->
     <string name="status_connected">Status: Connected</string>
@@ -13,31 +19,52 @@
     <!-- Buttons -->
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
-    <string name="qr_scan">Scan QR</string>
-    <string name="logs">Logs</string>
-    <string name="settings">Settings</string>
-    <string name="back">Back</string>
     <string name="save">Save</string>
     <string name="delete">Delete</string>
+    <string name="back">Back</string>
+    <string name="settings">Settings</string>
 
-    <!-- Labels -->
-    <string name="configuration">Configuration</string>
-    <string name="no_configs">No configurations. Scan a QR code to add one.</string>
-    <string name="scan_qr">Scan QR Code</string>
-    <string name="point_camera_at_qr">Point camera at QR code to import config</string>
+    <!-- Home fragment -->
+    <string name="configuration">Active Config</string>
+    <string name="no_configs">No configs — add one in the Configs tab.</string>
     <string name="no_stats">—</string>
-
-    <!-- VPN -->
+    <string name="uptime_label">Connected · %s</string>
     <string name="vpn_permission_required">VPN permission required</string>
     <string name="vpn_select_config">Please select a configuration first</string>
-    <string name="vpn_notification_title">TrustTunnel VPN</string>
+
+    <!-- Config management -->
+    <string name="add_config">Add Config</string>
+    <string name="add_via_qr">Scan QR code</string>
+    <string name="add_manually">Enter TOML manually</string>
+    <string name="config_name_hint">Name (optional)</string>
+    <string name="config_toml_hint">Paste TOML config here…</string>
+    <string name="config_empty_error">Config cannot be empty</string>
+    <string name="delete_config_title">Delete config</string>
+    <string name="delete_config_message">Delete \"%s\"?</string>
+    <string name="config_deleted">\"%s\" deleted</string>
+    <string name="qr_scan">Scan QR</string>
+    <string name="scan_qr">Scan QR Code</string>
+    <string name="point_camera_at_qr">Point camera at QR code to import config</string>
+    <string name="qr_imported">Config \"%s\" imported</string>
+    <string name="qr_invalid">Invalid QR code format</string>
+    <string name="configs_empty">No saved configs.\nTap + to add one.</string>
+
+    <!-- Rules -->
+    <string name="split_tunnel">Split Tunnel</string>
+    <string name="split_tunnel_desc">Only route specific IP ranges through VPN</string>
+    <string name="excluded_ips">Excluded IP ranges</string>
+    <string name="excluded_ips_desc">These CIDRs bypass the VPN tunnel</string>
+    <string name="add_rule">Add exclusion</string>
+    <string name="add_rule_hint">Enter an IP address or CIDR range (e.g. 192.168.1.0/24)</string>
+    <string name="rule_deleted">Rule \"%s\" removed</string>
+    <string name="rules_empty">No exclusion rules.\nTap + to add a CIDR range.</string>
+    <string name="invalid_cidr">Invalid IP address or CIDR</string>
+
+    <!-- VPN notification -->
+    <string name="vpn_notification_title">FireTunnel VPN</string>
     <string name="vpn_notification_connected">VPN is active</string>
     <string name="vpn_notification_connecting">Connecting…</string>
     <string name="vpn_channel_name">Connection Status</string>
-
-    <!-- QR -->
-    <string name="qr_imported">Config \"%s\" imported</string>
-    <string name="qr_invalid">Invalid QR code format</string>
 
     <!-- Settings -->
     <string name="connection_settings">Connection</string>
@@ -47,14 +74,6 @@
     <string name="logging">Diagnostics</string>
     <string name="log_level">Log Level</string>
     <string name="view_logs">View Logs</string>
-
-    <!-- Config management -->
-    <string name="delete_config_title">Delete config</string>
-    <string name="delete_config_message">Delete \"%s\"?</string>
-    <string name="config_deleted">\"%s\" deleted</string>
-
-    <!-- Uptime -->
-    <string name="uptime_label">Connected · %s</string>
 
     <!-- Log viewer -->
     <string name="logs_title">Logs</string>

@@ -1,4 +1,4 @@
-package com.trusttunnel.android
+package me.pnsrc.firetunnel
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -18,7 +18,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
-import com.trusttunnel.android.data.ConfigManager
+import me.pnsrc.firetunnel.data.ConfigManager
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -62,21 +62,16 @@ class QRScannerActivity : AppCompatActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val provider = future.get()
-
-            val preview = Preview.Builder().build().also {
+            val preview  = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
-
             val analyzer = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also { it.setAnalyzer(cameraExecutor, ::processImage) }
-
             try {
                 provider.unbindAll()
-                provider.bindToLifecycle(
-                    this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analyzer
-                )
+                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analyzer)
             } catch (e: Exception) {
                 Toast.makeText(this, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
@@ -85,25 +80,17 @@ class QRScannerActivity : AppCompatActivity() {
 
     @ExperimentalGetImage
     private fun processImage(imageProxy: ImageProxy) {
-        if (!isScanningEnabled) {
-            imageProxy.close()
-            return
-        }
+        if (!isScanningEnabled) { imageProxy.close(); return }
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
-            val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-            barcodeScanner.process(input)
-                .addOnSuccessListener { barcodes ->
-                    for (barcode in barcodes) {
-                        val raw = barcode.rawValue ?: continue
-                        if (raw.isNotEmpty()) {
-                            isScanningEnabled = false
-                            handleQRCode(raw)
-                            break
-                        }
-                    }
+            barcodeScanner.process(
+                InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            ).addOnSuccessListener { barcodes ->
+                for (barcode in barcodes) {
+                    val raw = barcode.rawValue ?: continue
+                    if (raw.isNotEmpty()) { isScanningEnabled = false; handleQRCode(raw); break }
                 }
-                .addOnCompleteListener { imageProxy.close() }
+            }.addOnCompleteListener { imageProxy.close() }
         } else {
             imageProxy.close()
         }
@@ -113,11 +100,7 @@ class QRScannerActivity : AppCompatActivity() {
         val config = configManager.parseQRCode(content)
         if (config != null) {
             configManager.saveConfig(config)
-            Toast.makeText(
-                this,
-                String.format(getString(R.string.qr_imported), config.name),
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(this, getString(R.string.qr_imported, config.name), Toast.LENGTH_SHORT).show()
             setResult(RESULT_OK)
             finish()
         } else {
@@ -130,13 +113,13 @@ class QRScannerActivity : AppCompatActivity() {
         requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_PERMISSION_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera()
-            } else {
-                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
-                finish()
-            }
+        if (requestCode == CAMERA_PERMISSION_CODE &&
+            grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        ) {
+            startCamera()
+        } else {
+            Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show()
+            finish()
         }
     }
 
