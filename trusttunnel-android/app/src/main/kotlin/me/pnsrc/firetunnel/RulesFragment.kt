@@ -67,14 +67,12 @@ class RulesFragment : Fragment() {
     }
 
     private fun showAddRuleDialog() {
+        val padding = (24 * resources.displayMetrics.density).toInt()
         val editText = EditText(requireContext()).apply {
             hint = "192.168.1.0/24"
             inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(padding, padding / 2, padding, 0)
         }
-        val padding = resources.getDimensionPixelOffset(
-            com.google.android.material.R.dimen.m3_alert_dialog_content_padding_horizontal
-        )
-        editText.setPadding(padding, padding / 2, padding, 0)
 
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.add_rule)

@@ -19,6 +19,7 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
+import com.google.android.material.R as MaterialR
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
@@ -220,7 +221,6 @@ class HomeFragment : Fragment() {
     private fun updateStatusUI(state: String) {
         vpnState = state
         val ctx = context ?: return
-        val M = com.google.android.material.R.attr
 
         when (state) {
             FireTunnelVpnService.STATE_CONNECTED -> {
@@ -228,33 +228,33 @@ class HomeFragment : Fragment() {
                 statusText.text  = getString(R.string.connected)
                 connectionButton.text = getString(R.string.disconnect)
                 statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, M.colorTertiaryContainer, Color.GREEN))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorTertiaryContainer, Color.GREEN))
                 statusText.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnTertiaryContainer, Color.BLACK))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnTertiaryContainer, Color.BLACK))
                 statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnTertiaryContainer, Color.BLACK))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnTertiaryContainer, Color.BLACK))
             }
             FireTunnelVpnService.STATE_CONNECTING -> {
                 statusLabel.text = getString(R.string.status_connecting)
                 statusText.text  = getString(R.string.connecting)
                 connectionButton.text = getString(R.string.disconnect)
                 statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, M.colorSecondaryContainer, Color.LTGRAY))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorSecondaryContainer, Color.LTGRAY))
                 statusText.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnSecondaryContainer, Color.DKGRAY))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSecondaryContainer, Color.DKGRAY))
                 statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnSecondaryContainer, Color.DKGRAY))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSecondaryContainer, Color.DKGRAY))
             }
             FireTunnelVpnService.STATE_ERROR -> {
                 statusLabel.text = getString(R.string.status_disconnected)
                 statusText.text  = getString(R.string.disconnected)
                 connectionButton.text = getString(R.string.connect)
                 statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, M.colorErrorContainer, Color.RED))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorErrorContainer, Color.RED))
                 statusText.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnErrorContainer, Color.WHITE))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnErrorContainer, Color.WHITE))
                 statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnErrorContainer, Color.WHITE))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnErrorContainer, Color.WHITE))
                 statsText.text = getString(R.string.no_stats)
             }
             else -> { // DISCONNECTED
@@ -262,11 +262,11 @@ class HomeFragment : Fragment() {
                 statusText.text  = getString(R.string.disconnected)
                 connectionButton.text = getString(R.string.connect)
                 statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, M.colorSurfaceVariant, Color.LTGRAY))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorSurfaceVariant, Color.LTGRAY))
                 statusText.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnSurfaceVariant, Color.DKGRAY))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSurfaceVariant, Color.DKGRAY))
                 statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, M.colorOnSurfaceVariant, Color.DKGRAY))
+                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSurfaceVariant, Color.DKGRAY))
                 statsText.text = getString(R.string.no_stats)
             }
         }
