@@ -66,7 +66,9 @@ jobs:
           # and install cargo-ndk, which the quiche Conan recipe uses to cross-
           # compile the Rust portion of quiche for aarch64 Android.
           rustup target add aarch64-linux-android x86_64-linux-android
-          cargo install cargo-ndk --locked
+          # Pin to 3.5.4 — the latest version compatible with rustc 1.85
+          # (rust-toolchain.toml pins the project to 1.85; cargo-ndk 4.x needs 1.86+)
+          cargo install cargo-ndk@3.5.4 --locked
 
       - name: Cache Conan packages
         uses: actions/cache@v4
