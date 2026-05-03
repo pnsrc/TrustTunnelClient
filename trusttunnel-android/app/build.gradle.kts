@@ -7,6 +7,8 @@ plugins {
 android {
     namespace = "com.trusttunnel.android"
     compileSdk = 35
+    // Must match the NDK used to build platform/android/lib
+    ndkVersion = "28.1.13356709"
 
     defaultConfig {
         applicationId = "com.trusttunnel.android"
@@ -16,6 +18,31 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // ── Native core ──────────────────────────────────────────────────────
+        // Build libtrusttunnel_android.so from the shared platform C++ layer.
+        // The CMakeLists.txt at platform/android/lib/src/main/cpp bootstraps
+        // Conan and links against the full VPN core, so conan must be in PATH
+        // before Gradle invokes CMake.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+        externalNativeBuild {
+            cmake {
+                targets += "trusttunnel_android"
+                arguments += "-DANDROID_STL=c++_static"
+                arguments += "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            // Two directories up from app/ lands at the repo root; then into
+            // platform/android/lib/src/main/cpp/CMakeLists.txt.
+            path = file("../../platform/android/lib/src/main/cpp/CMakeLists.txt")
+            version = "3.24+"
+        }
     }
 
     buildTypes {

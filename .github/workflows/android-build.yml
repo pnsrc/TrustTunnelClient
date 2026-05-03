@@ -4,14 +4,34 @@ on:
   push:
     paths:
       - 'trusttunnel-android/**'
-      - 'platform/android/lib/**'
+      - 'platform/android/**'
+      - 'trusttunnel/**'
+      - 'core/**'
+      - 'common/**'
+      - 'net/**'
+      - 'tcpip/**'
+      - 'conanfile.py'
+      - 'conandata.yml'
+      - 'scripts/bootstrap_conan_deps.py'
       - '.github/workflows/android-build.yml'
   pull_request:
     paths:
       - 'trusttunnel-android/**'
-      - 'platform/android/lib/**'
+      - 'platform/android/**'
+      - 'trusttunnel/**'
+      - 'core/**'
+      - 'common/**'
+      - 'net/**'
+      - 'tcpip/**'
+      - 'conanfile.py'
+      - 'conandata.yml'
+      - 'scripts/bootstrap_conan_deps.py'
       - '.github/workflows/android-build.yml'
   workflow_dispatch:
+
+env:
+  CONAN_VER: "2.12"
+  NDK_VERSION: "28.1.13356709"
 
 jobs:
   build_android:
@@ -19,6 +39,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -27,12 +50,38 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Conan + PyYAML
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "pyyaml>=6.0.3" conan~=${CONAN_VER}
+
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        id: conan-cache
+        with:
+          path: ~/.conan2/
+          key: android-conan2-v1-${{ hashFiles('conanfile.py') }}
+          restore-keys: android-conan2-v1-
+
+      - name: Bootstrap Conan dependencies
+        run: python3 ./scripts/bootstrap_conan_deps.py
+
       - name: Accept Android SDK licenses
         run: |
           mkdir -p ~/.android
           echo "### User Preferences for Android SDK Manager" > ~/.android/repositories.cfg
           echo "count=0" >> ~/.android/repositories.cfg
           yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: Install Android NDK ${{ env.NDK_VERSION }}
+        run: |
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "ndk;${NDK_VERSION}"
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> $GITHUB_ENV
 
       - name: Build debug APK
         working-directory: trusttunnel-android
