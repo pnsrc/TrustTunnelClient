@@ -1,3 +1,7 @@
 third-party
 fastlane
 env
+# Submodules are linted in their own repositories
+trusttunnel-qt
+trusttunnel-core
+trusttunnel-android
