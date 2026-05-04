@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.net.VpnService
 import android.os.Build
@@ -14,10 +15,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.widget.ImageViewCompat
 import androidx.fragment.app.Fragment
 import com.google.android.material.R as MaterialR
 import com.google.android.material.button.MaterialButton
@@ -31,6 +34,7 @@ class HomeFragment : Fragment() {
 
     private lateinit var configManager: ConfigManager
     private lateinit var statusCard: MaterialCardView
+    private lateinit var statusIcon: ImageView
     private lateinit var statusLabel: TextView
     private lateinit var statusText: TextView
     private lateinit var connectionButton: MaterialButton
@@ -103,6 +107,7 @@ class HomeFragment : Fragment() {
         configManager = ConfigManager(requireContext())
 
         statusCard        = view.findViewById(R.id.statusCard)
+        statusIcon        = view.findViewById(R.id.statusIcon)
         statusLabel       = view.findViewById(R.id.statusLabel)
         statusText        = view.findViewById(R.id.statusText)
         connectionButton  = view.findViewById(R.id.connectionButton)
@@ -227,46 +232,46 @@ class HomeFragment : Fragment() {
                 statusLabel.text = getString(R.string.status_connected)
                 statusText.text  = getString(R.string.connected)
                 connectionButton.text = getString(R.string.disconnect)
-                statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorTertiaryContainer, Color.GREEN))
-                statusText.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnTertiaryContainer, Color.BLACK))
-                statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnTertiaryContainer, Color.BLACK))
+                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorTertiaryContainer, Color.GREEN)
+                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnTertiaryContainer, Color.BLACK)
+                statusCard.setCardBackgroundColor(bg)
+                statusText.setTextColor(fg)
+                statusLabel.setTextColor(fg)
+                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
             }
             FireTunnelVpnService.STATE_CONNECTING -> {
                 statusLabel.text = getString(R.string.status_connecting)
                 statusText.text  = getString(R.string.connecting)
                 connectionButton.text = getString(R.string.disconnect)
-                statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorSecondaryContainer, Color.LTGRAY))
-                statusText.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSecondaryContainer, Color.DKGRAY))
-                statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSecondaryContainer, Color.DKGRAY))
+                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorSecondaryContainer, Color.LTGRAY)
+                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnSecondaryContainer, Color.DKGRAY)
+                statusCard.setCardBackgroundColor(bg)
+                statusText.setTextColor(fg)
+                statusLabel.setTextColor(fg)
+                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
             }
             FireTunnelVpnService.STATE_ERROR -> {
                 statusLabel.text = getString(R.string.status_disconnected)
                 statusText.text  = getString(R.string.disconnected)
                 connectionButton.text = getString(R.string.connect)
-                statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorErrorContainer, Color.RED))
-                statusText.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnErrorContainer, Color.WHITE))
-                statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnErrorContainer, Color.WHITE))
+                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorErrorContainer, Color.RED)
+                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnErrorContainer, Color.WHITE)
+                statusCard.setCardBackgroundColor(bg)
+                statusText.setTextColor(fg)
+                statusLabel.setTextColor(fg)
+                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
                 statsText.text = getString(R.string.no_stats)
             }
             else -> { // DISCONNECTED
                 statusLabel.text = getString(R.string.status_disconnected)
                 statusText.text  = getString(R.string.disconnected)
                 connectionButton.text = getString(R.string.connect)
-                statusCard.setCardBackgroundColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorSurfaceVariant, Color.LTGRAY))
-                statusText.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSurfaceVariant, Color.DKGRAY))
-                statusLabel.setTextColor(
-                    MaterialColors.getColor(ctx, MaterialR.attr.colorOnSurfaceVariant, Color.DKGRAY))
+                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorSurfaceVariant, Color.LTGRAY)
+                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnSurfaceVariant, Color.DKGRAY)
+                statusCard.setCardBackgroundColor(bg)
+                statusText.setTextColor(fg)
+                statusLabel.setTextColor(fg)
+                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
                 statsText.text = getString(R.string.no_stats)
             }
         }

@@ -3,6 +3,7 @@ package me.pnsrc.firetunnel
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -33,6 +34,12 @@ class ConfigsFragment : Fragment() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) loadConfigs()
+    }
+
+    private val fileLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { importFromFile(it) }
     }
 
     override fun onCreateView(
@@ -83,13 +90,18 @@ class ConfigsFragment : Fragment() {
     // ── Add options ────────────────────────────────────────────────────────────
 
     private fun showAddOptions() {
-        val options = arrayOf(getString(R.string.add_via_qr), getString(R.string.add_manually))
+        val options = arrayOf(
+            getString(R.string.add_via_qr),
+            getString(R.string.add_manually),
+            getString(R.string.import_from_file)
+        )
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.add_config)
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> openQrScanner()
                     1 -> showManualInputDialog()
+                    2 -> fileLauncher.launch("*/*")
                 }
             }
             .show()
@@ -134,6 +146,39 @@ class ConfigsFragment : Fragment() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    // ── File import ────────────────────────────────────────────────────────────
+
+    private fun importFromFile(uri: Uri) {
+        runCatching {
+            val toml = requireContext().contentResolver
+                .openInputStream(uri)
+                ?.bufferedReader()
+                ?.use { it.readText() }
+                ?.trim() ?: ""
+            if (toml.isBlank()) {
+                showSnackbar(getString(R.string.config_empty_error))
+                return
+            }
+            val name = configManager.extractHostname(toml)
+                .ifBlank {
+                    // Fall back to file name from URI
+                    uri.lastPathSegment
+                        ?.substringAfterLast('/')
+                        ?.removeSuffix(".toml")
+                        ?.removeSuffix(".conf")
+                        ?.ifBlank { null }
+                        ?: "Config ${System.currentTimeMillis()}"
+                }
+            configManager.saveConfig(
+                VpnConfig(id = System.currentTimeMillis().toString(), name = name, rawToml = toml)
+            )
+            loadConfigs()
+            showSnackbar(getString(R.string.qr_imported, name))
+        }.onFailure {
+            showSnackbar(getString(R.string.import_file_error))
+        }
     }
 
     override fun onRequestPermissionsResult(

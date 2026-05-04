@@ -82,4 +82,28 @@
     <string name="logs_refresh">Refresh</string>
     <string name="logs_copy">Copy</string>
     <string name="logs_copied">Logs copied to clipboard</string>
+
+    <!-- Config file import -->
+    <string name="import_from_file">Import from file (.toml / .conf)</string>
+    <string name="import_file_error">Could not read file</string>
+
+    <!-- Rules URL import -->
+    <string name="add_cidr_manually">Add CIDR manually</string>
+    <string name="import_from_url">Import from URL</string>
+    <string name="import_url_title">Import IP list</string>
+    <string name="import_url_hint">One CIDR per line. Lines starting with # are ignored.</string>
+    <string name="import_url_default">https://antifilter.download/list/subnet.lst</string>
+    <string name="import_btn">Import</string>
+    <string name="downloading">Downloading…</string>
+    <string name="import_success">%d rules imported</string>
+    <string name="import_failed">Download failed: %s</string>
+
+    <!-- About -->
+    <string name="about">About</string>
+    <string name="about_version">Version</string>
+    <string name="about_build">Build type</string>
+    <string name="about_android">Android</string>
+    <string name="about_kernel">Linux kernel</string>
+    <string name="about_device">Device</string>
+    <string name="about_arch">Architecture</string>
 </resources>

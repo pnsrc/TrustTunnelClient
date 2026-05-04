@@ -1,6 +1,8 @@
 package me.pnsrc.firetunnel
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +17,8 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import me.pnsrc.firetunnel.data.ExclusionRule
 import me.pnsrc.firetunnel.data.RulesManager
+import java.io.IOException
+import java.net.URL
 
 class RulesFragment : Fragment() {
 
@@ -23,6 +27,8 @@ class RulesFragment : Fragment() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyText: TextView
     private lateinit var fab: FloatingActionButton
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -44,7 +50,7 @@ class RulesFragment : Fragment() {
             rulesManager.setSplitTunnelEnabled(checked)
         }
 
-        fab.setOnClickListener { showAddRuleDialog() }
+        fab.setOnClickListener { showAddOptions() }
         loadRules()
     }
 
@@ -65,6 +71,26 @@ class RulesFragment : Fragment() {
             }
         )
     }
+
+    // ── Add options ────────────────────────────────────────────────────────────
+
+    private fun showAddOptions() {
+        val options = arrayOf(
+            getString(R.string.add_cidr_manually),
+            getString(R.string.import_from_url)
+        )
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.add_rule)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showAddRuleDialog()
+                    1 -> showDownloadDialog()
+                }
+            }
+            .show()
+    }
+
+    // ── Manual CIDR dialog ─────────────────────────────────────────────────────
 
     private fun showAddRuleDialog() {
         val padding = (24 * resources.displayMetrics.density).toInt()
@@ -88,6 +114,68 @@ class RulesFragment : Fragment() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    // ── URL import dialog ──────────────────────────────────────────────────────
+
+    private fun showDownloadDialog() {
+        val padding = (24 * resources.displayMetrics.density).toInt()
+        val editText = EditText(requireContext()).apply {
+            setText(getString(R.string.import_url_default))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                        android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setPadding(padding, padding / 2, padding, 0)
+        }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.import_url_title)
+            .setMessage(R.string.import_url_hint)
+            .setView(editText)
+            .setPositiveButton(R.string.import_btn) { _, _ ->
+                val url = editText.text.toString().trim()
+                if (url.isNotBlank()) downloadAndImport(url)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun downloadAndImport(urlStr: String) {
+        val snack = view?.let {
+            Snackbar.make(it, getString(R.string.downloading), Snackbar.LENGTH_INDEFINITE)
+                .also { s -> s.show() }
+        }
+
+        Thread {
+            var imported = 0
+            var errorMsg: String? = null
+            try {
+                val text = URL(urlStr).openStream().bufferedReader().use { it.readText() }
+                val cidrs = text.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && !it.startsWith("#") && isValidCidr(it) }
+                for (cidr in cidrs) {
+                    rulesManager.addRule(cidr)
+                    imported++
+                }
+            } catch (e: IOException) {
+                errorMsg = e.message ?: "I/O error"
+            } catch (e: Exception) {
+                errorMsg = e.message ?: "Unknown error"
+            }
+
+            val finalImported = imported
+            val finalError    = errorMsg
+            mainHandler.post {
+                snack?.dismiss()
+                if (!isAdded) return@post
+                if (finalError != null) {
+                    showSnackbar(getString(R.string.import_failed, finalError))
+                } else {
+                    loadRules()
+                    showSnackbar(getString(R.string.import_success, finalImported))
+                }
+            }
+        }.start()
     }
 
     // ── CIDR validation ────────────────────────────────────────────────────────

@@ -185,6 +185,77 @@
                 android:text="@string/save"
                 app:cornerRadius="28dp" />
 
+            <!-- ── About section ──────────────────────────────────────── -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/about"
+                android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                android:textColor="?attr/colorPrimary"
+                android:paddingHorizontal="16dp"
+                android:paddingTop="24dp"
+                android:paddingBottom="8dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="32dp"
+                app:cardElevation="0dp"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <!-- App Version -->
+                    <LinearLayout style="@style/AboutRow">
+                        <TextView style="@style/AboutRowLabel" android:text="@string/about_version" />
+                        <TextView android:id="@+id/tvAboutVersion" style="@style/AboutRowValue" />
+                    </LinearLayout>
+                    <View style="@style/AboutDivider" />
+
+                    <!-- Build type -->
+                    <LinearLayout style="@style/AboutRow">
+                        <TextView style="@style/AboutRowLabel" android:text="@string/about_build" />
+                        <TextView android:id="@+id/tvAboutBuild" style="@style/AboutRowValue" />
+                    </LinearLayout>
+                    <View style="@style/AboutDivider" />
+
+                    <!-- Android version -->
+                    <LinearLayout style="@style/AboutRow">
+                        <TextView style="@style/AboutRowLabel" android:text="@string/about_android" />
+                        <TextView android:id="@+id/tvAboutAndroid" style="@style/AboutRowValue" />
+                    </LinearLayout>
+                    <View style="@style/AboutDivider" />
+
+                    <!-- Linux kernel -->
+                    <LinearLayout style="@style/AboutRow">
+                        <TextView style="@style/AboutRowLabel" android:text="@string/about_kernel" />
+                        <TextView android:id="@+id/tvAboutKernel" style="@style/AboutRowValue" />
+                    </LinearLayout>
+                    <View style="@style/AboutDivider" />
+
+                    <!-- Device -->
+                    <LinearLayout style="@style/AboutRow">
+                        <TextView style="@style/AboutRowLabel" android:text="@string/about_device" />
+                        <TextView android:id="@+id/tvAboutDevice" style="@style/AboutRowValue" />
+                    </LinearLayout>
+                    <View style="@style/AboutDivider" />
+
+                    <!-- Architecture -->
+                    <LinearLayout style="@style/AboutRow">
+                        <TextView style="@style/AboutRowLabel" android:text="@string/about_arch" />
+                        <TextView android:id="@+id/tvAboutArch" style="@style/AboutRowValue" />
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
         </LinearLayout>
 
     </ScrollView>

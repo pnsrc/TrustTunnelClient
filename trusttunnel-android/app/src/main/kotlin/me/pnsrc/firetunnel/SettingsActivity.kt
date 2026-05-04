@@ -1,8 +1,11 @@
 package me.pnsrc.firetunnel
 
+import android.content.pm.ApplicationInfo
+import android.os.Build
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
@@ -15,6 +18,14 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var notificationsCheck: MaterialSwitch
     private lateinit var logLevelSpinner: Spinner
     private lateinit var saveButton: MaterialButton
+
+    // About
+    private lateinit var tvAboutVersion: TextView
+    private lateinit var tvAboutBuild:   TextView
+    private lateinit var tvAboutAndroid: TextView
+    private lateinit var tvAboutKernel:  TextView
+    private lateinit var tvAboutDevice:  TextView
+    private lateinit var tvAboutArch:    TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,9 +40,19 @@ class SettingsActivity : AppCompatActivity() {
         logLevelSpinner    = findViewById(R.id.logLevelSpinner)
         saveButton         = findViewById(R.id.saveButton)
 
+        tvAboutVersion = findViewById(R.id.tvAboutVersion)
+        tvAboutBuild   = findViewById(R.id.tvAboutBuild)
+        tvAboutAndroid = findViewById(R.id.tvAboutAndroid)
+        tvAboutKernel  = findViewById(R.id.tvAboutKernel)
+        tvAboutDevice  = findViewById(R.id.tvAboutDevice)
+        tvAboutArch    = findViewById(R.id.tvAboutArch)
+
         loadSettings()
+        populateAbout()
         saveButton.setOnClickListener { saveSettings() }
     }
+
+    // ── Settings ───────────────────────────────────────────────────────────────
 
     private fun loadSettings() {
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
@@ -55,5 +76,38 @@ class SettingsActivity : AppCompatActivity() {
         }
         Toast.makeText(this, R.string.save, Toast.LENGTH_SHORT).show()
         finish()
+    }
+
+    // ── About ──────────────────────────────────────────────────────────────────
+
+    private fun populateAbout() {
+        // App version
+        val pi = runCatching { packageManager.getPackageInfo(packageName, 0) }.getOrNull()
+        val versionName = pi?.versionName ?: "—"
+        val versionCode = if (pi == null) 0L
+                          else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                              pi.longVersionCode
+                          else @Suppress("DEPRECATION") pi.versionCode.toLong()
+        tvAboutVersion.text = "$versionName ($versionCode)"
+
+        // Build type: debug flag in applicationInfo
+        val isDebug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        tvAboutBuild.text = if (isDebug) "debug" else "release"
+
+        // Android version + API level
+        tvAboutAndroid.text = "Android ${Build.VERSION.RELEASE}  (API ${Build.VERSION.SDK_INT})"
+
+        // Linux kernel
+        val kernel = System.getProperty("os.version") ?: "—"
+        tvAboutKernel.text = kernel
+
+        // Device model
+        val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+        val model = Build.MODEL
+        tvAboutDevice.text = if (model.startsWith(manufacturer, ignoreCase = true)) model
+                             else "$manufacturer $model"
+
+        // CPU architecture
+        tvAboutArch.text = Build.SUPPORTED_ABIS.firstOrNull() ?: Build.CPU_ABI
     }
 }
