@@ -21,6 +21,17 @@ import stat
 import subprocess
 import sys
 
+# External scripts cloned during this run (e.g. dns-libs/scripts/export_conan.py) import
+# yaml at module level.  Install pyyaml into *this* interpreter so that sys.executable
+# (used for every subprocess call below) already has the package available.
+try:
+    import yaml as _  # noqa: F401
+except ImportError:
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "pyyaml"],
+        check=True,
+    )
+
 work_dir = os.path.dirname(os.path.realpath(__file__))
 project_dir = os.path.dirname(work_dir)
 nlc_url = sys.argv[1] if len(sys.argv) > 1 else 'https://github.com/AdguardTeam/NativeLibsCommon.git'
