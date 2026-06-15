@@ -92,8 +92,14 @@ try:
     subprocess.run(["git", "clone", nlc_url, nlc_dir], check=True)
     os.chdir(nlc_dir)
 
+    # export_conan.sh is a shell wrapper that pip-installs requirements and runs
+    # export_conan.py. Invoke that Python entrypoint directly so bootstrapping
+    # also works on Windows runners, which cannot exec a `.sh` file.
+    nlc_scripts = os.path.join(nlc_dir, "scripts")
+    subprocess.run([sys.executable, "-m", "pip", "install", "-r",
+                    os.path.join(nlc_scripts, "requirements.txt")], check=True)
     for v in nlc_versions:
         subprocess.run(["git", "checkout", "master"], check=True)
-        subprocess.run([os.path.join(nlc_dir, "scripts", "export_conan.sh"), v], check=True)
+        subprocess.run([sys.executable, os.path.join(nlc_scripts, "export_conan.py"), v], check=True)
 finally:
     remove_dir_if_exists(nlc_dir)

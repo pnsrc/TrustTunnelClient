@@ -1,5 +1,22 @@
 # FireTunnel Qt Client — Changelog
 
+## v0.13b
+
+### ✨ New features
+
+**Custom port bypass**
+New *Bypass specified ports* option in Settings → Network. Enter arbitrary destination ports and ranges (e.g. `3389, 53, 6881-6889`); each is expanded to the core's wildcard-port exclusion `*:port` and applied on connect. Ranges wider than 1024 ports are skipped to avoid runaway exclusion lists.
+
+**New core exclusions options in the config wizard**
+The config constructor now exposes the new core handling options — *TCP early-ack* (read SNI before connecting), *background pre-resolve* of exclusion DNS, and the *max pre-resolve domains* limit — and writes them into the generated TOML. The config preview now also shows these values.
+
+### 🐛 Bug fixes
+
+**SSH / P2P bypass did nothing** — fixed
+The bypass rules used an invalid exclusion syntax (`||:22`, `||:6881-6889`) that the core silently ignored, and port ranges are not supported by the parser. Rewritten to the supported `*:port` form, expanding the P2P range into individual ports.
+
+---
+
 ## v0.12b
 
 ### ✨ New features

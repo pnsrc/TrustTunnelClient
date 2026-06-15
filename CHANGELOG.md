@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Android client: configuration constructor — a form-based builder in the Configs
+  tab that assembles a TrustTunnel TOML (endpoint, VPN mode, DNS, exclusions,
+  kill switch, post-quantum, skip-verification) without writing TOML by hand.
+- Android client: full Russian localization (`values-ru`).
+
 ### Changed
 
 ### Deprecated
@@ -15,6 +20,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 ### Fixed
+
+- `bootstrap_conan_deps.py`: export the pinned `dns-libs` version from its
+  matching git tag instead of whatever the latest tag happens to be, so a clean
+  build resolves the version requested in `conanfile.py`.
+- `bootstrap_conan_deps.py`: invoke NativeLibsCommon's `export_conan.py` directly
+  instead of the `export_conan.sh` wrapper, so dependency bootstrapping works on
+  Windows runners (which cannot exec a `.sh` file).
 
 ### Security
 
