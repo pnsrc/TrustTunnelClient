@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FireTunnel</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_vpn">VPN</string>
+    <string name="nav_configs">Конфиги</string>
+    <string name="nav_rules">Правила</string>
+    <string name="nav_logs">Логи</string>
+
+    <!-- Status -->
+    <string name="status_connected">Статус: подключено</string>
+    <string name="status_disconnected">Статус: отключено</string>
+    <string name="status_connecting">Статус: подключение…</string>
+    <string name="connected">ПОДКЛЮЧЕНО</string>
+    <string name="disconnected">ОТКЛЮЧЕНО</string>
+    <string name="connecting">ПОДКЛЮЧЕНИЕ…</string>
+
+    <!-- Buttons -->
+    <string name="connect">Подключить</string>
+    <string name="disconnect">Отключить</string>
+    <string name="save">Сохранить</string>
+    <string name="delete">Удалить</string>
+    <string name="back">Назад</string>
+    <string name="settings">Настройки</string>
+
+    <!-- Home fragment -->
+    <string name="configuration">Активный конфиг</string>
+    <string name="no_configs">Нет конфигов — добавьте на вкладке «Конфиги».</string>
+    <string name="no_stats">—</string>
+    <string name="uptime_label">Подключено · %s</string>
+    <string name="vpn_permission_required">Требуется разрешение на VPN</string>
+    <string name="vpn_select_config">Сначала выберите конфигурацию</string>
+
+    <!-- Config management -->
+    <string name="add_config">Добавить конфиг</string>
+    <string name="add_via_qr">Сканировать QR-код</string>
+    <string name="add_manually">Ввести TOML вручную</string>
+    <string name="config_name_hint">Название (необязательно)</string>
+    <string name="config_toml_hint">Вставьте сюда TOML-конфиг…</string>
+    <string name="config_empty_error">Конфиг не может быть пустым</string>
+    <string name="delete_config_title">Удалить конфиг</string>
+    <string name="delete_config_message">Удалить «%s»?</string>
+    <string name="config_deleted">«%s» удалён</string>
+    <string name="qr_scan">Сканировать QR</string>
+    <string name="scan_qr">Сканировать QR-код</string>
+    <string name="point_camera_at_qr">Наведите камеру на QR-код для импорта конфига</string>
+    <string name="qr_imported">Конфиг «%s» импортирован</string>
+    <string name="qr_invalid">Неверный формат QR-кода</string>
+    <string name="configs_empty">Нет сохранённых конфигов.\nНажмите +, чтобы добавить.</string>
+
+    <!-- Config constructor -->
+    <string name="add_constructor">Собрать в конструкторе</string>
+    <string name="constructor_title">Новая конфигурация</string>
+    <string name="ctor_create">Создать</string>
+    <string name="ctor_section_server">Сервер</string>
+    <string name="ctor_section_network">Сеть</string>
+    <string name="ctor_section_options">Параметры</string>
+    <string name="ctor_host_hint">Хост сервера</string>
+    <string name="ctor_addresses_hint">Адреса: host:port, через запятую</string>
+    <string name="ctor_username_hint">Имя пользователя</string>
+    <string name="ctor_password_hint">Пароль</string>
+    <string name="ctor_sni_hint">Произвольный SNI (необязательно)</string>
+    <string name="ctor_dns_hint">DNS-серверы, по одному на строку</string>
+    <string name="ctor_exclusions_hint">Исключения, по одному на строку (необязательно)</string>
+    <string name="ctor_mode_label">Режим VPN</string>
+    <string name="ctor_mode_general">General — весь трафик, кроме исключений</string>
+    <string name="ctor_mode_selective">Selective — через VPN только исключения</string>
+    <string name="ctor_killswitch">Kill switch</string>
+    <string name="ctor_post_quantum">Постквантовый обмен ключами</string>
+    <string name="ctor_skip_verification">Пропускать проверку сертификата</string>
+    <string name="ctor_required_error">Заполните сервер, адреса, имя пользователя и пароль</string>
+    <string name="ctor_created">Конфиг «%s» создан</string>
+
+    <!-- Rules -->
+    <string name="split_tunnel">Раздельный туннель</string>
+    <string name="split_tunnel_desc">Направлять через VPN только указанные диапазоны IP</string>
+    <string name="excluded_ips">Исключённые диапазоны IP</string>
+    <string name="excluded_ips_desc">Эти CIDR идут мимо VPN-туннеля</string>
+    <string name="add_rule">Добавить исключение</string>
+    <string name="add_rule_hint">Введите IP-адрес или CIDR-диапазон (например, 192.168.1.0/24)</string>
+    <string name="rule_deleted">Правило «%s» удалено</string>
+    <string name="rules_empty">Нет правил исключений.\nНажмите +, чтобы добавить CIDR-диапазон.</string>
+    <string name="invalid_cidr">Неверный IP-адрес или CIDR</string>
+
+    <!-- VPN notification -->
+    <string name="vpn_notification_title">FireTunnel VPN</string>
+    <string name="vpn_notification_connected">VPN активен</string>
+    <string name="vpn_notification_connecting">Подключение…</string>
+    <string name="vpn_channel_name">Статус подключения</string>
+
+    <!-- Settings -->
+    <string name="connection_settings">Соединение</string>
+    <string name="kill_switch">Kill Switch</string>
+    <string name="kill_switch_desc">Блокировать трафик при отключении VPN</string>
+    <string name="notifications">Уведомления</string>
+    <string name="logging">Диагностика</string>
+    <string name="log_level">Уровень логирования</string>
+    <string name="view_logs">Показать логи</string>
+
+    <!-- Log viewer -->
+    <string name="logs_title">Логи</string>
+    <string name="logs_empty">Записей пока нет. Подключитесь к VPN, чтобы появились логи.</string>
+    <string name="logs_read_error">Ошибка чтения файла логов: %s</string>
+    <string name="logs_refresh">Обновить</string>
+    <string name="logs_copy">Копировать</string>
+    <string name="logs_copied">Логи скопированы в буфер обмена</string>
+
+    <!-- Config file import -->
+    <string name="import_from_file">Импорт из файла (.toml / .conf)</string>
+    <string name="import_file_error">Не удалось прочитать файл</string>
+
+    <!-- Rules URL import -->
+    <string name="add_cidr_manually">Добавить CIDR вручную</string>
+    <string name="import_from_url">Импорт из URL</string>
+    <string name="import_url_title">Импорт списка IP</string>
+    <string name="import_url_hint">По одному CIDR на строку. Строки, начинающиеся с #, игнорируются.</string>
+    <string name="import_url_default">https://antifilter.download/list/subnet.lst</string>
+    <string name="import_btn">Импортировать</string>
+    <string name="downloading">Загрузка…</string>
+    <string name="import_success">Импортировано правил: %d</string>
+    <string name="import_failed">Ошибка загрузки: %s</string>
+
+    <!-- About -->
+    <string name="about">О приложении</string>
+    <string name="about_version">Версия</string>
+    <string name="about_build">Тип сборки</string>
+    <string name="about_android">Android</string>
+    <string name="about_kernel">Ядро Linux</string>
+    <string name="about_device">Устройство</string>
+    <string name="about_arch">Архитектура</string>
+</resources>

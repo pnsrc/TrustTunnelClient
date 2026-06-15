@@ -2,6 +2,14 @@
 
 set -e -f -u
 
+# Skip linting and testing for merge commits: those changes are not authored
+# here, and building/testing the whole merge result at commit time is both slow
+# and prone to spurious failures.  Resolve conflicts, then let the merge commit
+# through untouched.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+	exit 0
+fi
+
 # This comment is used to simplify checking local copies of the script.  Bump
 # this number every time a significant change is made to this script.
 #

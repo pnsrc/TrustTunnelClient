@@ -64,13 +64,24 @@ remove_dir_if_exists(dns_libs_dir)
 try:
     subprocess.run(["git", "clone", dns_libs_url, dns_libs_dir], check=True)
     os.chdir(dns_libs_dir)
+
+    # Check out the exact version required by the project. DnsLibs'
+    # `export_conan.sh` always exports the latest available tag (ignoring its
+    # argument), so it cannot produce an older pinned version once master moves
+    # ahead. Pin to the tag and export the recipe explicitly instead.
+    subprocess.run(["git", "checkout", f"v{dns_libs_version}"], check=True)
+
     with open("conanfile.py", "r") as file:
         for line in map(str.strip, file.readlines()):
             if line.startswith('self.requires("native_libs_common/') \
                     and ('@adguard/oss"' in line):
                 nlc_versions.append(line.split('@')[0].split('/')[1])
 
-    subprocess.run([os.path.join("scripts", "export_conan.sh"), dns_libs_version], check=True)
+    subprocess.run([
+        "conan", "export", ".",
+        "--user", "adguard", "--channel", "oss",
+        "--version", dns_libs_version,
+    ], check=True)
 finally:
     remove_dir_if_exists(dns_libs_dir)
 

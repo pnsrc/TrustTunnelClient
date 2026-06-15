@@ -49,6 +49,29 @@
     <string name="qr_invalid">Invalid QR code format</string>
     <string name="configs_empty">No saved configs.\nTap + to add one.</string>
 
+    <!-- Config constructor -->
+    <string name="add_constructor">Build with constructor</string>
+    <string name="constructor_title">New configuration</string>
+    <string name="ctor_create">Create</string>
+    <string name="ctor_section_server">Server</string>
+    <string name="ctor_section_network">Network</string>
+    <string name="ctor_section_options">Options</string>
+    <string name="ctor_host_hint">Server hostname</string>
+    <string name="ctor_addresses_hint">Addresses: host:port, comma-separated</string>
+    <string name="ctor_username_hint">Username</string>
+    <string name="ctor_password_hint">Password</string>
+    <string name="ctor_sni_hint">Custom SNI (optional)</string>
+    <string name="ctor_dns_hint">DNS servers, one per line</string>
+    <string name="ctor_exclusions_hint">Exclusions, one per line (optional)</string>
+    <string name="ctor_mode_label">VPN mode</string>
+    <string name="ctor_mode_general">General — all traffic except exclusions</string>
+    <string name="ctor_mode_selective">Selective — only exclusions through VPN</string>
+    <string name="ctor_killswitch">Kill switch</string>
+    <string name="ctor_post_quantum">Post-quantum key exchange</string>
+    <string name="ctor_skip_verification">Skip certificate verification</string>
+    <string name="ctor_required_error">Fill in server, addresses, username and password</string>
+    <string name="ctor_created">Config \"%s\" created</string>
+
     <!-- Rules -->
     <string name="split_tunnel">Split Tunnel</string>
     <string name="split_tunnel_desc">Only route specific IP ranges through VPN</string>
