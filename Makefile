@@ -19,6 +19,14 @@ SETUP_WIZARD_DIR = trusttunnel/setup_wizard
 QT_DISABLE_HTTP3 ?= ON
 UNAME_S := $(shell uname -s)
 
+# Help CMake locate a Homebrew-installed Qt6 on macOS
+ifeq ($(UNAME_S),Darwin)
+QT_PREFIX ?= $(shell brew --prefix qt 2>/dev/null)
+ifneq ($(QT_PREFIX),)
+QT_CMAKE_PREFIX = -DCMAKE_PREFIX_PATH=$(QT_PREFIX)
+endif
+endif
+
 ifeq ($(OS), Windows_NT)
 NPROC ?= $(or $(NUMBER_OF_PROCESSORS),8)
 else
@@ -101,7 +109,7 @@ build_wizard:
 .PHONY: build_qt_client
 ## Build the Qt client binary
 build_qt_client: setup_cmake
-	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS) -DDISABLE_HTTP3=$(QT_DISABLE_HTTP3)
+	cmake -S . -B $(BUILD_DIR) $(CMAKE_FLAGS) -DDISABLE_HTTP3=$(QT_DISABLE_HTTP3) -DBUILD_TRUSTTUNNEL_QT=ON $(QT_CMAKE_PREFIX)
 	cmake --build $(BUILD_DIR) --target trusttunnel-qt
 
 .PHONY: build_qt_client_macos

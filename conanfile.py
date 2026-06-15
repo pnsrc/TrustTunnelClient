@@ -2,9 +2,9 @@ from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
 from conan.tools.files import patch, copy
 from conan.tools.apple import is_apple_os
-import os
+from conan.tools.scm import Git
 from os.path import join
-import re
+import re, os, shutil
 
 
 class VpnLibsConan(ConanFile):
@@ -18,10 +18,12 @@ class VpnLibsConan(ConanFile):
     options = {
         "with_ghc": [True, False],
         "sanitize": [None, "ANY"],
+        "capi_linux_exports": [True, False],
     }
     default_options = {
         "with_ghc": False,
         "sanitize": None,  # None means none
+        "capi_linux_exports": False,
     }
     # A list of paths to patches. The paths must be relative to the conanfile directory.
     # They are applied in case of the version equals 777 and mostly intended to be used
@@ -30,8 +32,8 @@ class VpnLibsConan(ConanFile):
     exports_sources = patch_files
 
     def requirements(self):
-        self.requires("dns-libs/2.8.42@adguard/oss", transitive_headers=True)
-        self.requires("native_libs_common/8.0.27@adguard/oss", transitive_headers=True)
+        self.requires("dns-libs/2.8.54@adguard/oss", transitive_headers=True)
+        self.requires("native_libs_common/8.1.33@adguard/oss", transitive_headers=True)
 
         self.requires("brotli/1.1.0", transitive_headers=True)
         self.requires("cxxopts/3.1.1", transitive_headers=True)
@@ -65,20 +67,28 @@ class VpnLibsConan(ConanFile):
         self.options["pcre2"].build_pcre2grep = False
         self.options["dns-libs"].tcpip = False
 
+    def export_sources(self):
+        if self.version == "local":
+            git = Git(self)
+            included = git.included_files()
+            for i in included:
+                dst = os.path.join(self.export_sources_folder, i)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(i, dst)
+
     def source(self):
-        self.run(f"git init . && git remote add origin {self.vcs_url} && git fetch")
-        if re.match(r'\d+\.\d+\.\d+', self.version) is not None:
-            version_hash = self.conan_data["commit_hash"][self.version]["hash"]
-            self.run("git checkout -f %s" % version_hash)
-        else:
-            self.run("git checkout -f %s" % self.version)
-            for p in self.patch_files:
-                patch(self, patch_file=p)
+        if os.listdir(self.source_folder):
+            return
+
+        git = Git(self)
+        git.fetch_commit(self.vcs_url, f"v{self.version}")
 
     def generate(self):
         deps = CMakeDeps(self)
         deps.generate()
         tc = CMakeToolchain(self)
+        if self.settings.os == "Linux" and self.options.capi_linux_exports:
+            tc.cache_variables["VPNLIBS_CAPI_LINUX_EXPORTS"] = True
         if self.options.sanitize:
             tc.cache_variables["CMAKE_C_FLAGS"] += f" -fno-omit-frame-pointer -fsanitize={self.options.sanitize}"
             tc.cache_variables["CMAKE_CXX_FLAGS"] += f" -fno-omit-frame-pointer -fsanitize={self.options.sanitize}"

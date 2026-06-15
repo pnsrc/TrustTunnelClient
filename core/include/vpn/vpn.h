@@ -138,6 +138,14 @@ typedef struct {
      *     quic://dns.adguard.com:8853 -- DNS-over-QUIC
      */
     AG_ARRAY_OF(const char *) dns_upstreams;
+    /**
+     * If `true`, DNS queries for excluded (or, in selective mode, not included) domains
+     * will be sent to their original destinations through the bypass upstream, instead
+     * of being redirected to the system DNS proxy.
+     *
+     * The default value is `false`.
+     */
+    bool dns_alt_exclusions_route;
 } VpnListenerConfig;
 
 typedef struct {
@@ -529,6 +537,27 @@ typedef struct {
      * an endpoint will not be routed directly in that case.
      */
     bool killswitch_enabled;
+
+    /**
+     * When enabled, all TCP connections to scannable ports are initially routed through a fake upstream
+     * to read the SNI from the TLS ClientHello before making any real connection to the endpoint.
+     * This ensures exclusions work when the suspects cache is not populated, e.g. when secure DNS
+     * is configured outside of AdGuard VPN or when the exclusion list contains wildcard entries.
+     */
+    bool exclusions_tcp_early_ack_enabled;
+
+    /**
+     * When enabled, DNS-resolvable exclusions are pre-resolved in the background after the exclusion
+     * list is updated. This populates the suspects cache so that connections to excluded hosts are
+     * routed correctly without waiting for the first DNS response.
+     */
+    bool exclusions_preresolve_enabled;
+
+    /**
+     * Maximum number of exclusion domains to pre-resolve.
+     * 0 means use the default value (50).
+     */
+    uint32_t exclusions_preresolve_max_queries;
 
     /**
      * Path to a directory where SSL sessions would be cached to persist

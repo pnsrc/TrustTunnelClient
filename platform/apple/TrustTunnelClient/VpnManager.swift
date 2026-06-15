@@ -1,5 +1,6 @@
 import Foundation
 import NetworkExtension
+import VpnClientFramework
 
 enum VpnSessionState: Int {
     case disconnected;
@@ -35,6 +36,8 @@ public struct AppSettings {
     }
 }
 
+/// Logs emitted by VpnManager respect Logger.setCallback.
+/// Set the callback before creating VpnManager if you want to capture logs emitted during initialization.
 public final class VpnManager {
     private var apiQueue: DispatchQueue
     private var queue: DispatchQueue
@@ -47,8 +50,9 @@ public final class VpnManager {
     private var readyContinuation: CheckedContinuation<NETunnelProviderManager, Never>?
     private var bundleIdentifier: String
     private var appGroup: String
-    private var readIndex: UInt32? = nil
+    private var readIndex: UInt64? = nil
     private let logger = Logger(category: "VpnManager")
+    private let fileLogger: FileLogger?
 
     public init(bundleIdentifier: String,
                         appGroup: String,
@@ -61,6 +65,13 @@ public final class VpnManager {
         self.appGroup = appGroup
         self.stateChangeCallback = stateChangeCallback
         self.connectionInfoCallback = connectionInfoCallback
+        if !appGroup.isEmpty, let logsDir = FileLogger.logsDirectory(appGroup: appGroup) {
+            let logger = FileLogger(directory: logsDir, baseName: FileLogger.appBaseName)
+            logger.install()
+            self.fileLogger = logger
+        } else {
+            self.fileLogger = nil
+        }
         self.apiQueue.async {
             self.startObservingStatus(manager: self.getManager())
             if !self.appGroup.isEmpty {
@@ -216,11 +227,16 @@ public final class VpnManager {
             var result: [String]? = nil
             fileCoordinator.coordinate(
                 readingItemAt: fileURL, error: &coordinatorError) { fileUrl in
-                    let (records, newIndex) =
-                        PrefixedLenRingProto.read_all(fileUrl: fileUrl, startIndex: self.readIndex)
-                    if let records = records {
-                        result = records
-                        self.readIndex = newIndex
+                    let bridge = PersistentRingBuffer(path: fileUrl.path)
+                    let readResult = if let readIndex = self.readIndex {
+                        bridge.read(since: readIndex)
+                    } else {
+                        bridge.readAll()
+                    }
+
+                    if let readResult {
+                        result = readResult.records
+                        self.readIndex = readResult.nextSequence
                     }
                 }
 
@@ -233,7 +249,8 @@ public final class VpnManager {
                 fileCoordinator.coordinate(writingItemAt: fileURL,
                                                  options: .forDeleting,
                                                    error: &coordinatorError) { fileUrl in
-                    PrefixedLenRingProto.clear(fileUrl: fileUrl)
+                    let bridge = PersistentRingBuffer(path: fileUrl.path)
+                    _ = bridge.clear()
                 }
                 self.readIndex = nil
                 return
@@ -443,5 +460,68 @@ public final class VpnManager {
             group.wait()
             self.logger.info("VPN has been stopped!")
         }
+    }
+
+    /// Export log files from both the app process and the Network Extension process.
+    ///
+    /// Both processes write into the shared App Group `logs/` directory, differing
+    /// only by their base name. This method snapshots each one through the
+    /// identical `FileLogger.snapshot(directory:baseName:into:)` call.
+    ///
+    /// Returns the paths to snapshot copies in a temporary directory.
+    /// The caller (Flutter) is responsible for cleaning up returned files.
+    ///
+    /// Safe to call while the tunnel is active. Snapshots are point-in-time
+    /// coordinated copies; a trailing line may be truncated but the data before
+    /// it is always valid.
+    public func exportLogs() -> [String] {
+        guard let logsDir = FileLogger.logsDirectory(appGroup: appGroup) else {
+            return []
+        }
+
+        let dateStr = Self.exportDirTimestamp()
+        let exportDirName = "trusttunnel_\(Self.platformName)_logs_\(dateStr)"
+        let exportDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(exportDirName)
+
+        do {
+            try FileManager.default.createDirectory(at: exportDir,
+                                                    withIntermediateDirectories: true)
+        } catch {
+            logger.warn("exportLogs: failed to create export dir: \(error.localizedDescription)")
+            return []
+        }
+
+        // Both processes live in the same logsDir; snapshot each through
+        // the one static code path, keyed by base name only.
+        let results = [FileLogger.appBaseName, FileLogger.extensionBaseName].flatMap { baseName in
+            FileLogger.snapshot(directory: logsDir, baseName: baseName, into: exportDir)
+        }
+
+        return results.map { $0.path }
+    }
+
+    // MARK: - exportLogs helpers
+
+    private static let platformName: String = {
+#if os(macOS)
+        return "mac"
+#elseif os(iOS)
+        return "ios"
+#else
+        return "apple"
+#endif
+    }()
+
+    private static let exportDirDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "yyyyMMdd'T'HHmmss"
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone.current
+        return df
+    }()
+
+    private static func exportDirTimestamp() -> String {
+        exportDirDateFormatter.string(from: Date())
     }
 }

@@ -1,0 +1,78 @@
+name: Deploy Apple library
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy (e.g. 1.2.3). If omitted, the version is detected from CHANGELOG.md."
+        required: false
+        type: string
+
+jobs:
+  deploy-apple:
+    name: Deploy library / Apple
+    if: github.repository == 'AdGuardSoftwareLimited/trusttunnel-client'
+    environment: apple-gh-packages
+    runs-on:
+      - ephemeral
+      - ephemeral-mac
+      - ${{ vars.BUILD_IMAGE_VERSION_MACOS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure environment
+        run: |
+          python3 -m venv venv
+          source ./venv/bin/activate
+          pip install conan
+          conan remote add --index 0 art ${{ vars.CONAN_REPO_URL }} || true
+          bundle config --local path '.bundle/vendor'
+          bundle install
+
+      - name: Detect version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(grep -E '^## \[[0-9]+\.[0-9]+\.[0-9]+[^]]*\]' CHANGELOG.md | head -1 | sed -E 's/^## \[([^]]+)\].*/\1/')
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Set version
+        run: |
+          ./scripts/set_version.sh ${{ steps.version.outputs.version }}
+
+      - name: Build xcframeworks
+        run: |
+          source ./venv/bin/activate
+          cd platform/apple
+          ./build_framework.sh
+
+      - name: Package and upload
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_GPR_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -e -x
+
+          ARTIFACT_NAME="TrustTunnelClient-apple-${VERSION}.zip"
+
+          cp CHANGELOG.md platform/apple/Framework/CHANGELOG
+
+          cd platform/apple/Framework
+
+          echo "https://github.com/TrustTunnel/TrustTunnelClient/blob/main/LICENSE" > LICENSE
+
+          # Create .zip with CHANGELOG and LICENSE
+          zip -4yr "${ARTIFACT_NAME}" \
+            TrustTunnelClient.xcframework \
+            VpnClientFramework.xcframework \
+            CHANGELOG \
+            LICENSE
+
+          # Upload to Maven registry
+          curl -X PUT \
+            --upload-file "${ARTIFACT_NAME}" \
+            "https://${GH_TOKEN}:@maven.pkg.github.com/TrustTunnel/TrustTunnelClient/com/adguard/trusttunnel/trusttunnel-client-apple/${VERSION}/${ARTIFACT_NAME}"

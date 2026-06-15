@@ -21,17 +21,6 @@ import stat
 import subprocess
 import sys
 
-# External scripts cloned during this run (e.g. dns-libs/scripts/export_conan.py) import
-# yaml at module level.  Install pyyaml into *this* interpreter so that sys.executable
-# (used for every subprocess call below) already has the package available.
-try:
-    import yaml as _  # noqa: F401
-except ImportError:
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "pyyaml"],
-        check=True,
-    )
-
 work_dir = os.path.dirname(os.path.realpath(__file__))
 project_dir = os.path.dirname(work_dir)
 nlc_url = sys.argv[1] if len(sys.argv) > 1 else 'https://github.com/AdguardTeam/NativeLibsCommon.git'
@@ -81,7 +70,7 @@ try:
                     and ('@adguard/oss"' in line):
                 nlc_versions.append(line.split('@')[0].split('/')[1])
 
-    subprocess.run([sys.executable, os.path.join("scripts", "export_conan.py"), dns_libs_version], check=True)
+    subprocess.run([os.path.join("scripts", "export_conan.sh"), dns_libs_version], check=True)
 finally:
     remove_dir_if_exists(dns_libs_dir)
 
@@ -92,20 +81,8 @@ try:
     subprocess.run(["git", "clone", nlc_url, nlc_dir], check=True)
     os.chdir(nlc_dir)
 
-    # Reduce the chances of missing a necessary dependency exported with NLC
-    # by exporting all recipes from all versions of NLC, starting with the minimum
-    # necessary.
-    min_nlc_version = min(nlc_versions)
-
     for v in nlc_versions:
         subprocess.run(["git", "checkout", "master"], check=True)
-        try:
-            subprocess.run([sys.executable, os.path.join(nlc_dir, "scripts", "export_conan.py"), v], check=True)
-        except:
-            if v in nlc_versions:
-                raise
-            else:
-                # Some native_libs_common versions have broken Conan recipes: ignore them.
-                continue
+        subprocess.run([os.path.join(nlc_dir, "scripts", "export_conan.sh"), v], check=True)
 finally:
     remove_dir_if_exists(nlc_dir)
