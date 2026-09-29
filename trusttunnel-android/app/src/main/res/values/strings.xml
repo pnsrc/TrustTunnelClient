@@ -129,4 +129,23 @@
     <string name="about_kernel">Linux kernel</string>
     <string name="about_device">Device</string>
     <string name="about_arch">Architecture</string>
+
+    <!-- Device enrollment (firetunnel://enroll) -->
+    <string name="add_via_enroll_link">Connect by dashboard link</string>
+    <string name="enroll_title">Connect device</string>
+    <string name="enroll_connect">Connect</string>
+    <string name="enroll_link_description">Copy the link from your dashboard and paste it here. The config will be downloaded and kept up to date automatically.</string>
+    <string name="enroll_link_hint">https://…/enroll/… or firetunnel://enroll?url=…</string>
+    <string name="enroll_confirm">Connect this device using a link from %s?\n\nThe device name will be shown in your dashboard.</string>
+    <string name="enroll_in_progress">Requesting configuration…</string>
+    <string name="enroll_success">Device connected: \"%s\"</string>
+    <string name="enroll_failed_title">Could not connect device</string>
+    <string name="enroll_invalid_link">This is not a valid connection link. Copy it from your dashboard again.</string>
+    <string name="enroll_http_error">Server rejected the request (HTTP %d)</string>
+    <string name="enroll_rate_limited">Too many requests. Please try again in a minute.</string>
+    <string name="enroll_server_unavailable">Server is unavailable. Check your internet connection and try again later.</string>
+    <string name="enroll_revoked_title">Access to \"%s\" removed</string>
+    <string name="enroll_device_revoked">This device was removed in the dashboard. Its configuration has been deleted.</string>
+    <string name="enroll_no_access">Your access has been revoked or not granted yet. The configuration has been deleted.</string>
+    <string name="enroll_unknown_link">The link is no longer valid. Get a new link in your dashboard.</string>
 </resources>

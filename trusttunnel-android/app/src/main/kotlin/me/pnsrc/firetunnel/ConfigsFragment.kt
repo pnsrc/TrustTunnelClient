@@ -23,6 +23,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import me.pnsrc.firetunnel.data.ConfigManager
+import me.pnsrc.firetunnel.data.EnrollmentManager
 import me.pnsrc.firetunnel.data.VpnConfig
 
 class ConfigsFragment : Fragment() {
@@ -35,7 +36,12 @@ class ConfigsFragment : Fragment() {
     private val qrLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) loadConfigs()
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            loadConfigs()
+            result.data?.getStringExtra(QRScannerActivity.EXTRA_ENROLL_LINK)?.let { link ->
+                EnrollmentUi.confirmAndEnroll(requireActivity(), link) { loadConfigs() }
+            }
+        }
     }
 
     private val fileLauncher = registerForActivityResult(
@@ -81,6 +87,7 @@ class ConfigsFragment : Fragment() {
                 .setMessage(getString(R.string.delete_config_message, config.name))
                 .setPositiveButton(R.string.delete) { _, _ ->
                     configManager.deleteConfig(config.id)
+                    EnrollmentManager(requireContext()).forget(config.id)
                     loadConfigs()
                     showSnackbar(getString(R.string.config_deleted, config.name))
                 }
@@ -93,6 +100,7 @@ class ConfigsFragment : Fragment() {
 
     private fun showAddOptions() {
         val options = arrayOf(
+            getString(R.string.add_via_enroll_link),
             getString(R.string.add_constructor),
             getString(R.string.add_via_qr),
             getString(R.string.add_manually),
@@ -102,10 +110,11 @@ class ConfigsFragment : Fragment() {
             .setTitle(R.string.add_config)
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> showConstructorDialog()
-                    1 -> openQrScanner()
-                    2 -> showManualInputDialog()
-                    3 -> fileLauncher.launch("*/*")
+                    0 -> EnrollmentUi.promptForLink(requireActivity()) { loadConfigs() }
+                    1 -> showConstructorDialog()
+                    2 -> openQrScanner()
+                    3 -> showManualInputDialog()
+                    4 -> fileLauncher.launch("*/*")
                 }
             }
             .show()

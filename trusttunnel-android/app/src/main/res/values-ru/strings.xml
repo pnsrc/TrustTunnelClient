@@ -129,4 +129,23 @@
     <string name="about_kernel">Ядро Linux</string>
     <string name="about_device">Устройство</string>
     <string name="about_arch">Архитектура</string>
+
+    <!-- Привязка устройства (firetunnel://enroll) -->
+    <string name="add_via_enroll_link">Подключить по ссылке из кабинета</string>
+    <string name="enroll_title">Привязка устройства</string>
+    <string name="enroll_connect">Подключить</string>
+    <string name="enroll_link_description">Скопируйте ссылку в личном кабинете и вставьте её сюда. Конфиг загрузится и будет обновляться автоматически.</string>
+    <string name="enroll_link_hint">https://…/enroll/… или firetunnel://enroll?url=…</string>
+    <string name="enroll_confirm">Привязать это устройство по ссылке с %s?\n\nИмя устройства будет видно в личном кабинете.</string>
+    <string name="enroll_in_progress">Получаем конфигурацию…</string>
+    <string name="enroll_success">Устройство привязано: «%s»</string>
+    <string name="enroll_failed_title">Не удалось привязать устройство</string>
+    <string name="enroll_invalid_link">Это не ссылка для привязки. Скопируйте её из личного кабинета ещё раз.</string>
+    <string name="enroll_http_error">Сервер отклонил запрос (HTTP %d)</string>
+    <string name="enroll_rate_limited">Слишком много запросов. Повторите через минуту.</string>
+    <string name="enroll_server_unavailable">Сервер недоступен. Проверьте подключение к интернету и повторите позже.</string>
+    <string name="enroll_revoked_title">Доступ к «%s» отозван</string>
+    <string name="enroll_device_revoked">Устройство отвязано в личном кабинете. Конфигурация удалена.</string>
+    <string name="enroll_no_access">Доступ отозван или ещё не выдан. Конфигурация удалена.</string>
+    <string name="enroll_unknown_link">Ссылка больше не действует. Получите новую ссылку в личном кабинете.</string>
 </resources>

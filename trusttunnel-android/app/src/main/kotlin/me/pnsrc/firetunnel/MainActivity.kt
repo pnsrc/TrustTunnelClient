@@ -8,6 +8,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import me.pnsrc.firetunnel.data.EnrollmentManager
+import me.pnsrc.firetunnel.data.EnrollmentProtocol
 
 class MainActivity : AppCompatActivity() {
 
@@ -32,6 +34,44 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestNotificationPermission()
+
+        if (savedInstanceState == null) {
+            syncEnrollments()
+            handleDeeplink(intent)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleDeeplink(intent)
+    }
+
+    // ── Device enrollment ──────────────────────────────────────────────────────
+
+    /** Handle `firetunnel://enroll?url=…` opened from a browser or messenger. */
+    private fun handleDeeplink(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (intent.action != Intent.ACTION_VIEW
+            || !data.scheme.equals(EnrollmentProtocol.DEEPLINK_SCHEME, ignoreCase = true)
+        ) return
+        // Consume the link so that it is not handled again on recreation.
+        intent.data = null
+        EnrollmentUi.confirmAndEnroll(this, data.toString()) { refreshCurrentTab() }
+    }
+
+    /** Re-check every enrollment on launch: refresh configs, wipe revoked ones. */
+    private fun syncEnrollments() {
+        val appContext = applicationContext
+        EnrollmentManager.runAsync({ EnrollmentManager(appContext).syncAll() }) { outcomes ->
+            if (outcomes.isEmpty()) return@runAsync
+            refreshCurrentTab()
+            EnrollmentUi.showSyncOutcomes(this, outcomes)
+        }
+    }
+
+    private fun refreshCurrentTab() {
+        if (isFinishing || isDestroyed || supportFragmentManager.isStateSaved) return
+        showFragment(bottomNav.selectedItemId)
     }
 
     private fun showFragment(itemId: Int) {

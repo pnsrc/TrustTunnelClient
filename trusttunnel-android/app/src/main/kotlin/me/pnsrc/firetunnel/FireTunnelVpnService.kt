@@ -40,6 +40,7 @@ class FireTunnelVpnService : VpnService() {
         const val ACTION_CONNECT    = "me.pnsrc.firetunnel.CONNECT"
         const val ACTION_DISCONNECT = "me.pnsrc.firetunnel.DISCONNECT"
         const val EXTRA_CONFIG_TOML = "config_toml"
+        const val EXTRA_CONFIG_ID   = "config_id"
 
         const val BROADCAST_STATE    = "me.pnsrc.firetunnel.VPN_STATE"
         const val EXTRA_STATE        = "state"
@@ -56,6 +57,9 @@ class FireTunnelVpnService : VpnService() {
 
         /** In-process VPN state cache — read by HomeFragment on resume. */
         @Volatile var lastKnownState: String = STATE_DISCONNECTED
+
+        /** Id of the config the VPN was started with; `null` when stopped. */
+        @Volatile var activeConfigId: String? = null
     }
 
     @Volatile private var vpnClient: VpnClient? = null
@@ -78,6 +82,7 @@ class FireTunnelVpnService : VpnService() {
         when (intent?.action) {
             ACTION_CONNECT -> {
                 val toml = intent.getStringExtra(EXTRA_CONFIG_TOML) ?: ""
+                activeConfigId = intent.getStringExtra(EXTRA_CONFIG_ID)
                 broadcastState(STATE_CONNECTING)
                 startForegroundCompat(buildNotification(STATE_CONNECTING))
                 cancelConnectThread()
@@ -151,6 +156,7 @@ class FireTunnelVpnService : VpnService() {
         unregisterNetworkCallback()
         teardownVpnClient()
         closeFallbackTun()
+        activeConfigId = null
         broadcastState(STATE_DISCONNECTED)
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (startId != null) stopSelf(startId) else stopSelf()

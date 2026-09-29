@@ -1,6 +1,7 @@
 package me.pnsrc.firetunnel
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
@@ -19,6 +20,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import me.pnsrc.firetunnel.data.ConfigManager
+import me.pnsrc.firetunnel.data.EnrollmentProtocol
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -32,6 +34,9 @@ class QRScannerActivity : AppCompatActivity() {
 
     companion object {
         private const val CAMERA_PERMISSION_CODE = 100
+
+        /** Result extra: the scanned code was an enrollment link, not a config. */
+        const val EXTRA_ENROLL_LINK = "enroll_link"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,6 +102,12 @@ class QRScannerActivity : AppCompatActivity() {
     }
 
     private fun handleQRCode(content: String) {
+        if (EnrollmentProtocol.parseEnrollLink(content) != null) {
+            // Enrollment needs a network request and a confirmation — let the caller do it.
+            setResult(RESULT_OK, Intent().putExtra(EXTRA_ENROLL_LINK, content))
+            finish()
+            return
+        }
         val config = configManager.parseQRCode(content)
         if (config != null) {
             configManager.saveConfig(config)

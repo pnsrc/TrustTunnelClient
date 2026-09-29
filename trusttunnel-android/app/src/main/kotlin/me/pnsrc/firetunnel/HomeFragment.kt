@@ -28,6 +28,8 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
 import me.pnsrc.firetunnel.data.ConfigManager
+import me.pnsrc.firetunnel.data.EnrollResult
+import me.pnsrc.firetunnel.data.EnrollmentManager
 import me.pnsrc.firetunnel.data.VpnConfig
 
 class HomeFragment : Fragment() {
@@ -150,12 +152,15 @@ class HomeFragment : Fragment() {
 
     private fun loadConfigs() {
         if (!isAdded) return
+        val selectedId = configs.getOrNull(configSpinner.selectedItemPosition)?.id
         configs = configManager.getConfigs()
         val names = if (configs.isEmpty()) listOf(getString(R.string.no_configs))
                     else configs.map { it.name }
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, names)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         configSpinner.adapter = adapter
+        val restored = configs.indexOfFirst { it.id == selectedId }
+        if (restored >= 0) configSpinner.setSelection(restored)
         connectionButton.isEnabled = configs.isNotEmpty()
         deleteConfigButton.isEnabled = configs.isNotEmpty()
     }
@@ -185,10 +190,34 @@ class HomeFragment : Fragment() {
             return
         }
         val config = configs[idx]
+        if (!EnrollmentManager(requireContext()).isEnrolled(config.id)) {
+            launchVpn(config)
+            return
+        }
+
+        // Enrolled config: re-check the link first so that a revoked device never
+        // connects and a changed endpoint is picked up. Failures keep the old config.
+        connectionButton.isEnabled = false
+        updateStatusUI(FireTunnelVpnService.STATE_CONNECTING)
+        val appContext = requireContext().applicationContext
+        EnrollmentManager.runAsync({ EnrollmentManager(appContext).sync(config.id) }) { outcome ->
+            if (!isAdded) return@runAsync
+            loadConfigs()
+            if (outcome?.result is EnrollResult.Revoked) {
+                updateStatusUI(FireTunnelVpnService.STATE_DISCONNECTED)
+                EnrollmentUi.showSyncOutcomes(requireActivity(), listOf(outcome))
+                return@runAsync
+            }
+            launchVpn(configs.firstOrNull { it.id == config.id } ?: config)
+        }
+    }
+
+    private fun launchVpn(config: VpnConfig) {
         requireContext().startForegroundService(
             Intent(requireContext(), FireTunnelVpnService::class.java).apply {
                 action = FireTunnelVpnService.ACTION_CONNECT
                 putExtra(FireTunnelVpnService.EXTRA_CONFIG_TOML, config.rawToml)
+                putExtra(FireTunnelVpnService.EXTRA_CONFIG_ID, config.id)
             }
         )
         updateStatusUI(FireTunnelVpnService.STATE_CONNECTING)
@@ -214,6 +243,7 @@ class HomeFragment : Fragment() {
             .setMessage(getString(R.string.delete_config_message, config.name))
             .setPositiveButton(R.string.delete) { _, _ ->
                 configManager.deleteConfig(config.id)
+                EnrollmentManager(requireContext()).forget(config.id)
                 loadConfigs()
                 showSnackbar(getString(R.string.config_deleted, config.name))
             }

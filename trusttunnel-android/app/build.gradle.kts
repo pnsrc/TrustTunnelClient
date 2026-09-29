@@ -76,12 +76,17 @@ dependencies {
     implementation("com.akuleshov7:ktoml-core:0.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")
 
+    // Encrypted storage for the enrollment link (a secret)
+    implementation("androidx.security:security-crypto:1.0.0")
+
     // Logging
     implementation("org.slf4j:slf4j-api:1.7.36")
     implementation("com.github.tony19:logback-android:2.0.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM unit tests (android.jar ships only stubs)
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }

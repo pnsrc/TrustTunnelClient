@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   tab that assembles a TrustTunnel TOML (endpoint, VPN mode, DNS, exclusions,
   kill switch, post-quantum, skip-verification) without writing TOML by hand.
 - Android client: full Russian localization (`values-ru`).
+- Android client: device enrollment by a dashboard link — handles the
+  `firetunnel://enroll?url=<encoded https link>` deeplink, a pasted
+  `https://…/enroll/<token>` link and enrollment links in QR codes. The client
+  POSTs `{fingerprint, name}` (fingerprint = `sha256(ANDROID_ID + ":firetunnel")`),
+  stores the returned TOML, re-checks the link on every launch and before
+  connecting, wipes the config and stops the VPN on 403/404, and keeps the old
+  config on network errors, 429 and 5xx. The link is kept in
+  `EncryptedSharedPreferences` and never logged.
 
 ### Changed
 
