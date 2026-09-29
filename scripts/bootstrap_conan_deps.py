@@ -92,14 +92,26 @@ try:
     subprocess.run(["git", "clone", nlc_url, nlc_dir], check=True)
     os.chdir(nlc_dir)
 
-    # export_conan.sh is a shell wrapper that pip-installs requirements and runs
-    # export_conan.py. Invoke that Python entrypoint directly so bootstrapping
-    # also works on Windows runners, which cannot exec a `.sh` file.
-    nlc_scripts = os.path.join(nlc_dir, "scripts")
-    subprocess.run([sys.executable, "-m", "pip", "install", "-r",
-                    os.path.join(nlc_scripts, "requirements.txt")], check=True)
+    # Export each pinned version the same way NativeLibsCommon's own export
+    # script did: check out the release tag, export the package and every
+    # custom recipe from `conan/recipes/` at that tag. This is done inline
+    # instead of calling upstream helpers, which were reworked upstream
+    # (`export_conan.py` and `requirements.txt` were removed), and it keeps
+    # bootstrapping working on Windows runners that cannot exec a `.sh` file.
     for v in nlc_versions:
-        subprocess.run(["git", "checkout", "master"], check=True)
-        subprocess.run([sys.executable, os.path.join(nlc_scripts, "export_conan.py"), v], check=True)
+        subprocess.run(["git", "checkout", f"v{v}"], check=True)
+        subprocess.run([
+            "conan", "export", ".",
+            "--user", "adguard", "--channel", "oss",
+            "--version", v,
+        ], check=True)
+        recipes_dir = os.path.join(nlc_dir, "conan", "recipes")
+        for folder in sorted(os.listdir(recipes_dir)):
+            path = os.path.join(recipes_dir, folder)
+            if os.path.isdir(path):
+                subprocess.run([
+                    "conan", "export", path,
+                    "--user", "adguard", "--channel", "oss",
+                ], check=True)
 finally:
     remove_dir_if_exists(nlc_dir)

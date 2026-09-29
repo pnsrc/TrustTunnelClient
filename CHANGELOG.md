@@ -35,6 +35,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `bootstrap_conan_deps.py`: invoke NativeLibsCommon's `export_conan.py` directly
   instead of the `export_conan.sh` wrapper, so dependency bootstrapping works on
   Windows runners (which cannot exec a `.sh` file).
+- `bootstrap_conan_deps.py`: export NativeLibsCommon (tag checkout + `conan export`
+  of the package and `conan/recipes/*`) inline, since upstream removed
+  `scripts/export_conan.py` and `scripts/requirements.txt` and the bootstrap
+  failed on a fresh clone.
 
 ### Security
 
