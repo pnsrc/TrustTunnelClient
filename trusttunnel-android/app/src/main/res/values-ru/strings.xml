@@ -148,4 +148,26 @@
     <string name="enroll_device_revoked">Устройство отвязано в личном кабинете. Конфигурация удалена.</string>
     <string name="enroll_no_access">Доступ отозван или ещё не выдан. Конфигурация удалена.</string>
     <string name="enroll_unknown_link">Ссылка больше не действует. Получите новую ссылку в личном кабинете.</string>
+
+    <!-- Раздельное туннелирование по приложениям -->
+    <string name="app_routing_title">Приложения</string>
+    <string name="app_routing_mode_off">Все приложения через VPN</string>
+    <string name="app_routing_mode_bypass">Выбранные приложения в обход VPN</string>
+    <string name="app_routing_mode_only">Только выбранные приложения через VPN</string>
+    <string name="app_routing_reconnect_hint">Изменения применятся при следующем подключении.</string>
+    <string name="app_routing_search_hint">Поиск приложений</string>
+    <string name="app_routing_summary_off">Все приложения идут через VPN</string>
+    <string name="app_routing_summary_only_empty">Только выбранные — ничего не выбрано, все приложения идут через VPN</string>
+    <plurals name="app_routing_summary_bypass">
+        <item quantity="one">%d приложение в обход VPN</item>
+        <item quantity="few">%d приложения в обход VPN</item>
+        <item quantity="many">%d приложений в обход VPN</item>
+        <item quantity="other">%d приложения в обход VPN</item>
+    </plurals>
+    <plurals name="app_routing_summary_only">
+        <item quantity="one">Через VPN только %d приложение</item>
+        <item quantity="few">Через VPN только %d приложения</item>
+        <item quantity="many">Через VPN только %d приложений</item>
+        <item quantity="other">Через VPN только %d приложения</item>
+    </plurals>
 </resources>

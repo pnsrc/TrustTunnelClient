@@ -1,5 +1,6 @@
 package me.pnsrc.firetunnel
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +16,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
+import me.pnsrc.firetunnel.data.AppRoutingManager
+import me.pnsrc.firetunnel.data.AppRoutingMode
 import me.pnsrc.firetunnel.data.ExclusionRule
 import me.pnsrc.firetunnel.data.RulesManager
 import java.io.IOException
@@ -51,7 +54,29 @@ class RulesFragment : Fragment() {
         }
 
         fab.setOnClickListener { showAddOptions() }
+        view.findViewById<View>(R.id.appRoutingCard).setOnClickListener {
+            startActivity(Intent(requireContext(), AppRoutingActivity::class.java))
+        }
         loadRules()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateAppRoutingSummary()
+    }
+
+    private fun updateAppRoutingSummary() {
+        val summary = view?.findViewById<TextView>(R.id.appRoutingSummary) ?: return
+        val routing = AppRoutingManager(requireContext())
+        val count = routing.getSelectedPackages().size
+        summary.text = when (routing.getMode()) {
+            AppRoutingMode.OFF -> getString(R.string.app_routing_summary_off)
+            AppRoutingMode.BYPASS_SELECTED ->
+                resources.getQuantityString(R.plurals.app_routing_summary_bypass, count, count)
+            AppRoutingMode.ONLY_SELECTED ->
+                if (count == 0) getString(R.string.app_routing_summary_only_empty)
+                else resources.getQuantityString(R.plurals.app_routing_summary_only, count, count)
+        }
     }
 
     private fun loadRules() {

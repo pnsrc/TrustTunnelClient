@@ -57,10 +57,23 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".AppRoutingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 
     </application>
+
+    <!-- Per-app routing lists launchable apps (Android 11+ package visibility) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
 </manifest>

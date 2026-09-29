@@ -148,4 +148,22 @@
     <string name="enroll_device_revoked">This device was removed in the dashboard. Its configuration has been deleted.</string>
     <string name="enroll_no_access">Your access has been revoked or not granted yet. The configuration has been deleted.</string>
     <string name="enroll_unknown_link">The link is no longer valid. Get a new link in your dashboard.</string>
+
+    <!-- Per-app routing -->
+    <string name="app_routing_title">Apps</string>
+    <string name="app_routing_mode_off">All apps through VPN</string>
+    <string name="app_routing_mode_bypass">Selected apps bypass VPN</string>
+    <string name="app_routing_mode_only">Only selected apps through VPN</string>
+    <string name="app_routing_reconnect_hint">Changes apply on the next connection.</string>
+    <string name="app_routing_search_hint">Search apps</string>
+    <string name="app_routing_summary_off">All apps go through VPN</string>
+    <string name="app_routing_summary_only_empty">Only selected apps — none selected, all apps go through VPN</string>
+    <plurals name="app_routing_summary_bypass">
+        <item quantity="one">%d app bypasses VPN</item>
+        <item quantity="other">%d apps bypass VPN</item>
+    </plurals>
+    <plurals name="app_routing_summary_only">
+        <item quantity="one">Only %d app goes through VPN</item>
+        <item quantity="other">Only %d apps go through VPN</item>
+    </plurals>
 </resources>

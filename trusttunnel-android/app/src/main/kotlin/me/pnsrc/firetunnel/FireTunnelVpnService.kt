@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
@@ -17,6 +18,7 @@ import android.util.Log
 import com.adguard.trusttunnel.VpnClient
 import com.adguard.trusttunnel.VpnClientListener
 import com.adguard.trusttunnel.VpnState
+import me.pnsrc.firetunnel.data.AppRoutingManager
 
 /**
  * FireTunnel VPN foreground service.
@@ -166,7 +168,7 @@ class FireTunnelVpnService : VpnService() {
     // ── TUN interface ─────────────────────────────────────────────────────────
 
     private fun buildTunInterface(): ParcelFileDescriptor? = try {
-        Builder()
+        val builder = Builder()
             .setSession("FireTunnel")
             .setMtu(1500)
             .addAddress("172.20.2.13", 32)
@@ -176,11 +178,40 @@ class FireTunnelVpnService : VpnService() {
             .addDnsServer("2a10:50c0::2:ff")
             .addRoute("0.0.0.0", 0)
             .addRoute("::", 0)
-            .addDisallowedApplication(packageName)
-            .establish()
+        applyAppRouting(builder)
+        builder.establish()
     } catch (e: Exception) {
         Log.e(TAG, "TUN interface error: ${e.message}")
         null
+    }
+
+    /** Apply the per-app split tunnelling choice (see [AppRoutingManager]). */
+    private fun applyAppRouting(builder: Builder) {
+        val plan = AppRoutingManager(this).plan()
+        var applied = 0
+        for (pkg in plan.allowed) {
+            if (tryAddApp(pkg) { builder.addAllowedApplication(it) }) applied++
+        }
+        if (plan.allowed.isNotEmpty() && applied == 0) {
+            // Every selected app was uninstalled: an empty allow-list would route
+            // all apps, including FireTunnel itself, so bypass just ourselves instead.
+            Log.w(TAG, "No selected apps installed, routing all apps")
+            builder.addDisallowedApplication(packageName)
+            return
+        }
+        for (pkg in plan.disallowed) {
+            if (tryAddApp(pkg) { builder.addDisallowedApplication(it) }) applied++
+        }
+        Log.i(TAG, "App routing: ${plan.allowed.size} allowed, ${plan.disallowed.size} bypassed, $applied applied")
+    }
+
+    /** Return false if [pkg] is no longer installed. */
+    private inline fun tryAddApp(pkg: String, add: (String) -> Unit): Boolean = try {
+        add(pkg)
+        true
+    } catch (e: PackageManager.NameNotFoundException) {
+        Log.w(TAG, "Skipping uninstalled app in routing list")
+        false
     }
 
     private fun closeFallbackTun() {

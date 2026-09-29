@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   connecting, wipes the config and stops the VPN on 403/404, and keeps the old
   config on network errors, 429 and 5xx. The link is kept in
   `EncryptedSharedPreferences` and never logged.
+- Android client: per-app split tunnelling (Rules tab → Apps). Choose whether
+  selected apps bypass the VPN or only selected apps use it; applied via
+  `VpnService.Builder.addDisallowedApplication` / `addAllowedApplication` on the
+  next connection. FireTunnel itself always bypasses the tunnel.
 
 ### Changed
 
