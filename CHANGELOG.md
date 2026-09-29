@@ -24,8 +24,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   selected apps bypass the VPN or only selected apps use it; applied via
   `VpnService.Builder.addDisallowedApplication` / `addAllowedApplication` on the
   next connection. FireTunnel itself always bypasses the tunnel.
+- Android client: enrollment links are re-checked in the background every
+  30 minutes (WorkManager, network required) and whenever the app returns to the
+  foreground; a revoked device gets a notification. Enrolled configs show a
+  "From dashboard · updated …" badge.
+- Android client: session statistics on the VPN tab — uptime, traffic and speed
+  (the app's own UID traffic, i.e. the tunnel), and connections routed through
+  or around the VPN — plus a TCP ping to the selected config's endpoint.
 
 ### Changed
+
+- Android client: the TUN interface now takes DNS from the config like the
+  reference Android service: a fake resolver the core serves from
+  `dns_upstreams` (`[endpoint]`, falling back to the legacy top-level key), or
+  AdGuard DNS when none are set. Previously AdGuard DNS was always hard-coded.
 
 ### Deprecated
 

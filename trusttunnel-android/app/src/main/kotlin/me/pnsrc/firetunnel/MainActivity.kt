@@ -35,10 +35,14 @@ class MainActivity : AppCompatActivity() {
 
         requestNotificationPermission()
 
-        if (savedInstanceState == null) {
-            syncEnrollments()
-            handleDeeplink(intent)
-        }
+        if (savedInstanceState == null) handleDeeplink(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // On launch and on every return to the app (e.g. after sleep); the manager
+        // throttles each link to one request per minute.
+        syncEnrollments()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -59,11 +63,11 @@ class MainActivity : AppCompatActivity() {
         EnrollmentUi.confirmAndEnroll(this, data.toString()) { refreshCurrentTab() }
     }
 
-    /** Re-check every enrollment on launch: refresh configs, wipe revoked ones. */
+    /** Re-check every enrollment: refresh configs, wipe revoked ones. */
     private fun syncEnrollments() {
         val appContext = applicationContext
         EnrollmentManager.runAsync({ EnrollmentManager(appContext).syncAll() }) { outcomes ->
-            if (outcomes.isEmpty()) return@runAsync
+            if (outcomes.none { it.changed }) return@runAsync
             refreshCurrentTab()
             EnrollmentUi.showSyncOutcomes(this, outcomes)
         }

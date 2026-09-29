@@ -14,6 +14,7 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.Spinner
@@ -27,12 +28,20 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
+import me.pnsrc.firetunnel.data.ConfigFields
 import me.pnsrc.firetunnel.data.ConfigManager
+import me.pnsrc.firetunnel.data.EndpointPinger
+import me.pnsrc.firetunnel.data.StatsFormat
 import me.pnsrc.firetunnel.data.EnrollResult
 import me.pnsrc.firetunnel.data.EnrollmentManager
 import me.pnsrc.firetunnel.data.VpnConfig
+import java.util.concurrent.Executors
 
 class HomeFragment : Fragment() {
+
+    private companion object {
+        const val PING_INTERVAL_MS = 30_000L
+    }
 
     private lateinit var configManager: ConfigManager
     private lateinit var statusCard: MaterialCardView
@@ -42,26 +51,31 @@ class HomeFragment : Fragment() {
     private lateinit var connectionButton: MaterialButton
     private lateinit var configSpinner: Spinner
     private lateinit var statsText: TextView
+    private lateinit var pingText: TextView
     private lateinit var deleteConfigButton: MaterialButton
 
     private var configs: List<VpnConfig> = emptyList()
     private var vpnState: String = FireTunnelVpnService.STATE_DISCONNECTED
 
-    // Uptime counter
-    private val uptimeHandler = Handler(Looper.getMainLooper())
-    private var connectedAt: Long = 0L
-    private val uptimeTicker = object : Runnable {
+    // Session stats: refreshed once a second while the screen is visible.
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var lastRx = -1L
+    private var lastTx = -1L
+    private var lastSampleAt = 0L
+    private val statsTicker = object : Runnable {
         override fun run() {
-            if (vpnState == FireTunnelVpnService.STATE_CONNECTED && connectedAt > 0L) {
-                val elapsed = (System.currentTimeMillis() - connectedAt) / 1000L
-                val h = elapsed / 3600
-                val m = (elapsed % 3600) / 60
-                val s = elapsed % 60
-                val uptimeStr = if (h > 0) "%d:%02d:%02d".format(h, m, s)
-                                else "%02d:%02d".format(m, s)
-                statsText.text = getString(R.string.uptime_label, uptimeStr)
-                uptimeHandler.postDelayed(this, 1_000)
-            }
+            renderStats()
+            uiHandler.postDelayed(this, 1_000)
+        }
+    }
+
+    // Endpoint ping: refreshed every 30 s and whenever another config is selected.
+    private val pingExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "endpoint-ping") }
+    private var pingGeneration = 0
+    private val pingTicker = object : Runnable {
+        override fun run() {
+            pingSelected()
+            uiHandler.postDelayed(this, PING_INTERVAL_MS)
         }
     }
 
@@ -77,24 +91,8 @@ class HomeFragment : Fragment() {
             val state = intent.getStringExtra(FireTunnelVpnService.EXTRA_STATE) ?: return
             vpnState = state
 
-            when (state) {
-                FireTunnelVpnService.STATE_CONNECTED -> {
-                    val ts = intent.getLongExtra(FireTunnelVpnService.EXTRA_CONNECTED_AT, 0L)
-                    if (ts > 0L) connectedAt = ts
-                    uptimeHandler.removeCallbacks(uptimeTicker)
-                    uptimeHandler.post(uptimeTicker)
-                }
-                FireTunnelVpnService.STATE_DISCONNECTED,
-                FireTunnelVpnService.STATE_ERROR -> {
-                    uptimeHandler.removeCallbacks(uptimeTicker)
-                    connectedAt = 0L
-                }
-            }
-
             updateStatusUI(state)
-
-            val stats = intent.getStringExtra(FireTunnelVpnService.EXTRA_STATS)
-            if (!stats.isNullOrBlank()) updateStats(stats)
+            renderStats()
         }
     }
 
@@ -115,10 +113,17 @@ class HomeFragment : Fragment() {
         connectionButton  = view.findViewById(R.id.connectionButton)
         configSpinner     = view.findViewById(R.id.configSpinner)
         statsText         = view.findViewById(R.id.statsText)
+        pingText          = view.findViewById(R.id.pingText)
         deleteConfigButton = view.findViewById(R.id.deleteConfigButton)
 
         connectionButton.setOnClickListener { onConnectClicked() }
         deleteConfigButton.setOnClickListener { confirmDeleteConfig() }
+        configSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, v: View?, position: Int, id: Long) {
+                pingSelected()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
 
         // Restore last known state (prevents blank UI after tab switch)
         updateStatusUI(FireTunnelVpnService.lastKnownState)
@@ -136,16 +141,21 @@ class HomeFragment : Fragment() {
             requireContext().registerReceiver(vpnStateReceiver, filter)
         }
         loadConfigs()
+        updateStatusUI(FireTunnelVpnService.lastKnownState)
+        uiHandler.post(statsTicker)
+        uiHandler.post(pingTicker)
     }
 
     override fun onPause() {
         super.onPause()
         runCatching { requireContext().unregisterReceiver(vpnStateReceiver) }
+        uiHandler.removeCallbacks(statsTicker)
+        uiHandler.removeCallbacks(pingTicker)
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        uptimeHandler.removeCallbacks(uptimeTicker)
+    override fun onDestroy() {
+        super.onDestroy()
+        pingExecutor.shutdownNow()
     }
 
     // ── Config loading ─────────────────────────────────────────────────────────
@@ -307,25 +317,63 @@ class HomeFragment : Fragment() {
         }
     }
 
-    // ── Stats / byte counter ───────────────────────────────────────────────────
+    // ── Stats / ping ───────────────────────────────────────────────────────────
 
-    private fun updateStats(json: String) {
-        runCatching {
-            fun extract(key: String): Long? =
-                Regex(""""$key"\s*:\s*(\d+)""").find(json)?.groupValues?.get(1)?.toLong()
-            val rx = extract("bytesReceived") ?: extract("rx") ?: extract("received")
-            val tx = extract("bytesSent")     ?: extract("tx") ?: extract("sent")
-            if (rx != null || tx != null) {
-                statsText.text = "↓ ${rx?.let(::formatBytes) ?: "—"}  ↑ ${tx?.let(::formatBytes) ?: "—"}"
-            }
+    private fun renderStats() {
+        if (view == null) return
+        val stats = FireTunnelVpnService.sessionStats()
+        if (stats == null || vpnState != FireTunnelVpnService.STATE_CONNECTED) {
+            statsText.text = getString(R.string.no_stats)
+            lastRx = -1L
+            return
         }
+        val now = System.currentTimeMillis()
+        val lines = mutableListOf(
+            getString(R.string.uptime_label, StatsFormat.uptime((now - stats.connectedAt) / 1000))
+        )
+        val rx = stats.rxBytes
+        val tx = stats.txBytes
+        if (rx != null && tx != null) {
+            lines += getString(R.string.stats_traffic, StatsFormat.bytes(rx), StatsFormat.bytes(tx))
+            if (lastRx >= 0 && now > lastSampleAt) {
+                val seconds = (now - lastSampleAt) / 1000.0
+                lines += getString(
+                    R.string.stats_speed,
+                    StatsFormat.speed(((rx - lastRx) / seconds).toLong().coerceAtLeast(0)),
+                    StatsFormat.speed(((tx - lastTx) / seconds).toLong().coerceAtLeast(0))
+                )
+            }
+            lastRx = rx
+            lastTx = tx
+            lastSampleAt = now
+        }
+        lines += getString(R.string.stats_connections, stats.tunnelConnections, stats.bypassConnections)
+        statsText.text = lines.joinToString("\n")
     }
 
-    private fun formatBytes(bytes: Long): String = when {
-        bytes < 1_024L         -> "$bytes B"
-        bytes < 1_048_576L     -> "${"%.1f".format(bytes / 1_024.0)} KB"
-        bytes < 1_073_741_824L -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
-        else                   -> "${"%.2f".format(bytes / 1_073_741_824.0)} GB"
+    /** Ping the selected config's first endpoint address in the background. */
+    private fun pingSelected() {
+        if (view == null) return
+        val config = configs.getOrNull(configSpinner.selectedItemPosition)
+        val target = config?.let { ConfigFields.firstEndpointAddress(it.rawToml) }
+        val generation = ++pingGeneration
+        if (target == null) {
+            pingText.visibility = View.GONE
+            return
+        }
+        pingText.visibility = View.VISIBLE
+        if (pingText.text.isNullOrEmpty()) pingText.text = getString(R.string.ping_measuring)
+        runCatching {
+            pingExecutor.execute {
+                val ms = EndpointPinger.ping(target)
+                uiHandler.post {
+                    // Drop results for a config that is no longer selected.
+                    if (view == null || generation != pingGeneration) return@post
+                    pingText.text = if (ms != null) getString(R.string.ping_ms, ms)
+                                    else getString(R.string.ping_unreachable)
+                }
+            }
+        }
     }
 
     private fun showSnackbar(msg: String) {

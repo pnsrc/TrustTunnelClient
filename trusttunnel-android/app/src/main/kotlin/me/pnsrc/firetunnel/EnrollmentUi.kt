@@ -105,7 +105,8 @@ object EnrollmentUi {
         }
     }
 
-    private fun revokedMessage(context: Context, r: EnrollResult.Revoked): String {
+    /** Explain a revocation: the server's `message`, or a fallback for its error code. */
+    fun revokedMessage(context: Context, r: EnrollResult.Revoked): String {
         val fallback = when (r.error) {
             EnrollmentProtocol.ERROR_DEVICE_REVOKED -> R.string.enroll_device_revoked
             EnrollmentProtocol.ERROR_NO_ACCESS -> R.string.enroll_no_access

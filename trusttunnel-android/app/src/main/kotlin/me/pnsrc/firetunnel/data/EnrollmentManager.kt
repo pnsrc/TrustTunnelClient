@@ -24,7 +24,9 @@ private const val TAG = "EnrollmentManager"
 data class EnrollOutcome(
     val configId: String,
     val configName: String,
-    val result: EnrollResult
+    val result: EnrollResult,
+    /** True if the stored config was replaced with a different one or removed. */
+    val changed: Boolean = false
 )
 
 /**
@@ -47,12 +49,16 @@ class EnrollmentManager(context: Context) {
         private const val KEY_FINGERPRINT  = "fingerprint"
         private const val KEY_URL_PREFIX   = "url_"
         private const val KEY_SYNC_PREFIX  = "sync_"
+        private const val KEY_OK_PREFIX    = "ok_"
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS    = 20_000
 
         /** Serialises enrollment requests so that concurrent syncs never race on storage. */
         private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "enrollment") }
         private val mainHandler = Handler(Looper.getMainLooper())
+
+        /** Run [task] on the enrollment thread and wait for it (for background workers). */
+        fun <T> runSerialized(task: () -> T): T = executor.submit(task).get()
 
         /** Run [task] on the enrollment thread and deliver its result on the main thread. */
         fun <T> runAsync(task: () -> T, onResult: (T) -> Unit) {
@@ -70,6 +76,10 @@ class EnrollmentManager(context: Context) {
     // ── Queries ─────────────────────────────────────────────────────────────────
 
     fun isEnrolled(configId: String): Boolean = prefs.contains(KEY_URL_PREFIX + configId)
+
+    /** Return when [configId] last got a fresh config from the server, or `null`. */
+    fun lastSuccessfulSync(configId: String): Long? =
+        prefs.getLong(KEY_OK_PREFIX + configId, 0L).takeIf { it > 0L }
 
     fun enrolledConfigIds(): List<String> =
         prefs.all.keys
@@ -106,6 +116,7 @@ class EnrollmentManager(context: Context) {
         prefs.edit()
             .remove(KEY_URL_PREFIX + configId)
             .remove(KEY_SYNC_PREFIX + configId)
+            .remove(KEY_OK_PREFIX + configId)
             .apply()
     }
 
@@ -114,12 +125,16 @@ class EnrollmentManager(context: Context) {
     private fun performSync(configId: String, url: String, rememberLink: Boolean): EnrollOutcome {
         prefs.edit().putLong(KEY_SYNC_PREFIX + configId, System.currentTimeMillis()).apply()
         val result = request(url)
-        val previousName = configManager.getConfigs().firstOrNull { it.id == configId }?.name
+        val previous = configManager.getConfigs().firstOrNull { it.id == configId }
+        val previousName = previous?.name
 
         when (result) {
             is EnrollResult.Success -> {
                 configManager.saveConfig(VpnConfig(id = configId, name = configId, rawToml = result.toml))
-                if (rememberLink) prefs.edit().putString(KEY_URL_PREFIX + configId, url).apply()
+                prefs.edit().apply {
+                    if (rememberLink) putString(KEY_URL_PREFIX + configId, url)
+                    putLong(KEY_OK_PREFIX + configId, System.currentTimeMillis())
+                }.apply()
                 Log.i(TAG, "Enrollment $configId: config updated")
             }
             is EnrollResult.Revoked -> {
@@ -141,7 +156,12 @@ class EnrollmentManager(context: Context) {
             ?: success?.fileName?.removeSuffix(".toml")
             ?: previousName
             ?: EnrollmentProtocol.displayHost(url)
-        return EnrollOutcome(configId, name, result)
+        val changed = when (result) {
+            is EnrollResult.Success -> previous?.rawToml != result.toml
+            is EnrollResult.Revoked -> previous != null
+            else -> false
+        }
+        return EnrollOutcome(configId, name, result, changed)
     }
 
     private fun request(url: String): EnrollResult {

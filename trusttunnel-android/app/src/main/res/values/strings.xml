@@ -166,4 +166,18 @@
         <item quantity="one">Only %d app goes through VPN</item>
         <item quantity="other">Only %d apps go through VPN</item>
     </plurals>
+
+    <!-- Session statistics and ping -->
+    <string name="stats_traffic">↓ %1$s  ↑ %2$s</string>
+    <string name="stats_speed">↓ %1$s  ↑ %2$s</string>
+    <string name="stats_connections">Connections: %1$d via VPN · %2$d bypassed</string>
+    <string name="ping_measuring">Ping: measuring…</string>
+    <string name="ping_ms">Ping: %d ms</string>
+    <string name="ping_unreachable">Ping: server unreachable</string>
+
+    <!-- Enrollment status -->
+    <string name="access_channel_name">Access</string>
+    <string name="enrolled_badge">From dashboard</string>
+    <string name="enrolled_synced">From dashboard · updated %s</string>
+    <string name="enrolled_just_now">just now</string>
 </resources>

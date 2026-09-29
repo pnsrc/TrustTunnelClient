@@ -68,6 +68,8 @@
                 android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:lineSpacingExtra="2dp"
                 android:fontFamily="monospace" />
 
         </LinearLayout>
@@ -127,6 +129,17 @@
                     app:cornerRadius="24dp" />
 
             </LinearLayout>
+
+            <!-- Endpoint latency, measured outside the tunnel -->
+            <TextView
+                android:id="@+id/pingText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginStart="4dp"
+                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
 
         </LinearLayout>
 

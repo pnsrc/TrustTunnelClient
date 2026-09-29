@@ -170,4 +170,18 @@
         <item quantity="many">Через VPN только %d приложений</item>
         <item quantity="other">Через VPN только %d приложения</item>
     </plurals>
+
+    <!-- Статистика сеанса и пинг -->
+    <string name="stats_traffic">↓ %1$s  ↑ %2$s</string>
+    <string name="stats_speed">↓ %1$s  ↑ %2$s</string>
+    <string name="stats_connections">Соединения: %1$d через VPN · %2$d в обход</string>
+    <string name="ping_measuring">Пинг: измеряем…</string>
+    <string name="ping_ms">Пинг: %d мс</string>
+    <string name="ping_unreachable">Пинг: сервер недоступен</string>
+
+    <!-- Статус привязки -->
+    <string name="access_channel_name">Доступ</string>
+    <string name="enrolled_badge">Из кабинета</string>
+    <string name="enrolled_synced">Из кабинета · обновлён %s</string>
+    <string name="enrolled_just_now">только что</string>
 </resources>

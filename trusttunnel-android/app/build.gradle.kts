@@ -79,6 +79,9 @@ dependencies {
     // Encrypted storage for the enrollment link (a secret)
     implementation("androidx.security:security-crypto:1.0.0")
 
+    // Periodic enrollment re-check
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     // Logging
     implementation("org.slf4j:slf4j-api:1.7.36")
     implementation("com.github.tony19:logback-android:2.0.0")

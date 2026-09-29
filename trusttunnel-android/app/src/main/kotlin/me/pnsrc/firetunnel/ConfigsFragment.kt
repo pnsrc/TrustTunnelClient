@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -81,7 +82,12 @@ class ConfigsFragment : Fragment() {
         emptyView.visibility    = if (isEmpty) View.VISIBLE else View.GONE
         recyclerView.visibility = if (isEmpty) View.GONE    else View.VISIBLE
 
-        recyclerView.adapter = ConfigAdapter(configs.toMutableList()) { config ->
+        val enrollment = EnrollmentManager(requireContext())
+        val enrollmentLabels = configs
+            .filter { enrollment.isEnrolled(it.id) }
+            .associate { it.id to enrollmentLabel(enrollment.lastSuccessfulSync(it.id)) }
+
+        recyclerView.adapter = ConfigAdapter(configs.toMutableList(), enrollmentLabels) { config ->
             AlertDialog.Builder(requireContext())
                 .setTitle(R.string.delete_config_title)
                 .setMessage(getString(R.string.delete_config_message, config.name))
@@ -94,6 +100,17 @@ class ConfigsFragment : Fragment() {
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
+    }
+
+    /** Describe an enrolled config: "From dashboard · updated 5 min ago". */
+    private fun enrollmentLabel(lastSync: Long?): String {
+        val now = System.currentTimeMillis()
+        val updated = when {
+            lastSync == null -> return getString(R.string.enrolled_badge)
+            now - lastSync < DateUtils.MINUTE_IN_MILLIS -> getString(R.string.enrolled_just_now)
+            else -> DateUtils.getRelativeTimeSpanString(lastSync, now, DateUtils.MINUTE_IN_MILLIS).toString()
+        }
+        return getString(R.string.enrolled_synced, updated)
     }
 
     // ── Add options ────────────────────────────────────────────────────────────
@@ -292,12 +309,15 @@ class ConfigsFragment : Fragment() {
 
 private class ConfigAdapter(
     private val items: MutableList<VpnConfig>,
+    /** Badge text for configs enrolled by a dashboard link, keyed by config id. */
+    private val enrollmentLabels: Map<String, String>,
     private val onDelete: (VpnConfig) -> Unit
 ) : RecyclerView.Adapter<ConfigAdapter.VH>() {
 
     inner class VH(view: View) : RecyclerView.ViewHolder(view) {
         val name: TextView    = view.findViewById(R.id.configName)
         val address: TextView = view.findViewById(R.id.configAddress)
+        val enrollment: TextView = view.findViewById(R.id.configEnrollment)
         val deleteBtn: com.google.android.material.button.MaterialButton =
             view.findViewById(R.id.deleteBtn)
     }
@@ -312,6 +332,9 @@ private class ConfigAdapter(
         holder.address.text = item.rawToml.lines()
             .firstOrNull { it.contains("hostname") || it.contains("address") }
             ?.trim() ?: ""
+        val label = enrollmentLabels[item.id]
+        holder.enrollment.visibility = if (label != null) View.VISIBLE else View.GONE
+        holder.enrollment.text = label
         holder.deleteBtn.setOnClickListener { onDelete(item) }
     }
 

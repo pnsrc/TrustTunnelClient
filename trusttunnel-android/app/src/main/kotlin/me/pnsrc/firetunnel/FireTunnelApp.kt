@@ -17,5 +17,6 @@ class FireTunnelApp : Application() {
     override fun onCreate() {
         super.onCreate()
         DynamicColors.applyToActivitiesIfAvailable(this)
+        EnrollmentCheckWorker.schedule(this)
     }
 }
