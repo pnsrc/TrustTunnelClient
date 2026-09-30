@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- DayNight theme inherits dark-mode colours automatically from values-night/colors.xml -->
-    <style name="Theme.FireTunnel" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.FireTunnel" parent="Theme.Material3Expressive.DayNight.NoActionBar">
         <item name="colorPrimary">@color/fire_primary</item>
         <item name="colorOnPrimary">@color/fire_on_primary</item>
         <item name="colorPrimaryContainer">@color/fire_primary_container</item>

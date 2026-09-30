@@ -167,7 +167,7 @@ class ConfigsFragment : Fragment() {
         popup.menu.findItem(R.id.action_config_qr).isVisible = !enrolled
         popup.menu.findItem(R.id.action_config_refresh).isVisible = enrolled
         popup.menu.findItem(R.id.action_config_delete).apply {
-            val red = UiKit.themeColor(requireContext(), MaterialR.attr.colorError)
+            val red = UiKit.themeColor(requireContext(), androidx.appcompat.R.attr.colorError)
             title = SpannableString(title).apply { setSpan(ForegroundColorSpan(red), 0, length, 0) }
             icon?.mutate()?.setTint(red)
         }
@@ -405,10 +405,10 @@ private class ConfigAdapter(
         holder.address.text = UiKit.endpointSummary(item)
         holder.active.visibility = if (selected) View.VISIBLE else View.GONE
         androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(
-            holder.active, ColorStateList.valueOf(UiKit.themeColor(ctx, MaterialR.attr.colorPrimary))
+            holder.active, ColorStateList.valueOf(UiKit.themeColor(ctx, androidx.appcompat.R.attr.colorPrimary))
         )
         holder.card.strokeColor = UiKit.themeColor(
-            ctx, if (selected) MaterialR.attr.colorPrimary else MaterialR.attr.colorOutlineVariant
+            ctx, if (selected) androidx.appcompat.R.attr.colorPrimary else MaterialR.attr.colorOutlineVariant
         )
         holder.card.setCardBackgroundColor(UiKit.themeColor(
             ctx, if (selected) MaterialR.attr.colorSurfaceContainerHigh else MaterialR.attr.colorSurfaceContainerLowest

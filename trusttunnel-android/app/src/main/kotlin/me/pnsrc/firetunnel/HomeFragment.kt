@@ -1,5 +1,7 @@
 package me.pnsrc.firetunnel
 
+import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,22 +12,30 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.animation.LinearInterpolator
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.widget.ImageViewCompat
+import androidx.dynamicanimation.animation.DynamicAnimation
+import androidx.dynamicanimation.animation.SpringAnimation
+import androidx.dynamicanimation.animation.SpringForce
 import androidx.fragment.app.Fragment
 import com.google.android.material.R as MaterialR
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.snackbar.Snackbar
 import me.pnsrc.firetunnel.UiKit.Tone
+import me.pnsrc.firetunnel.data.AppRoutingManager
+import me.pnsrc.firetunnel.data.AppRoutingMode
 import me.pnsrc.firetunnel.data.AppSettings
 import me.pnsrc.firetunnel.data.ConfigFields
 import me.pnsrc.firetunnel.data.ConfigManager
@@ -39,8 +49,9 @@ import me.pnsrc.firetunnel.data.VpnConfig
 import java.util.concurrent.Executors
 
 /**
- * VPN tab: a big power button inside a status ring, the active server (tap to
- * switch in a bottom sheet) and four session tiles.
+ * VPN tab (Material 3 Expressive): a power button that morphs between shapes
+ * on a turning halo, the active server (tap to switch in a bottom sheet), apps
+ * that bypass the VPN, a live speed chart and session totals.
  */
 class HomeFragment : Fragment() {
 
@@ -58,14 +69,21 @@ class HomeFragment : Fragment() {
     private lateinit var statusChip: TextView
     private lateinit var statusHeadline: TextView
     private lateinit var statusSub: TextView
-    private lateinit var statusRing: CircularProgressIndicator
-    private lateinit var powerButton: MaterialButton
+    private lateinit var powerButton: View
+    private lateinit var powerIcon: ImageView
+    private lateinit var powerLabel: TextView
+    private lateinit var haloShape: MorphShapeDrawable
+    private lateinit var buttonShape: MorphShapeDrawable
+    private var haloSpin: ValueAnimator? = null
+    private var haloSpinDuration = 0L
+    private lateinit var speedChart: SpeedChartView
+    private lateinit var speedDown: TextView
+    private lateinit var speedUp: TextView
     private lateinit var serverName: TextView
     private lateinit var serverSub: TextView
     private lateinit var serverPing: TextView
     private lateinit var tileRx: StatTile
     private lateinit var tileTx: StatTile
-    private lateinit var tileSpeed: StatTile
     private lateinit var tileConns: StatTile
 
     private var configs: List<VpnConfig> = emptyList()
@@ -124,23 +142,31 @@ class HomeFragment : Fragment() {
         statusChip     = view.findViewById(R.id.statusChip)
         statusHeadline = view.findViewById(R.id.statusHeadline)
         statusSub      = view.findViewById(R.id.statusSub)
-        statusRing     = view.findViewById(R.id.statusRing)
         powerButton    = view.findViewById(R.id.powerButton)
+        powerIcon      = view.findViewById(R.id.powerIcon)
+        powerLabel     = view.findViewById(R.id.powerLabel)
+        speedChart     = view.findViewById(R.id.speedChart)
+        speedDown      = view.findViewById(R.id.speedDown)
+        speedUp        = view.findViewById(R.id.speedUp)
         serverName     = view.findViewById(R.id.serverName)
         serverSub      = view.findViewById(R.id.serverSub)
         serverPing     = view.findViewById(R.id.serverPing)
         tileRx    = StatTile(view.findViewById(R.id.statRx))
         tileTx    = StatTile(view.findViewById(R.id.statTx))
-        tileSpeed = StatTile(view.findViewById(R.id.statSpeed))
         tileConns = StatTile(view.findViewById(R.id.statConns))
 
         setupTile(tileRx, R.drawable.ic_ft_down, R.string.stat_rx)
         setupTile(tileTx, R.drawable.ic_ft_up, R.string.stat_tx)
-        setupTile(tileSpeed, R.drawable.ic_ft_gauge, R.string.stat_speed)
         setupTile(tileConns, R.drawable.ic_ft_link, R.string.stat_connections)
 
-        powerButton.setOnClickListener { onPowerClicked() }
+        setupPowerButton(view)
+        tintCompound(speedDown, androidx.appcompat.R.attr.colorPrimary)
+        tintCompound(speedUp, MaterialR.attr.colorTertiary)
         view.findViewById<MaterialCardView>(R.id.serverCard).setOnClickListener { onServerClicked() }
+        view.findViewById<MaterialCardView>(R.id.bypassCard).setOnClickListener {
+            startActivity(Intent(requireContext(), AppRoutingActivity::class.java))
+        }
+        serverPing.setOnClickListener { pingActive() }
 
         loadConfigs()
         updateStatusUI(FireTunnelVpnService.lastKnownState)
@@ -155,6 +181,7 @@ class HomeFragment : Fragment() {
             requireContext().registerReceiver(vpnStateReceiver, filter)
         }
         loadConfigs()
+        updateBypassCard()
         updateStatusUI(FireTunnelVpnService.lastKnownState)
         uiHandler.post(statsTicker)
         uiHandler.post(pingTicker)
@@ -165,11 +192,121 @@ class HomeFragment : Fragment() {
         runCatching { requireContext().unregisterReceiver(vpnStateReceiver) }
         uiHandler.removeCallbacks(statsTicker)
         uiHandler.removeCallbacks(pingTicker)
+        spinHalo(0L)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         pingExecutor.shutdownNow()
+    }
+
+    /** Morphing button on a halo; springs down under the finger, haptic tick on toggle. */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupPowerButton(root: View) {
+        val ctx = requireContext()
+        haloShape = MorphShapeDrawable(ExpressiveShapes.COOKIE_12,
+            UiKit.themeColor(ctx, MaterialR.attr.colorSurfaceContainerHigh))
+        buttonShape = MorphShapeDrawable(ExpressiveShapes.COOKIE_9,
+            UiKit.themeColor(ctx, MaterialR.attr.colorPrimaryContainer))
+        root.findViewById<View>(R.id.powerHalo).background = haloShape
+        powerButton.background = buttonShape
+
+        val scaleX = SpringAnimation(powerButton, DynamicAnimation.SCALE_X)
+        val scaleY = SpringAnimation(powerButton, DynamicAnimation.SCALE_Y)
+        fun springTo(value: Float) {
+            for (anim in listOf(scaleX, scaleY)) {
+                anim.spring = SpringForce(value)
+                    .setStiffness(SpringForce.STIFFNESS_MEDIUM)
+                    .setDampingRatio(SpringForce.DAMPING_RATIO_MEDIUM_BOUNCY)
+                anim.start()
+            }
+        }
+        powerButton.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> springTo(0.9f)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> springTo(1f)
+            }
+            false
+        }
+        powerButton.setOnClickListener {
+            it.performHapticFeedback(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM
+                else HapticFeedbackConstants.VIRTUAL_KEY
+            )
+            onPowerClicked()
+        }
+    }
+
+    /** Turn the halo: fast while connecting, slowly while connected, still otherwise. */
+    private fun spinHalo(durationMs: Long) {
+        if (durationMs == haloSpinDuration && haloSpin?.isRunning == true) return
+        haloSpin?.cancel()
+        haloSpin = null
+        haloSpinDuration = durationMs
+        if (durationMs <= 0L) return
+        val from = haloShape.rotation
+        haloSpin = ValueAnimator.ofFloat(from, from + 360f).apply {
+            duration = durationMs
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            addUpdateListener { haloShape.rotation = (it.animatedValue as Float) % 360f }
+            start()
+        }
+    }
+
+    private fun tintCompound(view: TextView, attr: Int) {
+        androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(
+            view, ColorStateList.valueOf(UiKit.themeColor(requireContext(), attr))
+        )
+    }
+
+    /** Show which apps skip the VPN (icons of up to four), or that all apps use it. */
+    private fun updateBypassCard() {
+        val root = view ?: return
+        val ctx = requireContext()
+        val routing = AppRoutingManager(ctx)
+        val mode = routing.getMode()
+        val selected = routing.getSelectedPackages().sorted()
+        val pm = ctx.packageManager
+        val installed = selected.filter { runCatching { pm.getApplicationInfo(it, 0) }.isSuccess }
+        val labels = installed.map { pkg -> runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg) }
+
+        val title = root.findViewById<TextView>(R.id.bypassTitle)
+        val sub = root.findViewById<TextView>(R.id.bypassSub)
+        val icons = root.findViewById<LinearLayout>(R.id.bypassIcons)
+        icons.removeAllViews()
+        val size = (32 * resources.displayMetrics.density).toInt()
+        val overlap = (-10 * resources.displayMetrics.density).toInt()
+
+        val showApps = mode != AppRoutingMode.OFF && installed.isNotEmpty()
+        if (showApps) {
+            installed.take(4).forEachIndexed { i, pkg ->
+                icons.addView(ImageView(ctx).apply {
+                    setImageDrawable(runCatching { pm.getApplicationIcon(pkg) }.getOrNull())
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    layoutParams = LinearLayout.LayoutParams(size, size).apply { if (i > 0) marginStart = overlap }
+                })
+            }
+            val count = installed.size
+            title.text = if (mode == AppRoutingMode.BYPASS_SELECTED)
+                resources.getQuantityString(R.plurals.app_routing_summary_bypass, count, count)
+                else resources.getQuantityString(R.plurals.app_routing_summary_only, count, count)
+            sub.text = labels.take(3).joinToString(", ") + if (count > 3) "…" else ""
+        } else {
+            icons.addView(ImageView(ctx).apply {
+                setImageResource(R.drawable.ic_ft_apps)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                setBackgroundResource(R.drawable.bg_rounded_14)
+                backgroundTintList = ColorStateList.valueOf(UiKit.themeColor(ctx, MaterialR.attr.colorSecondaryContainer))
+                ImageViewCompat.setImageTintList(this,
+                    ColorStateList.valueOf(UiKit.themeColor(ctx, MaterialR.attr.colorOnSecondaryContainer)))
+                val pad = (10 * resources.displayMetrics.density).toInt()
+                setPadding(pad, pad, pad, pad)
+                layoutParams = LinearLayout.LayoutParams(size + 12, size + 12)
+            })
+            title.text = getString(R.string.app_routing_summary_off)
+            sub.text = getString(R.string.home_bypass_hint)
+        }
     }
 
     private fun setupTile(tile: StatTile, iconRes: Int, labelRes: Int) {
@@ -223,7 +360,7 @@ class HomeFragment : Fragment() {
         val sheet = layoutInflater.inflate(R.layout.sheet_servers, null)
         val rows = sheet.findViewById<LinearLayout>(R.id.serverRows)
         val enrollment = EnrollmentManager(ctx)
-        val primary = UiKit.themeColor(ctx, MaterialR.attr.colorPrimary)
+        val primary = UiKit.themeColor(ctx, androidx.appcompat.R.attr.colorPrimary)
         val onPrimary = UiKit.themeColor(ctx, MaterialR.attr.colorOnPrimary)
         val outline = UiKit.themeColor(ctx, MaterialR.attr.colorOutlineVariant)
         val selectedBg = UiKit.themeColor(ctx, MaterialR.attr.colorSurfaceContainerHigh)
@@ -355,75 +492,78 @@ class HomeFragment : Fragment() {
         val ctx = context ?: return
         if (view == null) return
 
-        val primary = UiKit.themeColor(ctx, MaterialR.attr.colorPrimary)
-        val surface = UiKit.themeColor(ctx, MaterialR.attr.colorSurfaceContainerLowest)
-        val outline = UiKit.themeColor(ctx, MaterialR.attr.colorOutlineVariant)
-        val ok = ContextCompat.getColor(ctx, R.color.status_ok)
-        val onOk = ContextCompat.getColor(ctx, R.color.status_on_ok)
-        val okContainer = ContextCompat.getColor(ctx, R.color.status_ok_container)
+        fun c(attr: Int) = UiKit.themeColor(ctx, attr)
         val host = active?.let { ConfigFields.firstEndpointAddress(it.rawToml)?.host ?: it.name }.orEmpty()
 
         val chipTone: Tone
-        val ringTrack: Int
-        var buttonBg = surface
-        var buttonFg = primary
+        var buttonBg = c(MaterialR.attr.colorPrimaryContainer)
+        var buttonFg = c(MaterialR.attr.colorOnPrimaryContainer)
+        var haloBg = c(MaterialR.attr.colorSurfaceContainerHigh)
+        val buttonShapeTarget: androidx.graphics.shapes.RoundedPolygon
+        val haloShapeTarget: androidx.graphics.shapes.RoundedPolygon
+        val spin: Long
         when (state) {
             FireTunnelVpnService.STATE_CONNECTED -> {
                 chipTone = Tone.OK
                 statusChip.text = getString(R.string.status_chip_on)
                 statusHeadline.text = getString(R.string.status_headline_on)
                 statusSub.text = getString(R.string.status_sub_on, host)
-                powerButton.text = getString(R.string.power_off)
+                powerLabel.text = getString(R.string.power_off)
                 powerButton.contentDescription = getString(R.string.power_off_desc)
-                ringTrack = okContainer
-                buttonBg = ok
-                buttonFg = onOk
+                buttonBg = ContextCompat.getColor(ctx, R.color.status_ok)
+                buttonFg = ContextCompat.getColor(ctx, R.color.status_on_ok)
+                haloBg = ContextCompat.getColor(ctx, R.color.status_ok_container)
+                buttonShapeTarget = ExpressiveShapes.SUNNY
+                haloShapeTarget = ExpressiveShapes.COOKIE_12
+                spin = 24_000L
             }
             FireTunnelVpnService.STATE_CONNECTING -> {
                 chipTone = Tone.WARN
                 statusChip.text = getString(R.string.status_chip_connecting)
                 statusHeadline.text = getString(R.string.status_headline_connecting)
                 statusSub.text = getString(R.string.status_sub_connecting)
-                powerButton.text = getString(R.string.power_cancel)
+                powerLabel.text = getString(R.string.power_cancel)
                 powerButton.contentDescription = getString(R.string.power_cancel_desc)
-                ringTrack = UiKit.themeColor(ctx, MaterialR.attr.colorPrimaryContainer)
+                haloBg = c(MaterialR.attr.colorSecondaryContainer)
+                buttonShapeTarget = ExpressiveShapes.BURST
+                haloShapeTarget = ExpressiveShapes.SUNNY
+                spin = 2_400L
             }
             FireTunnelVpnService.STATE_ERROR -> {
                 chipTone = Tone.ERROR
                 statusChip.text = getString(R.string.status_chip_error)
                 statusHeadline.text = getString(R.string.status_headline_error)
                 statusSub.text = lastError ?: getString(R.string.status_sub_error)
-                powerButton.text = getString(R.string.power_on)
+                powerLabel.text = getString(R.string.power_on)
                 powerButton.contentDescription = getString(R.string.power_on_desc)
-                ringTrack = UiKit.themeColor(ctx, MaterialR.attr.colorErrorContainer)
+                buttonBg = c(MaterialR.attr.colorErrorContainer)
+                buttonFg = c(MaterialR.attr.colorOnErrorContainer)
+                buttonShapeTarget = ExpressiveShapes.COOKIE_9
+                haloShapeTarget = ExpressiveShapes.COOKIE_12
+                spin = 0L
             }
             else -> {
                 chipTone = Tone.NEUTRAL
                 statusChip.text = getString(R.string.status_chip_off)
                 statusHeadline.text = getString(R.string.status_headline_off)
                 statusSub.text = getString(R.string.status_sub_off)
-                powerButton.text = getString(R.string.power_on)
+                powerLabel.text = getString(R.string.power_on)
                 powerButton.contentDescription = getString(R.string.power_on_desc)
-                ringTrack = outline
+                buttonShapeTarget = ExpressiveShapes.COOKIE_9
+                haloShapeTarget = ExpressiveShapes.COOKIE_12
+                spin = 0L
             }
         }
         UiKit.stylePill(statusChip, chipTone)
-
-        // The ring spins while connecting; otherwise only its track colour shows.
-        val connecting = state == FireTunnelVpnService.STATE_CONNECTING
-        if (statusRing.isIndeterminate != connecting) {
-            statusRing.hide()
-            statusRing.isIndeterminate = connecting
-            statusRing.progress = 0
-            statusRing.show()
-        }
-        statusRing.trackColor = ringTrack
-        statusRing.setIndicatorColor(primary)
-
-        powerButton.backgroundTintList = ColorStateList.valueOf(buttonBg)
-        powerButton.setTextColor(buttonFg)
-        powerButton.iconTint = ColorStateList.valueOf(buttonFg)
+        buttonShape.morphTo(buttonShapeTarget)
+        buttonShape.setColor(buttonBg)
+        haloShape.morphTo(haloShapeTarget)
+        haloShape.setColor(haloBg)
+        ImageViewCompat.setImageTintList(powerIcon, ColorStateList.valueOf(buttonFg))
+        powerLabel.setTextColor(buttonFg)
+        spinHalo(if (isResumed) spin else 0L)
         powerButton.isEnabled = active != null || state != FireTunnelVpnService.STATE_DISCONNECTED
+        powerButton.alpha = if (powerButton.isEnabled) 1f else 0.5f
         renderStats()
     }
 
@@ -433,13 +573,16 @@ class HomeFragment : Fragment() {
         if (view == null) return
         val ctx = requireContext()
         val stats = FireTunnelVpnService.sessionStats()
-        val tiles = listOf(tileRx, tileTx, tileSpeed, tileConns)
+        val tiles = listOf(tileRx, tileTx, tileConns)
         if (stats == null || vpnState != FireTunnelVpnService.STATE_CONNECTED) {
             val dim = UiKit.themeColor(ctx, MaterialR.attr.colorOutline)
             tiles.forEach {
                 it.value.text = getString(R.string.no_stats)
                 it.value.setTextColor(dim)
             }
+            speedDown.text = getString(R.string.no_stats)
+            speedUp.text = getString(R.string.no_stats)
+            if (lastRx >= 0) speedChart.clear()
             lastRx = -1L
             return
         }
@@ -455,14 +598,15 @@ class HomeFragment : Fragment() {
         if (rx != null && tx != null) {
             if (lastRx >= 0 && now > lastSampleAt) {
                 val seconds = (now - lastSampleAt) / 1000.0
-                val total = ((rx - lastRx) + (tx - lastTx)) / seconds
-                tileSpeed.value.text = StatsFormat.speed(total.toLong().coerceAtLeast(0))
+                val downBps = ((rx - lastRx) / seconds).toLong().coerceAtLeast(0)
+                val upBps = ((tx - lastTx) / seconds).toLong().coerceAtLeast(0)
+                speedDown.text = StatsFormat.speed(downBps)
+                speedUp.text = StatsFormat.speed(upBps)
+                speedChart.push(downBps, upBps)
             }
             lastRx = rx
             lastTx = tx
             lastSampleAt = now
-        } else {
-            tileSpeed.value.text = getString(R.string.no_stats)
         }
         tileConns.value.text = getString(R.string.stat_connections_value, stats.tunnelConnections, stats.bypassConnections)
     }

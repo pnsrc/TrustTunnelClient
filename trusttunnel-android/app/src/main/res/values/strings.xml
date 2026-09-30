@@ -191,7 +191,7 @@
     <string name="stat_tx">Sent</string>
     <string name="stat_speed">Speed</string>
     <string name="stat_connections">Connections</string>
-    <string name="stat_connections_value">%1$d · %2$d bypassed</string>
+    <string name="stat_connections_value">%1$d / %2$d</string>
     <string name="status_chip_on">Protected</string>
     <string name="status_chip_connecting">Connecting</string>
     <string name="status_chip_error">Error</string>
@@ -352,4 +352,24 @@
         <item quantity="one">%d entry added</item>
         <item quantity="other">%d entries added</item>
     </plurals>
+
+    <!-- Appearance, diagnostics, home bypass card -->
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_diagnostics">Diagnostics</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">As in the system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Wallpaper colours</string>
+    <string name="settings_dynamic_color_sub">Material You: take colours from the wallpaper</string>
+    <string name="settings_dynamic_color_unsupported">Available on Android 12 and newer</string>
+    <string name="settings_palette">Colour scheme</string>
+    <string name="settings_palette_dynamic">Turn off wallpaper colours to choose</string>
+    <string name="palette_fire">Fire</string>
+    <string name="palette_ocean">Ocean</string>
+    <string name="palette_forest">Forest</string>
+    <string name="palette_amethyst">Amethyst</string>
+    <string name="settings_bypass_apps">Apps outside the VPN</string>
+    <string name="settings_logs_sub">Connection log of the VPN core</string>
+    <string name="home_bypass_hint">Tap to let some apps skip the VPN</string>
 </resources>

@@ -44,6 +44,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Android client: Material 3 Expressive (Material 1.14; AGP 8.7.3, Gradle
+  8.9). The VPN tab's power button morphs between expressive shapes on a
+  turning halo (spring press, haptics), the off-centre status ring is gone,
+  and the tab gains a card with the apps that skip the VPN and a live speed
+  chart. Settings gain Appearance (system/light/dark theme, wallpaper
+  colours, four palettes: fire, ocean, forest, amethyst) and Diagnostics;
+  the Logs tab moved there.
+
 - Android client: new Settings screen — options apply immediately (no Save
   button); always-on VPN / kill switch open the system VPN settings; a core
   log level override; Live Update toggle; updates; about. Settings that did

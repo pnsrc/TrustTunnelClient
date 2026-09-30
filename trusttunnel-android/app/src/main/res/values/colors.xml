@@ -28,4 +28,30 @@
 
     <!-- Launcher icon background (brand orange, not replaced by dynamic colour) -->
     <color name="ic_launcher_background">#C94B1A</color>
+
+    <!-- Selectable palettes (Settings → Appearance), used when wallpaper colours are off -->
+    <color name="pal_ocean_primary">#0061A4</color>
+    <color name="pal_ocean_on_primary">#FFFFFF</color>
+    <color name="pal_ocean_primary_container">#D1E4FF</color>
+    <color name="pal_ocean_on_primary_container">#001D36</color>
+    <color name="pal_ocean_secondary">#535F70</color>
+    <color name="pal_ocean_on_secondary">#FFFFFF</color>
+    <color name="pal_ocean_secondary_container">#D7E3F7</color>
+    <color name="pal_ocean_on_secondary_container">#101C2B</color>
+    <color name="pal_forest_primary">#006D3B</color>
+    <color name="pal_forest_on_primary">#FFFFFF</color>
+    <color name="pal_forest_primary_container">#97F7B4</color>
+    <color name="pal_forest_on_primary_container">#00210E</color>
+    <color name="pal_forest_secondary">#4F6353</color>
+    <color name="pal_forest_on_secondary">#FFFFFF</color>
+    <color name="pal_forest_secondary_container">#D2E8D4</color>
+    <color name="pal_forest_on_secondary_container">#0D1F13</color>
+    <color name="pal_amethyst_primary">#6D4EA2</color>
+    <color name="pal_amethyst_on_primary">#FFFFFF</color>
+    <color name="pal_amethyst_primary_container">#EBDDFF</color>
+    <color name="pal_amethyst_on_primary_container">#25005A</color>
+    <color name="pal_amethyst_secondary">#635B70</color>
+    <color name="pal_amethyst_on_secondary">#FFFFFF</color>
+    <color name="pal_amethyst_secondary_container">#E9DEF8</color>
+    <color name="pal_amethyst_on_secondary_container">#1F182B</color>
 </resources>

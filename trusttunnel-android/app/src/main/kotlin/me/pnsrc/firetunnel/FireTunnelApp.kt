@@ -1,14 +1,12 @@
 package me.pnsrc.firetunnel
 
 import android.app.Application
-import com.google.android.material.color.DynamicColors
+import me.pnsrc.firetunnel.data.AppSettings
 
 /**
- * Application entry point.
- *
- * [DynamicColors.applyToActivitiesIfAvailable] overlays wallpaper-derived
- * Material You colour tones on Android 12+ (API 31+).  On older devices it
- * is a no-op and the static Deep Orange fallback palette in themes.xml is used.
+ * Application entry point: applies the light/dark choice before any screen is
+ * shown (colours are applied per screen by [ThemedActivity]) and schedules the
+ * background enrollment check.
  *
  * logback-android 2.x auto-initialises via its own ContentProvider registered
  * in the merged manifest, so no explicit setup is needed here.
@@ -16,7 +14,7 @@ import com.google.android.material.color.DynamicColors
 class FireTunnelApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        DynamicColors.applyToActivitiesIfAvailable(this)
+        ThemedActivity.applyNightMode(AppSettings(this))
         EnrollmentCheckWorker.schedule(this)
     }
 }

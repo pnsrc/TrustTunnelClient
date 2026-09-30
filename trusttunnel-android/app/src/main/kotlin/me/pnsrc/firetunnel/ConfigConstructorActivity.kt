@@ -5,7 +5,6 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.NestedScrollView
 import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.appbar.MaterialToolbar
@@ -25,7 +24,7 @@ import me.pnsrc.firetunnel.data.VpnConfig
  * rarely needed options folded under "Advanced". Every field explains itself;
  * errors are shown on the field. Routing (exclusions, modes) lives in the Rules tab.
  */
-class ConfigConstructorActivity : AppCompatActivity() {
+class ConfigConstructorActivity : ThemedActivity() {
 
     private companion object {
         val DNS_CLOUDFLARE = listOf("1.1.1.1", "1.0.0.1")

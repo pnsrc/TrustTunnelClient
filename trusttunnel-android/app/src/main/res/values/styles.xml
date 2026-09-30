@@ -5,7 +5,7 @@
         On Android 12+ DynamicColors overlays wallpaper-derived tones at runtime.
         The color attributes below serve as the fallback for older devices.
     -->
-    <style name="Theme.FireTunnel" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.FireTunnel" parent="Theme.Material3Expressive.DayNight.NoActionBar">
         <item name="colorPrimary">@color/fire_primary</item>
         <item name="colorOnPrimary">@color/fire_on_primary</item>
         <item name="colorPrimaryContainer">@color/fire_primary_container</item>
@@ -31,7 +31,7 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_marginHorizontal">16dp</item>
-        <item name="cardCornerRadius">20dp</item>
+        <item name="cardCornerRadius">24dp</item>
         <item name="strokeColor">?attr/colorOutlineVariant</item>
     </style>
 
@@ -76,5 +76,38 @@
         <item name="android:background">?attr/colorOutlineVariant</item>
         <item name="android:layout_marginLeft">16dp</item>
         <item name="android:layout_marginRight">16dp</item>
+    </style>
+
+    <!-- Palette overlays applied by ThemedActivity (Settings → Appearance) -->
+    <style name="ThemeOverlay.FireTunnel.Fire" parent="" />
+    <style name="ThemeOverlay.FireTunnel.Ocean" parent="">
+        <item name="colorPrimary">@color/pal_ocean_primary</item>
+        <item name="colorOnPrimary">@color/pal_ocean_on_primary</item>
+        <item name="colorPrimaryContainer">@color/pal_ocean_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/pal_ocean_on_primary_container</item>
+        <item name="colorSecondary">@color/pal_ocean_secondary</item>
+        <item name="colorOnSecondary">@color/pal_ocean_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/pal_ocean_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/pal_ocean_on_secondary_container</item>
+    </style>
+    <style name="ThemeOverlay.FireTunnel.Forest" parent="">
+        <item name="colorPrimary">@color/pal_forest_primary</item>
+        <item name="colorOnPrimary">@color/pal_forest_on_primary</item>
+        <item name="colorPrimaryContainer">@color/pal_forest_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/pal_forest_on_primary_container</item>
+        <item name="colorSecondary">@color/pal_forest_secondary</item>
+        <item name="colorOnSecondary">@color/pal_forest_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/pal_forest_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/pal_forest_on_secondary_container</item>
+    </style>
+    <style name="ThemeOverlay.FireTunnel.Amethyst" parent="">
+        <item name="colorPrimary">@color/pal_amethyst_primary</item>
+        <item name="colorOnPrimary">@color/pal_amethyst_on_primary</item>
+        <item name="colorPrimaryContainer">@color/pal_amethyst_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/pal_amethyst_on_primary_container</item>
+        <item name="colorSecondary">@color/pal_amethyst_secondary</item>
+        <item name="colorOnSecondary">@color/pal_amethyst_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/pal_amethyst_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/pal_amethyst_on_secondary_container</item>
     </style>
 </resources>

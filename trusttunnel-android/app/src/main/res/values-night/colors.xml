@@ -18,4 +18,30 @@
     <color name="status_on_ok_container">#BDF3D2</color>
     <color name="status_warn">#FFB95C</color>
     <color name="status_warn_container">#4A2C00</color>
+
+    <!-- Selectable palettes (Settings → Appearance), used when wallpaper colours are off -->
+    <color name="pal_ocean_primary">#9ECAFF</color>
+    <color name="pal_ocean_on_primary">#003258</color>
+    <color name="pal_ocean_primary_container">#00497D</color>
+    <color name="pal_ocean_on_primary_container">#D1E4FF</color>
+    <color name="pal_ocean_secondary">#BBC7DB</color>
+    <color name="pal_ocean_on_secondary">#253140</color>
+    <color name="pal_ocean_secondary_container">#3B4858</color>
+    <color name="pal_ocean_on_secondary_container">#D7E3F7</color>
+    <color name="pal_forest_primary">#7BDA9A</color>
+    <color name="pal_forest_on_primary">#00391C</color>
+    <color name="pal_forest_primary_container">#00522B</color>
+    <color name="pal_forest_on_primary_container">#97F7B4</color>
+    <color name="pal_forest_secondary">#B6CCB8</color>
+    <color name="pal_forest_on_secondary">#223527</color>
+    <color name="pal_forest_secondary_container">#384B3C</color>
+    <color name="pal_forest_on_secondary_container">#D2E8D4</color>
+    <color name="pal_amethyst_primary">#D4BBFF</color>
+    <color name="pal_amethyst_on_primary">#3C1C70</color>
+    <color name="pal_amethyst_primary_container">#543688</color>
+    <color name="pal_amethyst_on_primary_container">#EBDDFF</color>
+    <color name="pal_amethyst_secondary">#CDC2DB</color>
+    <color name="pal_amethyst_on_secondary">#342D40</color>
+    <color name="pal_amethyst_secondary_container">#4B4358</color>
+    <color name="pal_amethyst_on_secondary_container">#E9DEF8</color>
 </resources>

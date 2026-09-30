@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -25,7 +24,7 @@ import me.pnsrc.firetunnel.data.InstalledApp
  * Per-app split tunnelling: pick apps that bypass the VPN, or the only apps that
  * use it. Changes are saved immediately and applied on the next connection.
  */
-class AppRoutingActivity : AppCompatActivity() {
+class AppRoutingActivity : ThemedActivity() {
 
     private lateinit var routing: AppRoutingManager
     private lateinit var modeGroup: RadioGroup

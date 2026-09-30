@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -24,7 +23,7 @@ import me.pnsrc.firetunnel.data.EnrollmentProtocol
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class QRScannerActivity : AppCompatActivity() {
+class QRScannerActivity : ThemedActivity() {
 
     private lateinit var previewView: PreviewView
     private lateinit var barcodeScanner: BarcodeScanner

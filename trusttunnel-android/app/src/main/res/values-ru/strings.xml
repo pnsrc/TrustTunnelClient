@@ -195,7 +195,7 @@
     <string name="stat_tx">Отправлено</string>
     <string name="stat_speed">Скорость</string>
     <string name="stat_connections">Соединения</string>
-    <string name="stat_connections_value">%1$d · %2$d в обход</string>
+    <string name="stat_connections_value">%1$d / %2$d</string>
     <string name="status_chip_on">Защищено</string>
     <string name="status_chip_connecting">Подключение</string>
     <string name="status_chip_error">Ошибка</string>
@@ -360,4 +360,24 @@
         <item quantity="many">Добавлено %d записей</item>
         <item quantity="other">Добавлено %d записи</item>
     </plurals>
+
+    <!-- Appearance, diagnostics, home bypass card -->
+    <string name="settings_section_appearance">Оформление</string>
+    <string name="settings_section_diagnostics">Диагностика</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_system">Как в системе</string>
+    <string name="settings_theme_light">Светлая</string>
+    <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_dynamic_color">Цвета обоев</string>
+    <string name="settings_dynamic_color_sub">Material You: цвета берутся из обоев</string>
+    <string name="settings_dynamic_color_unsupported">Доступно на Android 12 и новее</string>
+    <string name="settings_palette">Цветовая схема</string>
+    <string name="settings_palette_dynamic">Выключите цвета обоев, чтобы выбрать</string>
+    <string name="palette_fire">Огонь</string>
+    <string name="palette_ocean">Океан</string>
+    <string name="palette_forest">Лес</string>
+    <string name="palette_amethyst">Аметист</string>
+    <string name="settings_bypass_apps">Приложения мимо VPN</string>
+    <string name="settings_logs_sub">Журнал подключения ядра VPN</string>
+    <string name="home_bypass_hint">Нажмите, чтобы пустить часть приложений мимо VPN</string>
 </resources>

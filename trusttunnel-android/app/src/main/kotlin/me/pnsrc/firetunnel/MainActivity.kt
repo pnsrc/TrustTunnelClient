@@ -4,14 +4,13 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.MenuItem
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import me.pnsrc.firetunnel.data.EnrollmentManager
 import me.pnsrc.firetunnel.data.EnrollmentProtocol
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ThemedActivity() {
 
     private lateinit var bottomNav: BottomNavigationView
 
@@ -99,7 +98,6 @@ class MainActivity : AppCompatActivity() {
             R.id.nav_vpn     -> HomeFragment()
             R.id.nav_configs -> ConfigsFragment()
             R.id.nav_rules   -> RulesFragment()
-            R.id.nav_logs    -> LogsFragment()
             else             -> return
         }
         supportFragmentManager.beginTransaction()

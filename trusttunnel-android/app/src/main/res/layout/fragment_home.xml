@@ -47,38 +47,47 @@
             android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <!-- ── Power button with status ring ──────────────────────────── -->
+        <!-- ── Power button: a morphing shape on a slowly turning halo ──── -->
         <FrameLayout
-            android:layout_width="216dp"
-            android:layout_height="216dp"
-            android:layout_marginVertical="24dp">
+            android:layout_width="248dp"
+            android:layout_height="248dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginVertical="20dp">
 
-            <com.google.android.material.progressindicator.CircularProgressIndicator
-                android:id="@+id/statusRing"
+            <View
+                android:id="@+id/powerHalo"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:importantForAccessibility="no"
-                app:indicatorSize="216dp"
-                app:trackThickness="8dp" />
+                android:importantForAccessibility="no" />
 
-            <com.google.android.material.button.MaterialButton
+            <LinearLayout
                 android:id="@+id/powerButton"
-                android:layout_width="168dp"
-                android:layout_height="168dp"
+                android:layout_width="184dp"
+                android:layout_height="184dp"
                 android:layout_gravity="center"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:letterSpacing="0.04"
-                android:padding="0dp"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:elevation="6dp"
-                android:stateListAnimator="@null"
-                app:cornerRadius="84dp"
-                app:icon="@drawable/ic_ft_power"
-                app:iconGravity="textTop"
-                app:iconPadding="8dp"
-                app:iconSize="56dp" />
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:id="@+id/powerIcon"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_ft_power" />
+
+                <TextView
+                    android:id="@+id/powerLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:importantForAccessibility="no"
+                    android:letterSpacing="0.06"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
 
         </FrameLayout>
 
@@ -91,7 +100,7 @@
             android:focusable="true"
             android:contentDescription="@string/server_pick"
             app:cardElevation="0dp"
-            app:cardCornerRadius="20dp"
+            app:cardCornerRadius="24dp"
             app:strokeWidth="1dp"
             app:strokeColor="?attr/colorOutlineVariant">
 
@@ -175,7 +184,141 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ── Stats ──────────────────────────────────────────────────── -->
+        <!-- ── Apps that bypass the VPN ──────────────────────────────── -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/bypassCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="24dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="?attr/colorOutlineVariant">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:minHeight="72dp"
+                android:orientation="horizontal"
+                android:paddingVertical="12dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp">
+
+                <LinearLayout
+                    android:id="@+id/bypassIcons"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/bypassTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/bypassSub"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_ft_chevron"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── Live speed ──────────────────────────────────────────────── -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="?attr/colorSurfaceContainer"
+            app:cardElevation="0dp"
+            app:cardCornerRadius="28dp"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/stat_speed"
+                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/speedDown"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:drawableStart="@drawable/ic_ft_down"
+                        android:drawablePadding="2dp"
+                        android:gravity="center_vertical"
+                        android:text="@string/no_stats"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                        android:textColor="?attr/colorPrimary" />
+
+                    <TextView
+                        android:id="@+id/speedUp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:drawableStart="@drawable/ic_ft_up"
+                        android:drawablePadding="2dp"
+                        android:gravity="center_vertical"
+                        android:text="@string/no_stats"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                        android:textColor="?attr/colorTertiary" />
+
+                </LinearLayout>
+
+                <me.pnsrc.firetunnel.SpeedChartView
+                    android:id="@+id/speedChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="88dp"
+                    android:layout_marginTop="12dp" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ── Session totals ──────────────────────────────────────────── -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -184,21 +327,11 @@
 
             <include android:id="@+id/statRx" layout="@layout/view_stat_tile" />
 
-            <Space android:layout_width="12dp" android:layout_height="0dp" />
+            <Space android:layout_width="10dp" android:layout_height="0dp" />
 
             <include android:id="@+id/statTx" layout="@layout/view_stat_tile" />
 
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <include android:id="@+id/statSpeed" layout="@layout/view_stat_tile" />
-
-            <Space android:layout_width="12dp" android:layout_height="0dp" />
+            <Space android:layout_width="10dp" android:layout_height="0dp" />
 
             <include android:id="@+id/statConns" layout="@layout/view_stat_tile" />
 

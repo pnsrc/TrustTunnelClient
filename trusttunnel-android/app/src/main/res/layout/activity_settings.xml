@@ -34,6 +34,31 @@
 
             <TextView
                 style="@style/SettingsSection"
+                android:text="@string/settings_section_appearance" />
+
+            <com.google.android.material.card.MaterialCardView style="@style/SettingsCard">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <include android:id="@+id/rowTheme" layout="@layout/item_setting_row" />
+
+                    <com.google.android.material.divider.MaterialDivider style="@style/SettingsDivider" />
+
+                    <include android:id="@+id/rowDynamicColor" layout="@layout/item_setting_row" />
+
+                    <com.google.android.material.divider.MaterialDivider style="@style/SettingsDivider" />
+
+                    <include android:id="@+id/rowPalette" layout="@layout/item_setting_row" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                style="@style/SettingsSection"
                 android:text="@string/settings_section_connection" />
 
             <com.google.android.material.card.MaterialCardView style="@style/SettingsCard">
@@ -43,11 +68,11 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
-                    <include android:id="@+id/rowAlwaysOn" layout="@layout/item_setting_row" />
+                    <include android:id="@+id/rowBypassApps" layout="@layout/item_setting_row" />
 
                     <com.google.android.material.divider.MaterialDivider style="@style/SettingsDivider" />
 
-                    <include android:id="@+id/rowLogLevel" layout="@layout/item_setting_row" />
+                    <include android:id="@+id/rowAlwaysOn" layout="@layout/item_setting_row" />
 
                 </LinearLayout>
 
@@ -69,6 +94,27 @@
                     <com.google.android.material.divider.MaterialDivider style="@style/SettingsDivider" />
 
                     <include android:id="@+id/rowNotificationSettings" layout="@layout/item_setting_row" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                style="@style/SettingsSection"
+                android:text="@string/settings_section_diagnostics" />
+
+            <com.google.android.material.card.MaterialCardView style="@style/SettingsCard">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <include android:id="@+id/rowLogs" layout="@layout/item_setting_row" />
+
+                    <com.google.android.material.divider.MaterialDivider style="@style/SettingsDivider" />
+
+                    <include android:id="@+id/rowLogLevel" layout="@layout/item_setting_row" />
 
                 </LinearLayout>
 
@@ -119,7 +165,6 @@
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
-
         </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>
