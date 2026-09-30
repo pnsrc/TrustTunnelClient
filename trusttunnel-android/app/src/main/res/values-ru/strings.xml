@@ -244,4 +244,27 @@
     <string name="config_saved">Конфиг «%s» сохранён</string>
     <string name="config_qr_too_big">Конфиг слишком большой для QR-кода</string>
     <string name="config_qr_warning">В QR-коде есть пароль. Показывайте его только тем, кому доверяете.</string>
+
+    <!-- Обновления приложения -->
+    <string name="updates">Обновления</string>
+    <string name="updates_auto">Проверять обновления автоматически</string>
+    <string name="updates_check_now">Проверить обновления</string>
+    <string name="updates_checking">Проверяем…</string>
+    <string name="updates_source">Релизы скачиваются с GitHub (pnsrc/TrustTunnelClient).</string>
+    <string name="update_up_to_date">У вас последняя версия (%s)</string>
+    <string name="update_check_failed">Не удалось проверить обновления. Попробуйте позже.</string>
+    <string name="update_available_title">Доступна версия %s</string>
+    <string name="update_versions">Установлена: %1$s → новая: %2$s</string>
+    <string name="update_size">Размер загрузки: %s</string>
+    <string name="update_debug_warning">Это отладочная сборка: Android установит обновление только после её удаления.</string>
+    <string name="update_download">Скачать</string>
+    <string name="update_later">Позже</string>
+    <string name="update_skip">Пропустить версию</string>
+    <string name="update_downloading">Загрузка %s…</string>
+    <string name="update_failed_title">Не удалось обновить</string>
+    <string name="update_failed_message">Не удалось скачать обновление (%s). Попробуйте позже.</string>
+    <string name="update_ready_title">Обновление загружено</string>
+    <string name="update_ready_message">Установить сейчас? После перезапуска приложения VPN нужно будет подключить заново.</string>
+    <string name="update_install">Установить</string>
+    <string name="update_allow_install">Разрешите FireTunnel устанавливать приложения и снова нажмите «Установить»</string>
 </resources>

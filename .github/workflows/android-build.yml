@@ -28,6 +28,14 @@ on:
       - 'scripts/bootstrap_conan_deps.py'
       - '.github/workflows/android-build.yml'
   workflow_dispatch:
+  # Called by release-build.yml on a v* tag to attach a signed APK to the release.
+  workflow_call:
+    inputs:
+      version:
+        description: Release tag (e.g. v0.13b); builds a signed APK named after it
+        type: string
+        required: false
+        default: ''
 
 env:
   CONAN_VER: "2.12"
@@ -160,6 +168,41 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew lint --stacktrace || true
+
+      # ── Signed APK for a GitHub release (release-build.yml only) ─────────
+      # Needs repository secrets: ANDROID_KEYSTORE_BASE64 (base64 of the .jks),
+      # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+      # Every release must be signed with the same key, or in-app updates fail.
+      - name: Build signed release APK
+        if: inputs.version != ''
+        working-directory: trusttunnel-android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FIRETUNNEL_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FIRETUNNEL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          FIRETUNNEL_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          RELEASE_TAG: ${{ inputs.version }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set: the release ships without an Android APK"
+            exit 0
+          fi
+          read -r NAME CODE < <(python3 scripts/version_from_tag.py "$RELEASE_TAG")
+          export FIRETUNNEL_KEYSTORE="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$FIRETUNNEL_KEYSTORE"
+          trap 'rm -f "$FIRETUNNEL_KEYSTORE"' EXIT
+          ./gradlew assembleRelease -PappVersionName="$NAME" -PappVersionCode="$CODE" --stacktrace
+          mkdir -p ../release-apk
+          cp app/build/outputs/apk/release/app-release.apk "../release-apk/FireTunnel-$NAME.apk"
+          echo "Built FireTunnel-$NAME.apk (versionCode $CODE)"
+
+      - name: Upload signed release APK
+        if: inputs.version != '' && hashFiles('release-apk/*.apk') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          # Picked up by release-build.yml's `release-*` pattern.
+          name: release-android
+          path: release-apk/*.apk
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

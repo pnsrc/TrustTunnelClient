@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import me.pnsrc.firetunnel.data.UpdateManager
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -49,6 +50,7 @@ class SettingsActivity : AppCompatActivity() {
 
         loadSettings()
         populateAbout()
+        setupUpdates()
         saveButton.setOnClickListener { saveSettings() }
     }
 
@@ -76,6 +78,25 @@ class SettingsActivity : AppCompatActivity() {
         }
         Toast.makeText(this, R.string.save, Toast.LENGTH_SHORT).show()
         finish()
+    }
+
+    // ── Updates ────────────────────────────────────────────────────────────────
+
+    private fun setupUpdates() {
+        val updates = UpdateManager(this)
+        val autoSwitch = findViewById<MaterialSwitch>(R.id.updatesAutoSwitch)
+        autoSwitch.isChecked = updates.autoCheckEnabled
+        autoSwitch.setOnCheckedChangeListener { _, checked -> updates.autoCheckEnabled = checked }
+
+        val checkButton = findViewById<MaterialButton>(R.id.updatesCheckButton)
+        checkButton.setOnClickListener {
+            checkButton.isEnabled = false
+            checkButton.setText(R.string.updates_checking)
+            UpdateUi.checkNow(this) {
+                checkButton.isEnabled = true
+                checkButton.setText(R.string.updates_check_now)
+            }
+        }
     }
 
     // ── About ──────────────────────────────────────────────────────────────────

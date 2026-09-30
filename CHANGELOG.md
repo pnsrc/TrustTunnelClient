@@ -28,6 +28,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   30 minutes (WorkManager, network required) and whenever the app returns to the
   foreground; a revoked device gets a notification. Enrolled configs show a
   "From dashboard · updated …" badge.
+- Android client: in-app updates from GitHub releases. Settings → Updates checks
+  `pnsrc/TrustTunnelClient` releases for an `.apk` newer than the installed
+  version (automatically once a day, or on demand), shows the release notes,
+  downloads the APK verifying GitHub's SHA-256 digest and the package name, and
+  opens the system installer. The `v*` release workflow now builds a signed
+  `FireTunnel-<version>.apk` (version name/code from the tag) and attaches it
+  to the release when the `ANDROID_KEYSTORE_*` secrets are set.
 - Android client: session statistics on the VPN tab — uptime, traffic and speed
   (the app's own UID traffic, i.e. the tunnel), and connections routed through
   or around the VPN — plus a TCP ping to the selected config's endpoint.

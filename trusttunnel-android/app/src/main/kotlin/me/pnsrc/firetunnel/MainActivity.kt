@@ -35,7 +35,10 @@ class MainActivity : AppCompatActivity() {
 
         requestNotificationPermission()
 
-        if (savedInstanceState == null) handleDeeplink(intent)
+        if (savedInstanceState == null) {
+            handleDeeplink(intent)
+            UpdateUi.checkIfDue(this)
+        }
     }
 
     override fun onStart() {

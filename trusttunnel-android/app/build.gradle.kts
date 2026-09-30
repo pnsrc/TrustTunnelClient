@@ -4,6 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.1.20"
 }
 
+// Release versioning: CI passes -PappVersionName / -PappVersionCode derived from
+// the git tag (scripts/version_from_tag.py); local builds are "dev".
+val appVersionName = (findProperty("appVersionName") as String?) ?: "dev"
+val appVersionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+
+// Release signing: CI provides the keystore via environment variables. The same
+// key must sign every release, or Android refuses in-app updates.
+val releaseKeystore = System.getenv("FIRETUNNEL_KEYSTORE")?.let(::file)?.takeIf { it.exists() }
+
 android {
     namespace = "me.pnsrc.firetunnel"
     compileSdk = 35
@@ -13,8 +22,8 @@ android {
         applicationId = "me.pnsrc.firetunnel"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -36,8 +45,20 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("FIRETUNNEL_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FIRETUNNEL_KEY_ALIAS")
+                keyPassword = System.getenv("FIRETUNNEL_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

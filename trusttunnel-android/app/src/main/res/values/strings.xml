@@ -240,4 +240,27 @@
     <string name="config_saved">Config \"%s\" saved</string>
     <string name="config_qr_too_big">This config is too large for a QR code</string>
     <string name="config_qr_warning">The QR code contains the password. Show it only to people you trust.</string>
+
+    <!-- App updates -->
+    <string name="updates">Updates</string>
+    <string name="updates_auto">Check for updates automatically</string>
+    <string name="updates_check_now">Check for updates</string>
+    <string name="updates_checking">Checking…</string>
+    <string name="updates_source">Releases are downloaded from GitHub (pnsrc/TrustTunnelClient).</string>
+    <string name="update_up_to_date">You have the latest version (%s)</string>
+    <string name="update_check_failed">Could not check for updates. Try again later.</string>
+    <string name="update_available_title">Version %s is available</string>
+    <string name="update_versions">Installed: %1$s → new: %2$s</string>
+    <string name="update_size">Download size: %s</string>
+    <string name="update_debug_warning">This is a development build: Android will only install the update after you uninstall this build.</string>
+    <string name="update_download">Download</string>
+    <string name="update_later">Later</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_downloading">Downloading %s…</string>
+    <string name="update_failed_title">Update failed</string>
+    <string name="update_failed_message">The update could not be downloaded (%s). Try again later.</string>
+    <string name="update_ready_title">Update downloaded</string>
+    <string name="update_ready_message">Install it now? After the app restarts, connect the VPN again.</string>
+    <string name="update_install">Install</string>
+    <string name="update_allow_install">Allow FireTunnel to install apps, then tap Install again</string>
 </resources>

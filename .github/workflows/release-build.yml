@@ -226,8 +226,14 @@ jobs:
             TrustTunnel-*.dmg
             TrustTunnel-*.zip
 
+  android:
+    uses: ./.github/workflows/android-build.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
+
   release:
-    needs: build
+    needs: [build, android]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
     permissions:
