@@ -63,6 +63,43 @@ object ConfigFields {
         return HostPort(host, port).takeIf { host.isNotEmpty() && port in 1..65535 }
     }
 
+    /** Return a top-level string value (before any `[table]`), or `null`. */
+    fun topLevelString(toml: String, key: String): String? = scalar(toml, "", key)
+
+    /** Return a top-level string array (before any `[table]`), or an empty list. */
+    fun topLevelArray(toml: String, key: String): List<String> = stringArrays(toml, key)[""].orEmpty()
+
+    /**
+     * Replace top-level keys with the given raw TOML values: existing definitions
+     * (including multi-line arrays) are removed and the new ones are put first,
+     * where top-level keys must live. Tables are left untouched.
+     */
+    fun overrideTopLevel(toml: String, values: Map<String, String>): String {
+        val out = mutableListOf<String>()
+        var inTable = false
+        var skipping: StringBuilder? = null
+        for (rawLine in toml.lines()) {
+            val line = stripComment(rawLine).trim()
+            val pending = skipping
+            if (pending != null) {
+                pending.append(' ').append(line)
+                if (isArrayClosed(pending)) skipping = null
+                continue
+            }
+            if (line.startsWith("[")) inTable = true
+            val eq = line.indexOf('=')
+            val key = if (eq > 0) line.substring(0, eq).trim() else null
+            if (!inTable && key != null && key in values) {
+                val value = line.substring(eq + 1).trim()
+                if (value.startsWith("[") && !isArrayClosed(value)) skipping = StringBuilder(value)
+                continue
+            }
+            out += rawLine
+        }
+        val header = values.map { (k, v) -> "$k = $v" }
+        return (header + out).joinToString("\n")
+    }
+
     // ── Minimal TOML scanning ────────────────────────────────────────────────────
 
     /** Return the unquoted value of a string `key = "value"` in [table], or `null`. */

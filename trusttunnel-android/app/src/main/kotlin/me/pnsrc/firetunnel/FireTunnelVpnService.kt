@@ -21,6 +21,8 @@ import com.adguard.trusttunnel.VpnClient
 import com.adguard.trusttunnel.VpnClientListener
 import com.adguard.trusttunnel.VpnState
 import me.pnsrc.firetunnel.data.AppRoutingManager
+import me.pnsrc.firetunnel.data.AppSettings
+import me.pnsrc.firetunnel.data.StatsFormat
 import me.pnsrc.firetunnel.data.ConfigFields
 import java.util.concurrent.atomic.AtomicLong
 
@@ -58,6 +60,7 @@ class FireTunnelVpnService : VpnService() {
         const val EXTRA_CONNECTED_AT = "connected_at"
 
         private const val NOTIFICATION_ID = 1
+        private const val NOTIFICATION_REFRESH_MS = 10_000L
         private const val CHANNEL_ID      = "firetunnel_vpn"
 
         /** In-process VPN state cache — read by HomeFragment on resume. */
@@ -121,6 +124,20 @@ class FireTunnelVpnService : VpnService() {
     @Volatile private var fallbackTun: ParcelFileDescriptor? = null
     @Volatile private var connectThread: Thread? = null
 
+    /** Endpoint host shown in the notification. */
+    @Volatile private var currentHost: String = ""
+
+    /** Refreshes the connected notification's traffic figures. */
+    private val notificationHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val notificationTicker = object : Runnable {
+        override fun run() {
+            if (lastKnownState != STATE_CONNECTED) return
+            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(NOTIFICATION_ID, buildNotification(STATE_CONNECTED))
+            notificationHandler.postDelayed(this, NOTIFICATION_REFRESH_MS)
+        }
+    }
+
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -137,6 +154,7 @@ class FireTunnelVpnService : VpnService() {
             ACTION_CONNECT -> {
                 val toml = intent.getStringExtra(EXTRA_CONFIG_TOML) ?: ""
                 activeConfigId = intent.getStringExtra(EXTRA_CONFIG_ID)
+                currentHost = ConfigFields.firstEndpointAddress(toml)?.host.orEmpty()
                 broadcastState(STATE_CONNECTING)
                 startForegroundCompat(buildNotification(STATE_CONNECTING))
                 cancelConnectThread()
@@ -156,6 +174,7 @@ class FireTunnelVpnService : VpnService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        notificationHandler.removeCallbacks(notificationTicker)
         cancelConnectThread()
         unregisterNetworkCallback()
         teardownVpnClient()
@@ -212,6 +231,7 @@ class FireTunnelVpnService : VpnService() {
         teardownVpnClient()
         closeFallbackTun()
         activeConfigId = null
+        notificationHandler.removeCallbacks(notificationTicker)
         endSession()
         broadcastState(STATE_DISCONNECTED)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -293,6 +313,8 @@ class FireTunnelVpnService : VpnService() {
                     startSession()
                     broadcastState(STATE_CONNECTED)
                     startForegroundCompat(buildNotification(STATE_CONNECTED))
+                    notificationHandler.removeCallbacks(notificationTicker)
+                    notificationHandler.postDelayed(notificationTicker, NOTIFICATION_REFRESH_MS)
                 }
                 VpnState.DISCONNECTED -> {
                     broadcastState(STATE_DISCONNECTED)
@@ -380,19 +402,38 @@ class FireTunnelVpnService : VpnService() {
             Intent(this, FireTunnelVpnService::class.java).apply { action = ACTION_DISCONNECT },
             PendingIntent.FLAG_IMMUTABLE
         )
-        val text = if (state == STATE_CONNECTED) getString(R.string.vpn_notification_connected)
-                   else getString(R.string.vpn_notification_connecting)
+        val connected = state == STATE_CONNECTED
+        val title = when {
+            connected && currentHost.isNotEmpty() -> getString(R.string.live_title_connected, currentHost)
+            connected -> getString(R.string.vpn_notification_connected)
+            else -> getString(R.string.vpn_notification_connecting)
+        }
+        val stats = if (connected) sessionStats() else null
+        val text = if (stats?.rxBytes != null && stats.txBytes != null) {
+            getString(R.string.stats_traffic, StatsFormat.bytes(stats.rxBytes), StatsFormat.bytes(stats.txBytes))
+        } else {
+            getString(R.string.vpn_notification_title)
+        }
 
-        return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.vpn_notification_title))
+        val builder = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_vpn)
             .setContentIntent(tap)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
             .addAction(
                 Notification.Action.Builder(null, getString(R.string.disconnect), disconnectPi).build()
             )
-            .build()
+        if (connected && stats != null) {
+            // Session timer; on Android 16 it is also what the status bar chip shows.
+            builder.setWhen(stats.connectedAt).setShowWhen(true).setUsesChronometer(true)
+        } else {
+            LiveUpdates.setChipText(builder, getString(R.string.live_chip_connecting))
+        }
+        if (AppSettings(this).liveUpdates) LiveUpdates.requestPromotion(builder)
+        return builder.build()
     }
 
     // ── Broadcast ─────────────────────────────────────────────────────────────

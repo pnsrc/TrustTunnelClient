@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FireTunnel: a flame with a tunnel entrance cut into its base.
+     The cut is a real hole (clip-path: outer square minus the reversed tunnel,
+     non-zero winding), so the monochrome themed icon keeps it too. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group>
+        <clip-path android:pathData="M0,0 H108 V108 H0 Z M45.5,86 H62.5 V74.5 A8.5,8.5 0 0 0 45.5,74.5 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 54 33.08C 63.72 45.23 71.82 53.33 71.82 66.29C 71.82 76.82 63.72 84.11 54 84.11C 44.28 84.11 36.18 76.82 36.18 66.29C 36.18 57.38 41.85 50.9 46.71 45.23C 48.01 52.52 50.76 56.57 54.81 58.19C 58.05 50.9 58.05 41.99 54 33.08Z" />
+    </group>
+</vector>

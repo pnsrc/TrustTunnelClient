@@ -25,4 +25,7 @@
     <color name="status_on_ok_container">#0E4F2F</color>
     <color name="status_warn">#9A5B00</color>
     <color name="status_warn_container">#FCEBCF</color>
+
+    <!-- Launcher icon background (brand orange, not replaced by dynamic colour) -->
+    <color name="ic_launcher_background">#C94B1A</color>
 </resources>

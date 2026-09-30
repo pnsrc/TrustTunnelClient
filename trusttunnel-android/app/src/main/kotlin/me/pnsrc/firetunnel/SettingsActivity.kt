@@ -1,32 +1,27 @@
 package me.pnsrc.firetunnel
 
+import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.widget.ArrayAdapter
-import android.widget.Spinner
-import android.widget.TextView
-import android.widget.Toast
+import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import me.pnsrc.firetunnel.data.AppSettings
+import me.pnsrc.firetunnel.data.RoutingRules
 import me.pnsrc.firetunnel.data.UpdateManager
 
+/**
+ * Settings: every option applies immediately. Only settings that actually do
+ * something on Android are offered; the kill switch and always-on VPN are the
+ * system's own and are opened from here.
+ */
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var killswitchCheck: MaterialSwitch
-    private lateinit var notificationsCheck: MaterialSwitch
-    private lateinit var logLevelSpinner: Spinner
-    private lateinit var saveButton: MaterialButton
-
-    // About
-    private lateinit var tvAboutVersion: TextView
-    private lateinit var tvAboutBuild:   TextView
-    private lateinit var tvAboutAndroid: TextView
-    private lateinit var tvAboutKernel:  TextView
-    private lateinit var tvAboutDevice:  TextView
-    private lateinit var tvAboutArch:    TextView
+    private lateinit var settings: AppSettings
+    private lateinit var updates: UpdateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,99 +31,115 @@ class SettingsActivity : AppCompatActivity() {
         setSupportActionBar(toolbar)
         toolbar.setNavigationOnClickListener { finish() }
 
-        killswitchCheck    = findViewById(R.id.killswitchCheck)
-        notificationsCheck = findViewById(R.id.notificationsCheck)
-        logLevelSpinner    = findViewById(R.id.logLevelSpinner)
-        saveButton         = findViewById(R.id.saveButton)
+        settings = AppSettings(this)
+        updates = UpdateManager(this)
 
-        tvAboutVersion = findViewById(R.id.tvAboutVersion)
-        tvAboutBuild   = findViewById(R.id.tvAboutBuild)
-        tvAboutAndroid = findViewById(R.id.tvAboutAndroid)
-        tvAboutKernel  = findViewById(R.id.tvAboutKernel)
-        tvAboutDevice  = findViewById(R.id.tvAboutDevice)
-        tvAboutArch    = findViewById(R.id.tvAboutArch)
-
-        loadSettings()
-        populateAbout()
+        setupConnection()
+        setupNotifications()
         setupUpdates()
-        saveButton.setOnClickListener { saveSettings() }
+        setupAbout()
     }
 
-    // ── Settings ───────────────────────────────────────────────────────────────
+    private fun row(id: Int) = SettingRow(findViewById(id))
 
-    private fun loadSettings() {
-        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
-        killswitchCheck.isChecked    = prefs.getBoolean("killswitch_enabled", false)
-        notificationsCheck.isChecked = prefs.getBoolean("notifications_enabled", true)
+    // ── Connection ─────────────────────────────────────────────────────────────
 
-        val logLevels = arrayOf("Debug", "Info", "Warning", "Error")
-        logLevelSpinner.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_item, logLevels
-        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-        val saved = prefs.getString("log_level", "Info")
-        logLevelSpinner.setSelection(logLevels.indexOf(saved).coerceAtLeast(0))
-    }
+    private fun setupConnection() {
+        row(R.id.rowAlwaysOn)
+            .bind(R.drawable.ic_ft_lock, getString(R.string.settings_always_on), getString(R.string.settings_always_on_sub))
+            .asLink { openSystem(Intent(Settings.ACTION_VPN_SETTINGS)) }
 
-    private fun saveSettings() {
-        getSharedPreferences("settings", MODE_PRIVATE).edit().apply {
-            putBoolean("killswitch_enabled",     killswitchCheck.isChecked)
-            putBoolean("notifications_enabled",  notificationsCheck.isChecked)
-            putString("log_level",               logLevelSpinner.selectedItem.toString())
-            apply()
+        val logRow = row(R.id.rowLogLevel).bind(R.drawable.ic_ft_terminal, getString(R.string.settings_log_level))
+        logRow.setSubtitle(logLevelLabel(settings.logLevelOverride))
+        logRow.asLink {
+            val values = listOf<String?>(null) + RoutingRules.LOG_LEVELS
+            val labels = values.map(::logLevelLabel).toTypedArray()
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.settings_log_level)
+                .setSingleChoiceItems(labels, values.indexOf(settings.logLevelOverride)) { dialog, which ->
+                    settings.logLevelOverride = values[which]
+                    logRow.setSubtitle(labels[which])
+                    dialog.dismiss()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
-        Toast.makeText(this, R.string.save, Toast.LENGTH_SHORT).show()
-        finish()
+    }
+
+    private fun logLevelLabel(level: String?): String = when (level) {
+        null -> getString(R.string.settings_log_level_config)
+        "debug" -> getString(R.string.settings_log_level_debug)
+        "trace" -> getString(R.string.settings_log_level_trace)
+        else -> getString(R.string.settings_log_level_info)
+    }
+
+    // ── Notifications ──────────────────────────────────────────────────────────
+
+    private fun setupNotifications() {
+        val live = row(R.id.rowLiveUpdates)
+        val supported = Build.VERSION.SDK_INT >= LiveUpdates.MIN_SDK
+        live.bind(
+            R.drawable.ic_ft_live,
+            getString(R.string.settings_live_updates),
+            getString(if (supported) R.string.settings_live_updates_sub else R.string.settings_live_updates_unsupported)
+        ).asSwitch(settings.liveUpdates && supported) { checked -> settings.liveUpdates = checked }
+        live.setEnabled(supported)
+
+        row(R.id.rowNotificationSettings)
+            .bind(R.drawable.ic_ft_bell, getString(R.string.settings_notification_settings))
+            .asLink {
+                openSystem(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            }
     }
 
     // ── Updates ────────────────────────────────────────────────────────────────
 
     private fun setupUpdates() {
-        val updates = UpdateManager(this)
-        val autoSwitch = findViewById<MaterialSwitch>(R.id.updatesAutoSwitch)
-        autoSwitch.isChecked = updates.autoCheckEnabled
-        autoSwitch.setOnCheckedChangeListener { _, checked -> updates.autoCheckEnabled = checked }
+        row(R.id.rowUpdatesAuto)
+            .bind(R.drawable.ic_ft_refresh, getString(R.string.updates_auto), getString(R.string.updates_auto_sub))
+            .asSwitch(updates.autoCheckEnabled) { checked -> updates.autoCheckEnabled = checked }
 
-        val checkButton = findViewById<MaterialButton>(R.id.updatesCheckButton)
-        checkButton.setOnClickListener {
-            checkButton.isEnabled = false
-            checkButton.setText(R.string.updates_checking)
+        val check = row(R.id.rowUpdatesCheck)
+        val installed = getString(R.string.updates_installed, updates.currentVersionName)
+        check.bind(R.drawable.ic_ft_down, getString(R.string.updates_check_now), installed)
+        check.asLink {
+            check.setSubtitle(getString(R.string.updates_checking))
+            check.setEnabled(false)
             UpdateUi.checkNow(this) {
-                checkButton.isEnabled = true
-                checkButton.setText(R.string.updates_check_now)
+                check.setSubtitle(installed)
+                check.setEnabled(true)
             }
         }
     }
 
     // ── About ──────────────────────────────────────────────────────────────────
 
-    private fun populateAbout() {
-        // App version
-        val pi = runCatching { packageManager.getPackageInfo(packageName, 0) }.getOrNull()
-        val versionName = pi?.versionName ?: "—"
-        val versionCode = if (pi == null) 0L
-                          else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                              pi.longVersionCode
-                          else @Suppress("DEPRECATION") pi.versionCode.toLong()
-        tvAboutVersion.text = "$versionName ($versionCode)"
+    private fun setupAbout() {
+        val debug = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        row(R.id.rowAboutApp).bind(
+            R.drawable.ic_ft_info,
+            getString(R.string.about_app_title, updates.currentVersionName),
+            "${if (debug) "debug" else "release"} · $packageName"
+        ).asInfo()
 
-        // Build type: debug flag in applicationInfo
-        val isDebug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        tvAboutBuild.text = if (isDebug) "debug" else "release"
-
-        // Android version + API level
-        tvAboutAndroid.text = "Android ${Build.VERSION.RELEASE}  (API ${Build.VERSION.SDK_INT})"
-
-        // Linux kernel
-        val kernel = System.getProperty("os.version") ?: "—"
-        tvAboutKernel.text = kernel
-
-        // Device model
         val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
-        val model = Build.MODEL
-        tvAboutDevice.text = if (model.startsWith(manufacturer, ignoreCase = true)) model
-                             else "$manufacturer $model"
+        val device = if (Build.MODEL.startsWith(manufacturer, ignoreCase = true)) Build.MODEL
+                     else "$manufacturer ${Build.MODEL}"
+        val details = listOfNotNull(
+            "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            Build.SUPPORTED_ABIS.firstOrNull(),
+            System.getProperty("os.version")?.let { "Linux $it" }
+        ).joinToString(" · ")
+        row(R.id.rowAboutDevice).bind(R.drawable.ic_ft_phone, device, details).asInfo()
 
-        // CPU architecture
-        tvAboutArch.text = Build.SUPPORTED_ABIS.firstOrNull() ?: Build.CPU_ABI
+        row(R.id.rowSource)
+            .bind(R.drawable.ic_ft_code, getString(R.string.about_source), "github.com/${UpdateManager.REPO}")
+            .asLink { openSystem(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/${UpdateManager.REPO}"))) }
+    }
+
+    private fun openSystem(intent: Intent) {
+        runCatching { startActivity(intent) }
+            .onFailure { startActivity(Intent(Settings.ACTION_SETTINGS)) }
     }
 }

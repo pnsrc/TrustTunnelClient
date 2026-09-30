@@ -26,11 +26,14 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.snackbar.Snackbar
 import me.pnsrc.firetunnel.UiKit.Tone
+import me.pnsrc.firetunnel.data.AppSettings
 import me.pnsrc.firetunnel.data.ConfigFields
 import me.pnsrc.firetunnel.data.ConfigManager
 import me.pnsrc.firetunnel.data.EndpointPinger
 import me.pnsrc.firetunnel.data.EnrollResult
 import me.pnsrc.firetunnel.data.EnrollmentManager
+import me.pnsrc.firetunnel.data.RoutingRules
+import me.pnsrc.firetunnel.data.RulesManager
 import me.pnsrc.firetunnel.data.StatsFormat
 import me.pnsrc.firetunnel.data.VpnConfig
 import java.util.concurrent.Executors
@@ -322,10 +325,14 @@ class HomeFragment : Fragment() {
     }
 
     private fun launchVpn(config: VpnConfig) {
-        requireContext().startForegroundService(
-            Intent(requireContext(), FireTunnelVpnService::class.java).apply {
+        // The Rules tab's site list and the Settings log level are applied on top
+        // of the stored config for this connection only.
+        val ctx = requireContext()
+        val toml = RoutingRules.apply(config.rawToml, RulesManager(ctx).overrides(AppSettings(ctx).logLevelOverride))
+        ctx.startForegroundService(
+            Intent(ctx, FireTunnelVpnService::class.java).apply {
                 action = FireTunnelVpnService.ACTION_CONNECT
-                putExtra(FireTunnelVpnService.EXTRA_CONFIG_TOML, config.rawToml)
+                putExtra(FireTunnelVpnService.EXTRA_CONFIG_TOML, toml)
                 putExtra(FireTunnelVpnService.EXTRA_CONFIG_ID, config.id)
             }
         )

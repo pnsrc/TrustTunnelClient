@@ -5,11 +5,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Persistent storage for IP/CIDR tunnel-exclusion rules.
+ * Persistent storage for the "Sites and addresses" list (domains, IPs, CIDRs).
  *
- * Rules are kept in SharedPreferences as a JSON array so they survive process
- * restarts.  The VPN service reads them when building the TUN interface to
- * apply split-tunnel routing (future native-core integration).
+ * Rules are kept in SharedPreferences as a JSON array. The list is applied to the
+ * config right before connecting (see [RoutingRules.apply]) according to [getMode].
  */
 data class ExclusionRule(
     val cidr: String,
@@ -20,11 +19,17 @@ class RulesManager(context: Context) {
 
     private val prefs = context.getSharedPreferences("firetunnel_rules", Context.MODE_PRIVATE)
 
-    // ── Split-tunnel toggle ────────────────────────────────────────────────────
+    // ── Mode ───────────────────────────────────────────────────────────────────
 
-    fun isSplitTunnelEnabled(): Boolean = prefs.getBoolean("split_tunnel", false)
-    fun setSplitTunnelEnabled(enabled: Boolean) =
-        prefs.edit().putBoolean("split_tunnel", enabled).apply()
+    /** Return how the list is applied; the old "split tunnel" switch maps to [RoutingMode.BYPASS_LIST]. */
+    fun getMode(): RoutingMode {
+        prefs.getString("routing_mode", null)?.let { return RoutingMode.fromName(it) }
+        return if (prefs.getBoolean("split_tunnel", false)) RoutingMode.BYPASS_LIST else RoutingMode.OFF
+    }
+
+    fun setMode(mode: RoutingMode) {
+        prefs.edit().putString("routing_mode", mode.name).remove("split_tunnel").apply()
+    }
 
     // ── Rule CRUD ──────────────────────────────────────────────────────────────
 
@@ -48,16 +53,26 @@ class RulesManager(context: Context) {
         }
     }
 
+    /** Add many entries with one write; return how many were new. */
+    fun addRules(entries: List<String>): Int {
+        val rules = getRules().toMutableList()
+        val known = rules.mapTo(HashSet()) { it.cidr }
+        val added = entries.filter { known.add(it) }
+        if (added.isNotEmpty()) saveRules(rules + added.map { ExclusionRule(cidr = it, enabled = true) })
+        return added.size
+    }
+
+    fun clear() = saveRules(emptyList())
+
     fun removeRule(cidr: String) = saveRules(getRules().filter { it.cidr != cidr })
 
     fun setRuleEnabled(cidr: String, enabled: Boolean) {
         saveRules(getRules().map { if (it.cidr == cidr) it.copy(enabled = enabled) else it })
     }
 
-    /** Returns only CIDRs that are currently active (enabled = true). */
-    fun getActiveCidrs(): List<String> =
-        if (isSplitTunnelEnabled()) getRules().filter { it.enabled }.map { it.cidr }
-        else emptyList()
+    /** Return the overrides to apply when connecting: the mode and the enabled entries. */
+    fun overrides(logLevel: String?): ConfigOverrides =
+        ConfigOverrides(getMode(), getRules().filter { it.enabled }.map { it.cidr }, logLevel)
 
     private fun saveRules(rules: List<ExclusionRule>) {
         val arr = JSONArray()

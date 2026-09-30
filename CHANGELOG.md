@@ -35,11 +35,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   opens the system installer. The `v*` release workflow now builds a signed
   `FireTunnel-<version>.apk` (version name/code from the tag) and attaches it
   to the release when the `ANDROID_KEYSTORE_*` secrets are set.
+- Android client: Android 16 Live Updates — the VPN notification asks to be
+  promoted to a status bar chip showing the session timer, and shows the
+  endpoint and traffic (toggle in Settings).
 - Android client: session statistics on the VPN tab — uptime, traffic and speed
   (the app's own UID traffic, i.e. the tunnel), and connections routed through
   or around the VPN — plus a TCP ping to the selected config's endpoint.
 
 ### Changed
+
+- Android client: new Settings screen — options apply immediately (no Save
+  button); always-on VPN / kill switch open the system VPN settings; a core
+  log level override; Live Update toggle; updates; about. Settings that did
+  nothing on Android (in-app kill switch, notifications toggle) are gone.
+- Android client: new Rules tab — apps, then a "Sites and addresses" list with
+  a clear mode (don't use / bypass the VPN / only through the VPN). The list
+  accepts domains (incl. `*.`), IPs and CIDRs and is now actually applied:
+  it is merged into the config's `vpn_mode`/`exclusions` when connecting
+  (previously the rules were stored but never used).
+- Android client: the config constructor is a full screen with explained
+  fields, HTTP/2–HTTP/3 choice, DNS presets and an "Advanced" section
+  (backup addresses, SNI, anti-DPI, post-quantum, skip verification);
+  values are TOML-escaped (a quote in a password used to break the config).
+- Android client: new adaptive launcher icon (flame with a tunnel entrance,
+  with a monochrome layer for themed icons); the settings toolbar icon now
+  follows the theme and is visible in dark mode.
 
 - Android client: redesigned VPN and Configs screens. The VPN tab has a large
   power button inside a status ring, the active server with its ping (tap to

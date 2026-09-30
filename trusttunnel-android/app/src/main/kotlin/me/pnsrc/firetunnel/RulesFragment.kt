@@ -7,31 +7,47 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
+import android.widget.ImageView
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.radiobutton.MaterialRadioButton
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import me.pnsrc.firetunnel.data.AppRoutingManager
 import me.pnsrc.firetunnel.data.AppRoutingMode
 import me.pnsrc.firetunnel.data.ExclusionRule
+import me.pnsrc.firetunnel.data.RoutingMode
+import me.pnsrc.firetunnel.data.RoutingRules
 import me.pnsrc.firetunnel.data.RulesManager
 import java.io.IOException
 import java.net.URL
 
+/**
+ * Rules tab: per-app routing, then a list of sites and addresses with a mode
+ * saying whether they bypass the VPN or are the only thing that uses it. The
+ * list is applied to the config when connecting (see [RoutingRules.apply]).
+ */
 class RulesFragment : Fragment() {
 
     private lateinit var rulesManager: RulesManager
-    private lateinit var splitTunnelSwitch: MaterialSwitch
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var emptyText: TextView
-    private lateinit var fab: FloatingActionButton
-
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val headerAdapter = HeaderAdapter { bindHeader(it) }
+    private val rulesAdapter = RulesAdapter(
+        onToggle = { rule, enabled -> rulesManager.setRuleEnabled(rule.cidr, enabled) },
+        onDelete = { rule ->
+            rulesManager.removeRule(rule.cidr)
+            reload()
+            showSnackbar(getString(R.string.rule_deleted, rule.cidr))
+        }
+    )
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -40,36 +56,72 @@ class RulesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         rulesManager = RulesManager(requireContext())
-
-        splitTunnelSwitch = view.findViewById(R.id.splitTunnelSwitch)
-        recyclerView      = view.findViewById(R.id.rulesRecycler)
-        emptyText         = view.findViewById(R.id.emptyRulesText)
-        fab               = view.findViewById(R.id.fabAddRule)
-
-        recyclerView.layoutManager = LinearLayoutManager(requireContext())
-
-        splitTunnelSwitch.isChecked = rulesManager.isSplitTunnelEnabled()
-        splitTunnelSwitch.setOnCheckedChangeListener { _, checked ->
-            rulesManager.setSplitTunnelEnabled(checked)
+        view.findViewById<RecyclerView>(R.id.rulesRecycler).apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = ConcatAdapter(headerAdapter, rulesAdapter)
         }
-
-        fab.setOnClickListener { showAddOptions() }
-        view.findViewById<View>(R.id.appRoutingCard).setOnClickListener {
-            startActivity(Intent(requireContext(), AppRoutingActivity::class.java))
-        }
-        loadRules()
+        reload()
     }
 
     override fun onResume() {
         super.onResume()
-        updateAppRoutingSummary()
+        headerAdapter.notifyItemChanged(0) // the app selection may have changed
     }
 
-    private fun updateAppRoutingSummary() {
-        val summary = view?.findViewById<TextView>(R.id.appRoutingSummary) ?: return
+    private fun reload() {
+        if (!isAdded) return
+        rulesAdapter.submit(rulesManager.getRules())
+        headerAdapter.notifyItemChanged(0)
+    }
+
+    // ── Header ─────────────────────────────────────────────────────────────────
+
+    private fun bindHeader(header: View) {
+        if (!isAdded) return
+        SettingRow(header.findViewById(R.id.rowApps))
+            .bind(R.drawable.ic_ft_apps, getString(R.string.app_routing_title), appRoutingSummary())
+            .asLink { startActivity(Intent(requireContext(), AppRoutingActivity::class.java)) }
+
+        val mode = rulesManager.getMode()
+        bindMode(header.findViewById(R.id.modeOff), RoutingMode.OFF, mode,
+            R.string.rules_mode_off, R.string.rules_mode_off_sub)
+        bindMode(header.findViewById(R.id.modeBypass), RoutingMode.BYPASS_LIST, mode,
+            R.string.rules_mode_bypass, R.string.rules_mode_bypass_sub)
+        bindMode(header.findViewById(R.id.modeOnly), RoutingMode.ONLY_LIST, mode,
+            R.string.rules_mode_only, R.string.rules_mode_only_sub)
+
+        val count = rulesAdapter.itemCount
+        header.findViewById<TextView>(R.id.rulesListTitle).text =
+            resources.getQuantityString(R.plurals.rules_list_title, count, count)
+        header.findViewById<View>(R.id.rulesEmpty).visibility = if (count == 0) View.VISIBLE else View.GONE
+        header.findViewById<MaterialButton>(R.id.rulesAdd).setOnClickListener { showAddDialog() }
+        header.findViewById<MaterialButton>(R.id.rulesImport).setOnClickListener { showImportDialog() }
+        header.findViewById<MaterialButton>(R.id.rulesMenu).apply {
+            visibility = if (count == 0) View.INVISIBLE else View.VISIBLE
+            setOnClickListener { showListMenu(it) }
+        }
+    }
+
+    private fun bindMode(row: View, value: RoutingMode, current: RoutingMode, titleRes: Int, subRes: Int) {
+        row.findViewById<TextView>(R.id.modeTitle).setText(titleRes)
+        row.findViewById<TextView>(R.id.modeSubtitle).setText(subRes)
+        row.findViewById<MaterialRadioButton>(R.id.modeRadio).isChecked = value == current
+        row.contentDescription = getString(titleRes)
+        row.isSelected = value == current
+        row.setOnClickListener {
+            if (value == rulesManager.getMode()) return@setOnClickListener
+            rulesManager.setMode(value)
+            headerAdapter.notifyItemChanged(0)
+            if (value != RoutingMode.OFF && rulesAdapter.itemCount == 0) {
+                showSnackbar(getString(R.string.rules_mode_needs_entries))
+            }
+        }
+    }
+
+    private fun appRoutingSummary(): String {
         val routing = AppRoutingManager(requireContext())
         val count = routing.getSelectedPackages().size
-        summary.text = when (routing.getMode()) {
+        return when (routing.getMode()) {
             AppRoutingMode.OFF -> getString(R.string.app_routing_summary_off)
             AppRoutingMode.BYPASS_SELECTED ->
                 resources.getQuantityString(R.plurals.app_routing_summary_bypass, count, count)
@@ -79,86 +131,85 @@ class RulesFragment : Fragment() {
         }
     }
 
-    private fun loadRules() {
-        if (!isAdded) return
-        val rules   = rulesManager.getRules()
-        val isEmpty = rules.isEmpty()
-        emptyText.visibility    = if (isEmpty) View.VISIBLE else View.GONE
-        recyclerView.visibility = if (isEmpty) View.GONE    else View.VISIBLE
-
-        recyclerView.adapter = RulesAdapter(
-            rules.toMutableList(),
-            onToggle = { cidr, enabled -> rulesManager.setRuleEnabled(cidr, enabled) },
-            onDelete = { cidr ->
-                rulesManager.removeRule(cidr)
-                loadRules()
-                showSnackbar(getString(R.string.rule_deleted, cidr))
+    private fun showListMenu(anchor: View) {
+        PopupMenu(requireContext(), anchor).apply {
+            menu.add(R.string.rules_clear)
+            setOnMenuItemClickListener {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.rules_clear)
+                    .setMessage(R.string.rules_clear_confirm)
+                    .setPositiveButton(R.string.rules_clear) { _, _ ->
+                        rulesManager.clear()
+                        reload()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+                true
             }
-        )
-    }
-
-    // ── Add options ────────────────────────────────────────────────────────────
-
-    private fun showAddOptions() {
-        val options = arrayOf(
-            getString(R.string.add_cidr_manually),
-            getString(R.string.import_from_url)
-        )
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.add_rule)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showAddRuleDialog()
-                    1 -> showDownloadDialog()
-                }
-            }
-            .show()
-    }
-
-    // ── Manual CIDR dialog ─────────────────────────────────────────────────────
-
-    private fun showAddRuleDialog() {
-        val padding = (24 * resources.displayMetrics.density).toInt()
-        val editText = EditText(requireContext()).apply {
-            hint = "192.168.1.0/24"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            setPadding(padding, padding / 2, padding, 0)
+            show()
         }
+    }
 
+    // ── Add / import ───────────────────────────────────────────────────────────
+
+    private fun textInputDialogView(hintRes: Int, helperRes: Int, multiLine: Boolean, initial: String = ""): Pair<View, TextInputEditText> {
+        val layout = TextInputLayout(requireContext(), null,
+            com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = getString(hintRes)
+            helperText = getString(helperRes)
+        }
+        val input = TextInputEditText(layout.context).apply {
+            setText(initial)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                (if (multiLine) android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                 else android.text.InputType.TYPE_TEXT_VARIATION_URI)
+            if (multiLine) minLines = 3
+        }
+        layout.addView(input)
+        val pad = (24 * resources.displayMetrics.density).toInt()
+        val frame = android.widget.FrameLayout(requireContext()).apply {
+            setPadding(pad, pad / 3, pad, 0)
+            addView(layout)
+        }
+        return frame to input
+    }
+
+    /** Add one or more entries typed or pasted by the user, one per line. */
+    private fun showAddDialog() {
+        val (view, input) = textInputDialogView(R.string.rules_add_hint, R.string.rules_add_helper, multiLine = true)
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.add_rule)
-            .setMessage(R.string.add_rule_hint)
-            .setView(editText)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val cidr = editText.text.toString().trim()
-                when {
-                    cidr.isBlank()       -> return@setPositiveButton
-                    !isValidCidr(cidr)   -> showSnackbar(getString(R.string.invalid_cidr))
-                    else -> { rulesManager.addRule(cidr); loadRules() }
-                }
-            }
+            .setTitle(R.string.rules_add)
+            .setView(view)
+            .setPositiveButton(R.string.save) { _, _ -> addEntries(input.text?.toString().orEmpty().lines()) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    // ── URL import dialog ──────────────────────────────────────────────────────
+    private fun addEntries(raw: List<String>): Int {
+        val candidates = raw.map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }
+        val valid = candidates.mapNotNull(RoutingRules::normalize)
+        val added = rulesManager.addRules(valid)
+        reload()
+        val skipped = candidates.size - valid.size
+        showSnackbar(
+            if (skipped == 0) resources.getQuantityString(R.plurals.rules_added, added, added)
+            else getString(R.string.rules_added_skipped,
+                resources.getQuantityString(R.plurals.rules_added, added, added), skipped)
+        )
+        return added
+    }
 
-    private fun showDownloadDialog() {
-        val padding = (24 * resources.displayMetrics.density).toInt()
-        val editText = EditText(requireContext()).apply {
-            setText(getString(R.string.import_url_default))
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                        android.text.InputType.TYPE_TEXT_VARIATION_URI
-            setPadding(padding, padding / 2, padding, 0)
-        }
-
+    /** Download a plain-text list (one entry per line, `#` comments) and add it. */
+    private fun showImportDialog() {
+        val (view, input) = textInputDialogView(R.string.rules_import_hint, R.string.import_url_hint,
+            multiLine = false, initial = getString(R.string.import_url_default))
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.import_url_title)
-            .setMessage(R.string.import_url_hint)
-            .setView(editText)
+            .setView(view)
             .setPositiveButton(R.string.import_btn) { _, _ ->
-                val url = editText.text.toString().trim()
-                if (url.isNotBlank()) downloadAndImport(url)
+                val url = input.text?.toString()?.trim().orEmpty()
+                if (url.startsWith("https://") || url.startsWith("http://")) downloadAndImport(url)
+                else showSnackbar(getString(R.string.import_failed, url))
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -166,77 +217,61 @@ class RulesFragment : Fragment() {
 
     private fun downloadAndImport(urlStr: String) {
         val snack = view?.let {
-            Snackbar.make(it, getString(R.string.downloading), Snackbar.LENGTH_INDEFINITE)
-                .also { s -> s.show() }
+            Snackbar.make(it, getString(R.string.downloading), Snackbar.LENGTH_INDEFINITE).also { s -> s.show() }
         }
-
-        Thread {
-            var imported = 0
-            var errorMsg: String? = null
-            try {
-                val text = URL(urlStr).openStream().bufferedReader().use { it.readText() }
-                val cidrs = text.lines()
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() && !it.startsWith("#") && isValidCidr(it) }
-                for (cidr in cidrs) {
-                    rulesManager.addRule(cidr)
-                    imported++
-                }
-            } catch (e: IOException) {
-                errorMsg = e.message ?: "I/O error"
-            } catch (e: Exception) {
-                errorMsg = e.message ?: "Unknown error"
+        Thread({
+            val result = runCatching {
+                URL(urlStr).openStream().bufferedReader().use { it.readText() }.lines()
             }
-
-            val finalImported = imported
-            val finalError    = errorMsg
             mainHandler.post {
                 snack?.dismiss()
                 if (!isAdded) return@post
-                if (finalError != null) {
-                    showSnackbar(getString(R.string.import_failed, finalError))
-                } else {
-                    loadRules()
-                    showSnackbar(getString(R.string.import_success, finalImported))
-                }
+                result
+                    .onSuccess { lines -> addEntries(lines) }
+                    .onFailure { e ->
+                        val reason = if (e is IOException) e.message else e.javaClass.simpleName
+                        showSnackbar(getString(R.string.import_failed, reason ?: ""))
+                    }
             }
-        }.start()
+        }, "rules-import").start()
     }
-
-    // ── CIDR validation ────────────────────────────────────────────────────────
-
-    private fun isValidCidr(cidr: String): Boolean = runCatching {
-        val parts  = cidr.split("/")
-        if (parts.size > 2) return false
-        val ip     = parts[0]
-        val prefix = parts.getOrNull(1)?.toIntOrNull()
-        val octets = ip.split(".")
-        if (octets.size == 4) {
-            octets.all { it.toIntOrNull()?.let { v -> v in 0..255 } == true } &&
-                (prefix == null || prefix in 0..32)
-        } else {
-            ip.contains(":") && (prefix == null || prefix in 0..128)
-        }
-    }.getOrDefault(false)
 
     private fun showSnackbar(msg: String) {
         view?.let { Snackbar.make(it, msg, Snackbar.LENGTH_SHORT).show() }
     }
 }
 
-// ── RecyclerView adapter ──────────────────────────────────────────────────────
+// ── Adapters ─────────────────────────────────────────────────────────────────
+
+/** Single header row; re-bound whenever the fragment calls notifyItemChanged(0). */
+private class HeaderAdapter(private val onBind: (View) -> Unit) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
+        object : RecyclerView.ViewHolder(
+            LayoutInflater.from(parent.context).inflate(R.layout.view_rules_header, parent, false)
+        ) {}
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) = onBind(holder.itemView)
+
+    override fun getItemCount() = 1
+}
 
 private class RulesAdapter(
-    private val items: MutableList<ExclusionRule>,
-    private val onToggle: (String, Boolean) -> Unit,
-    private val onDelete: (String) -> Unit
+    private val onToggle: (ExclusionRule, Boolean) -> Unit,
+    private val onDelete: (ExclusionRule) -> Unit
 ) : RecyclerView.Adapter<RulesAdapter.VH>() {
 
-    inner class VH(view: View) : RecyclerView.ViewHolder(view) {
-        val cidrText:  TextView      = view.findViewById(R.id.ruleText)
-        val toggle:    MaterialSwitch = view.findViewById(R.id.ruleToggle)
-        val deleteBtn: com.google.android.material.button.MaterialButton =
-            view.findViewById(R.id.ruleDeleteBtn)
+    private var items: List<ExclusionRule> = emptyList()
+
+    fun submit(rules: List<ExclusionRule>) {
+        items = rules
+        notifyDataSetChanged()
+    }
+
+    class VH(view: View) : RecyclerView.ViewHolder(view) {
+        val icon: ImageView = view.findViewById(R.id.ruleIcon)
+        val text: TextView = view.findViewById(R.id.ruleText)
+        val toggle: MaterialSwitch = view.findViewById(R.id.ruleToggle)
+        val delete: MaterialButton = view.findViewById(R.id.ruleDeleteBtn)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
@@ -244,10 +279,16 @@ private class RulesAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
-        holder.cidrText.text  = item.cidr
+        val ctx = holder.itemView.context
+        val isAddress = item.cidr.first().isDigit() || ':' in item.cidr
+        holder.icon.setImageResource(if (isAddress) R.drawable.ic_ft_server else R.drawable.ic_ft_globe)
+        holder.text.text = item.cidr
+        holder.toggle.setOnCheckedChangeListener(null)
         holder.toggle.isChecked = item.enabled
-        holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(item.cidr, checked) }
-        holder.deleteBtn.setOnClickListener { onDelete(item.cidr) }
+        holder.toggle.contentDescription = item.cidr
+        holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(item, checked) }
+        holder.delete.contentDescription = ctx.getString(R.string.rules_delete_desc, item.cidr)
+        holder.delete.setOnClickListener { onDelete(item) }
     }
 
     override fun getItemCount() = items.size
