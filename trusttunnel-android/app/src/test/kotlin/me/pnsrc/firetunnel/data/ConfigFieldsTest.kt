@@ -89,4 +89,13 @@ class ConfigFieldsTest {
         assertNull(ConfigFields.parseHostPort(":443"))
         assertNull(ConfigFields.parseHostPort("[]:443"))
     }
+
+    // ── upstream protocol ───────────────────────────────────────────────────────
+
+    @Test
+    fun `upstream protocol`() {
+        assertEquals("HTTP/2", ConfigFields.upstreamProtocol("[endpoint]\nhostname = \"h\"\n"))
+        assertEquals("HTTP/3", ConfigFields.upstreamProtocol("[endpoint]\nupstream_protocol = \"http3\" # quic\n"))
+        assertEquals("HTTP/2", ConfigFields.upstreamProtocol("upstream_protocol = \"http3\"\n[endpoint]\n"))
+    }
 }

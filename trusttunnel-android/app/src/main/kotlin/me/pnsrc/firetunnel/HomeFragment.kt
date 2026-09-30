@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -14,48 +13,62 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.ImageView
-import android.widget.Spinner
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.core.widget.ImageViewCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.google.android.material.R as MaterialR
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.color.MaterialColors
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.snackbar.Snackbar
+import me.pnsrc.firetunnel.UiKit.Tone
 import me.pnsrc.firetunnel.data.ConfigFields
 import me.pnsrc.firetunnel.data.ConfigManager
 import me.pnsrc.firetunnel.data.EndpointPinger
-import me.pnsrc.firetunnel.data.StatsFormat
 import me.pnsrc.firetunnel.data.EnrollResult
 import me.pnsrc.firetunnel.data.EnrollmentManager
+import me.pnsrc.firetunnel.data.StatsFormat
 import me.pnsrc.firetunnel.data.VpnConfig
 import java.util.concurrent.Executors
 
+/**
+ * VPN tab: a big power button inside a status ring, the active server (tap to
+ * switch in a bottom sheet) and four session tiles.
+ */
 class HomeFragment : Fragment() {
 
     private companion object {
         const val PING_INTERVAL_MS = 30_000L
     }
 
+    /** A statistics tile from `view_stat_tile.xml`. */
+    private class StatTile(root: View) {
+        val label: TextView = root.findViewById(R.id.statLabel)
+        val value: TextView = root.findViewById(R.id.statValue)
+    }
+
     private lateinit var configManager: ConfigManager
-    private lateinit var statusCard: MaterialCardView
-    private lateinit var statusIcon: ImageView
-    private lateinit var statusLabel: TextView
-    private lateinit var statusText: TextView
-    private lateinit var connectionButton: MaterialButton
-    private lateinit var configSpinner: Spinner
-    private lateinit var statsText: TextView
-    private lateinit var pingText: TextView
-    private lateinit var deleteConfigButton: MaterialButton
+    private lateinit var statusChip: TextView
+    private lateinit var statusHeadline: TextView
+    private lateinit var statusSub: TextView
+    private lateinit var statusRing: CircularProgressIndicator
+    private lateinit var powerButton: MaterialButton
+    private lateinit var serverName: TextView
+    private lateinit var serverSub: TextView
+    private lateinit var serverPing: TextView
+    private lateinit var tileRx: StatTile
+    private lateinit var tileTx: StatTile
+    private lateinit var tileSpeed: StatTile
+    private lateinit var tileConns: StatTile
 
     private var configs: List<VpnConfig> = emptyList()
+    private var active: VpnConfig? = null
     private var vpnState: String = FireTunnelVpnService.STATE_DISCONNECTED
+    private var lastError: String? = null
 
     // Session stats: refreshed once a second while the screen is visible.
     private val uiHandler = Handler(Looper.getMainLooper())
@@ -70,11 +83,11 @@ class HomeFragment : Fragment() {
     }
 
     // Endpoint ping: refreshed every 30 s and whenever another config is selected.
-    private val pingExecutor = Executors.newSingleThreadExecutor { r -> Thread(r, "endpoint-ping") }
+    private val pingExecutor = Executors.newFixedThreadPool(3) { r -> Thread(r, "endpoint-ping") }
     private var pingGeneration = 0
     private val pingTicker = object : Runnable {
         override fun run() {
-            pingSelected()
+            pingActive()
             uiHandler.postDelayed(this, PING_INTERVAL_MS)
         }
     }
@@ -89,8 +102,7 @@ class HomeFragment : Fragment() {
     private val vpnStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val state = intent.getStringExtra(FireTunnelVpnService.EXTRA_STATE) ?: return
-            vpnState = state
-
+            lastError = intent.getStringExtra(FireTunnelVpnService.EXTRA_ERROR_MSG)
             updateStatusUI(state)
             renderStats()
         }
@@ -106,37 +118,36 @@ class HomeFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         configManager = ConfigManager(requireContext())
 
-        statusCard        = view.findViewById(R.id.statusCard)
-        statusIcon        = view.findViewById(R.id.statusIcon)
-        statusLabel       = view.findViewById(R.id.statusLabel)
-        statusText        = view.findViewById(R.id.statusText)
-        connectionButton  = view.findViewById(R.id.connectionButton)
-        configSpinner     = view.findViewById(R.id.configSpinner)
-        statsText         = view.findViewById(R.id.statsText)
-        pingText          = view.findViewById(R.id.pingText)
-        deleteConfigButton = view.findViewById(R.id.deleteConfigButton)
+        statusChip     = view.findViewById(R.id.statusChip)
+        statusHeadline = view.findViewById(R.id.statusHeadline)
+        statusSub      = view.findViewById(R.id.statusSub)
+        statusRing     = view.findViewById(R.id.statusRing)
+        powerButton    = view.findViewById(R.id.powerButton)
+        serverName     = view.findViewById(R.id.serverName)
+        serverSub      = view.findViewById(R.id.serverSub)
+        serverPing     = view.findViewById(R.id.serverPing)
+        tileRx    = StatTile(view.findViewById(R.id.statRx))
+        tileTx    = StatTile(view.findViewById(R.id.statTx))
+        tileSpeed = StatTile(view.findViewById(R.id.statSpeed))
+        tileConns = StatTile(view.findViewById(R.id.statConns))
 
-        connectionButton.setOnClickListener { onConnectClicked() }
-        deleteConfigButton.setOnClickListener { confirmDeleteConfig() }
-        configSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, v: View?, position: Int, id: Long) {
-                pingSelected()
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-        }
+        setupTile(tileRx, R.drawable.ic_ft_down, R.string.stat_rx)
+        setupTile(tileTx, R.drawable.ic_ft_up, R.string.stat_tx)
+        setupTile(tileSpeed, R.drawable.ic_ft_gauge, R.string.stat_speed)
+        setupTile(tileConns, R.drawable.ic_ft_link, R.string.stat_connections)
 
-        // Restore last known state (prevents blank UI after tab switch)
-        updateStatusUI(FireTunnelVpnService.lastKnownState)
+        powerButton.setOnClickListener { onPowerClicked() }
+        view.findViewById<MaterialCardView>(R.id.serverCard).setOnClickListener { onServerClicked() }
+
         loadConfigs()
+        updateStatusUI(FireTunnelVpnService.lastKnownState)
     }
 
     override fun onResume() {
         super.onResume()
         val filter = IntentFilter(FireTunnelVpnService.BROADCAST_STATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requireContext().registerReceiver(
-                vpnStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED
-            )
+            requireContext().registerReceiver(vpnStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             requireContext().registerReceiver(vpnStateReceiver, filter)
         }
@@ -158,28 +169,115 @@ class HomeFragment : Fragment() {
         pingExecutor.shutdownNow()
     }
 
-    // ── Config loading ─────────────────────────────────────────────────────────
+    private fun setupTile(tile: StatTile, iconRes: Int, labelRes: Int) {
+        tile.label.text = getString(labelRes)
+        val icon = ContextCompat.getDrawable(requireContext(), iconRes)?.mutate()
+        val size = (16 * resources.displayMetrics.density).toInt()
+        icon?.setBounds(0, 0, size, size)
+        icon?.setTint(UiKit.themeColor(requireContext(), MaterialR.attr.colorOnSurfaceVariant))
+        tile.label.setCompoundDrawablesRelative(icon, null, null, null)
+    }
+
+    // ── Configs ────────────────────────────────────────────────────────────────
 
     private fun loadConfigs() {
-        if (!isAdded) return
-        val selectedId = configs.getOrNull(configSpinner.selectedItemPosition)?.id
+        if (view == null) return
         configs = configManager.getConfigs()
-        val names = if (configs.isEmpty()) listOf(getString(R.string.no_configs))
-                    else configs.map { it.name }
-        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, names)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        configSpinner.adapter = adapter
-        val restored = configs.indexOfFirst { it.id == selectedId }
-        if (restored >= 0) configSpinner.setSelection(restored)
-        connectionButton.isEnabled = configs.isNotEmpty()
-        deleteConfigButton.isEnabled = configs.isNotEmpty()
+        val previousId = active?.id
+        active = configManager.getActiveConfig(configs)
+        val config = active
+
+        if (config == null) {
+            serverName.text = getString(R.string.server_none)
+            serverSub.text = getString(R.string.server_none_hint)
+            serverPing.visibility = View.GONE
+        } else {
+            serverName.text = config.name
+            serverSub.text = if (EnrollmentManager(requireContext()).isEnrolled(config.id)) {
+                getString(R.string.enrolled_badge)
+            } else {
+                ConfigFields.upstreamProtocol(config.rawToml)
+            }
+            if (config.id != previousId) pingActive()
+        }
+        powerButton.isEnabled = config != null
+            || vpnState == FireTunnelVpnService.STATE_CONNECTED
+            || vpnState == FireTunnelVpnService.STATE_CONNECTING
+    }
+
+    private fun onServerClicked() {
+        if (configs.isEmpty()) {
+            (activity as? MainActivity)?.openConfigs(showAddSheet = true)
+        } else {
+            showServerSheet()
+        }
+    }
+
+    /** Bottom sheet listing every config with its ping; tap one to make it active. */
+    private fun showServerSheet() {
+        val ctx = requireContext()
+        val dialog = BottomSheetDialog(ctx)
+        val sheet = layoutInflater.inflate(R.layout.sheet_servers, null)
+        val rows = sheet.findViewById<LinearLayout>(R.id.serverRows)
+        val enrollment = EnrollmentManager(ctx)
+        val primary = UiKit.themeColor(ctx, MaterialR.attr.colorPrimary)
+        val onPrimary = UiKit.themeColor(ctx, MaterialR.attr.colorOnPrimary)
+        val outline = UiKit.themeColor(ctx, MaterialR.attr.colorOutlineVariant)
+        val selectedBg = UiKit.themeColor(ctx, MaterialR.attr.colorSurfaceContainerHigh)
+
+        for (config in configs) {
+            val row = layoutInflater.inflate(R.layout.item_server_row, rows, false) as MaterialCardView
+            val selected = config.id == active?.id
+            row.findViewById<TextView>(R.id.serverRowName).text = config.name
+            row.findViewById<TextView>(R.id.serverRowSub).text =
+                if (enrollment.isEnrolled(config.id)) getString(R.string.enrolled_badge)
+                else UiKit.endpointSummary(config)
+            val check = row.findViewById<ImageView>(R.id.serverCheck)
+            check.setBackgroundResource(R.drawable.bg_pill)
+            check.backgroundTintList = ColorStateList.valueOf(if (selected) primary else outline)
+            check.imageTintList = ColorStateList.valueOf(onPrimary)
+            check.imageAlpha = if (selected) 255 else 0
+            row.strokeColor = if (selected) primary else outline
+            if (selected) row.setCardBackgroundColor(selectedBg)
+            row.contentDescription = config.name
+            row.isSelected = selected
+            row.setOnClickListener {
+                configManager.setActiveConfigId(config.id)
+                dialog.dismiss()
+                loadConfigs()
+                if (vpnState == FireTunnelVpnService.STATE_CONNECTED && config.id != FireTunnelVpnService.activeConfigId) {
+                    showSnackbar(getString(R.string.server_reconnect_hint))
+                }
+            }
+
+            val pingView = row.findViewById<TextView>(R.id.serverRowPing)
+            UiKit.stylePill(pingView, Tone.NEUTRAL)
+            val target = ConfigFields.firstEndpointAddress(config.rawToml)
+            if (target == null) {
+                pingView.visibility = View.GONE
+            } else {
+                runCatching {
+                    pingExecutor.execute {
+                        val ms = EndpointPinger.ping(target)
+                        uiHandler.post { if (dialog.isShowing) UiKit.showPing(pingView, ms) }
+                    }
+                }
+            }
+            rows.addView(row)
+        }
+        sheet.findViewById<MaterialButton>(R.id.serverAdd).setOnClickListener {
+            dialog.dismiss()
+            (activity as? MainActivity)?.openConfigs(showAddSheet = true)
+        }
+        dialog.setContentView(sheet)
+        dialog.show()
     }
 
     // ── Connect / disconnect ───────────────────────────────────────────────────
 
-    private fun onConnectClicked() {
-        if (vpnState == FireTunnelVpnService.STATE_CONNECTED ||
-            vpnState == FireTunnelVpnService.STATE_CONNECTING
+    private fun onPowerClicked() {
+        if (vpnState == FireTunnelVpnService.STATE_CONNECTED
+            || vpnState == FireTunnelVpnService.STATE_CONNECTING
         ) {
             stopVpn()
         } else {
@@ -194,12 +292,12 @@ class HomeFragment : Fragment() {
     }
 
     private fun startVpn() {
-        val idx = configSpinner.selectedItemPosition
-        if (idx < 0 || idx >= configs.size) {
+        val config = active
+        if (config == null) {
             showSnackbar(getString(R.string.vpn_select_config))
             return
         }
-        val config = configs[idx]
+        lastError = null
         if (!EnrollmentManager(requireContext()).isEnrolled(config.id)) {
             launchVpn(config)
             return
@@ -207,11 +305,12 @@ class HomeFragment : Fragment() {
 
         // Enrolled config: re-check the link first so that a revoked device never
         // connects and a changed endpoint is picked up. Failures keep the old config.
-        connectionButton.isEnabled = false
         updateStatusUI(FireTunnelVpnService.STATE_CONNECTING)
+        powerButton.isEnabled = false
         val appContext = requireContext().applicationContext
         EnrollmentManager.runAsync({ EnrollmentManager(appContext).sync(config.id) }) { outcome ->
             if (!isAdded) return@runAsync
+            powerButton.isEnabled = true
             loadConfigs()
             if (outcome?.result is EnrollResult.Revoked) {
                 updateStatusUI(FireTunnelVpnService.STATE_DISCONNECTED)
@@ -242,135 +341,146 @@ class HomeFragment : Fragment() {
         updateStatusUI(FireTunnelVpnService.STATE_DISCONNECTED)
     }
 
-    // ── Delete config ──────────────────────────────────────────────────────────
-
-    private fun confirmDeleteConfig() {
-        val idx = configSpinner.selectedItemPosition
-        if (idx < 0 || idx >= configs.size) return
-        val config = configs[idx]
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.delete_config_title)
-            .setMessage(getString(R.string.delete_config_message, config.name))
-            .setPositiveButton(R.string.delete) { _, _ ->
-                configManager.deleteConfig(config.id)
-                EnrollmentManager(requireContext()).forget(config.id)
-                loadConfigs()
-                showSnackbar(getString(R.string.config_deleted, config.name))
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    // ── Status UI — uses Material You colour roles ─────────────────────────────
+    // ── Status ─────────────────────────────────────────────────────────────────
 
     private fun updateStatusUI(state: String) {
         vpnState = state
         val ctx = context ?: return
+        if (view == null) return
 
+        val primary = UiKit.themeColor(ctx, MaterialR.attr.colorPrimary)
+        val surface = UiKit.themeColor(ctx, MaterialR.attr.colorSurfaceContainerLowest)
+        val outline = UiKit.themeColor(ctx, MaterialR.attr.colorOutlineVariant)
+        val ok = ContextCompat.getColor(ctx, R.color.status_ok)
+        val onOk = ContextCompat.getColor(ctx, R.color.status_on_ok)
+        val okContainer = ContextCompat.getColor(ctx, R.color.status_ok_container)
+        val host = active?.let { ConfigFields.firstEndpointAddress(it.rawToml)?.host ?: it.name }.orEmpty()
+
+        val chipTone: Tone
+        val ringTrack: Int
+        var buttonBg = surface
+        var buttonFg = primary
         when (state) {
             FireTunnelVpnService.STATE_CONNECTED -> {
-                statusLabel.text = getString(R.string.status_connected)
-                statusText.text  = getString(R.string.connected)
-                connectionButton.text = getString(R.string.disconnect)
-                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorTertiaryContainer, Color.GREEN)
-                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnTertiaryContainer, Color.BLACK)
-                statusCard.setCardBackgroundColor(bg)
-                statusText.setTextColor(fg)
-                statusLabel.setTextColor(fg)
-                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
+                chipTone = Tone.OK
+                statusChip.text = getString(R.string.status_chip_on)
+                statusHeadline.text = getString(R.string.status_headline_on)
+                statusSub.text = getString(R.string.status_sub_on, host)
+                powerButton.text = getString(R.string.power_off)
+                powerButton.contentDescription = getString(R.string.power_off_desc)
+                ringTrack = okContainer
+                buttonBg = ok
+                buttonFg = onOk
             }
             FireTunnelVpnService.STATE_CONNECTING -> {
-                statusLabel.text = getString(R.string.status_connecting)
-                statusText.text  = getString(R.string.connecting)
-                connectionButton.text = getString(R.string.disconnect)
-                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorSecondaryContainer, Color.LTGRAY)
-                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnSecondaryContainer, Color.DKGRAY)
-                statusCard.setCardBackgroundColor(bg)
-                statusText.setTextColor(fg)
-                statusLabel.setTextColor(fg)
-                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
+                chipTone = Tone.WARN
+                statusChip.text = getString(R.string.status_chip_connecting)
+                statusHeadline.text = getString(R.string.status_headline_connecting)
+                statusSub.text = getString(R.string.status_sub_connecting)
+                powerButton.text = getString(R.string.power_cancel)
+                powerButton.contentDescription = getString(R.string.power_cancel_desc)
+                ringTrack = UiKit.themeColor(ctx, MaterialR.attr.colorPrimaryContainer)
             }
             FireTunnelVpnService.STATE_ERROR -> {
-                statusLabel.text = getString(R.string.status_disconnected)
-                statusText.text  = getString(R.string.disconnected)
-                connectionButton.text = getString(R.string.connect)
-                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorErrorContainer, Color.RED)
-                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnErrorContainer, Color.WHITE)
-                statusCard.setCardBackgroundColor(bg)
-                statusText.setTextColor(fg)
-                statusLabel.setTextColor(fg)
-                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
-                statsText.text = getString(R.string.no_stats)
+                chipTone = Tone.ERROR
+                statusChip.text = getString(R.string.status_chip_error)
+                statusHeadline.text = getString(R.string.status_headline_error)
+                statusSub.text = lastError ?: getString(R.string.status_sub_error)
+                powerButton.text = getString(R.string.power_on)
+                powerButton.contentDescription = getString(R.string.power_on_desc)
+                ringTrack = UiKit.themeColor(ctx, MaterialR.attr.colorErrorContainer)
             }
-            else -> { // DISCONNECTED
-                statusLabel.text = getString(R.string.status_disconnected)
-                statusText.text  = getString(R.string.disconnected)
-                connectionButton.text = getString(R.string.connect)
-                val bg   = MaterialColors.getColor(ctx, MaterialR.attr.colorSurfaceVariant, Color.LTGRAY)
-                val fg   = MaterialColors.getColor(ctx, MaterialR.attr.colorOnSurfaceVariant, Color.DKGRAY)
-                statusCard.setCardBackgroundColor(bg)
-                statusText.setTextColor(fg)
-                statusLabel.setTextColor(fg)
-                ImageViewCompat.setImageTintList(statusIcon, ColorStateList.valueOf(fg))
-                statsText.text = getString(R.string.no_stats)
+            else -> {
+                chipTone = Tone.NEUTRAL
+                statusChip.text = getString(R.string.status_chip_off)
+                statusHeadline.text = getString(R.string.status_headline_off)
+                statusSub.text = getString(R.string.status_sub_off)
+                powerButton.text = getString(R.string.power_on)
+                powerButton.contentDescription = getString(R.string.power_on_desc)
+                ringTrack = outline
             }
         }
+        UiKit.stylePill(statusChip, chipTone)
+
+        // The ring spins while connecting; otherwise only its track colour shows.
+        val connecting = state == FireTunnelVpnService.STATE_CONNECTING
+        if (statusRing.isIndeterminate != connecting) {
+            statusRing.hide()
+            statusRing.isIndeterminate = connecting
+            statusRing.progress = 0
+            statusRing.show()
+        }
+        statusRing.trackColor = ringTrack
+        statusRing.setIndicatorColor(primary)
+
+        powerButton.backgroundTintList = ColorStateList.valueOf(buttonBg)
+        powerButton.setTextColor(buttonFg)
+        powerButton.iconTint = ColorStateList.valueOf(buttonFg)
+        powerButton.isEnabled = active != null || state != FireTunnelVpnService.STATE_DISCONNECTED
+        renderStats()
     }
 
     // ── Stats / ping ───────────────────────────────────────────────────────────
 
     private fun renderStats() {
         if (view == null) return
+        val ctx = requireContext()
         val stats = FireTunnelVpnService.sessionStats()
+        val tiles = listOf(tileRx, tileTx, tileSpeed, tileConns)
         if (stats == null || vpnState != FireTunnelVpnService.STATE_CONNECTED) {
-            statsText.text = getString(R.string.no_stats)
+            val dim = UiKit.themeColor(ctx, MaterialR.attr.colorOutline)
+            tiles.forEach {
+                it.value.text = getString(R.string.no_stats)
+                it.value.setTextColor(dim)
+            }
             lastRx = -1L
             return
         }
+        val onSurface = UiKit.themeColor(ctx, MaterialR.attr.colorOnSurface)
+        tiles.forEach { it.value.setTextColor(onSurface) }
+
         val now = System.currentTimeMillis()
-        val lines = mutableListOf(
-            getString(R.string.uptime_label, StatsFormat.uptime((now - stats.connectedAt) / 1000))
-        )
+        statusHeadline.text = StatsFormat.uptime((now - stats.connectedAt) / 1000)
         val rx = stats.rxBytes
         val tx = stats.txBytes
+        tileRx.value.text = rx?.let(StatsFormat::bytes) ?: getString(R.string.no_stats)
+        tileTx.value.text = tx?.let(StatsFormat::bytes) ?: getString(R.string.no_stats)
         if (rx != null && tx != null) {
-            lines += getString(R.string.stats_traffic, StatsFormat.bytes(rx), StatsFormat.bytes(tx))
             if (lastRx >= 0 && now > lastSampleAt) {
                 val seconds = (now - lastSampleAt) / 1000.0
-                lines += getString(
-                    R.string.stats_speed,
-                    StatsFormat.speed(((rx - lastRx) / seconds).toLong().coerceAtLeast(0)),
-                    StatsFormat.speed(((tx - lastTx) / seconds).toLong().coerceAtLeast(0))
-                )
+                val total = ((rx - lastRx) + (tx - lastTx)) / seconds
+                tileSpeed.value.text = StatsFormat.speed(total.toLong().coerceAtLeast(0))
             }
             lastRx = rx
             lastTx = tx
             lastSampleAt = now
+        } else {
+            tileSpeed.value.text = getString(R.string.no_stats)
         }
-        lines += getString(R.string.stats_connections, stats.tunnelConnections, stats.bypassConnections)
-        statsText.text = lines.joinToString("\n")
+        tileConns.value.text = getString(R.string.stat_connections_value, stats.tunnelConnections, stats.bypassConnections)
     }
 
-    /** Ping the selected config's first endpoint address in the background. */
-    private fun pingSelected() {
+    /** Ping the active config's first endpoint address in the background. */
+    private fun pingActive() {
         if (view == null) return
-        val config = configs.getOrNull(configSpinner.selectedItemPosition)
-        val target = config?.let { ConfigFields.firstEndpointAddress(it.rawToml) }
+        val target = active?.let { ConfigFields.firstEndpointAddress(it.rawToml) }
         val generation = ++pingGeneration
         if (target == null) {
-            pingText.visibility = View.GONE
+            serverPing.visibility = View.GONE
             return
         }
-        pingText.visibility = View.VISIBLE
-        if (pingText.text.isNullOrEmpty()) pingText.text = getString(R.string.ping_measuring)
+        if (serverPing.visibility != View.VISIBLE) {
+            serverPing.visibility = View.VISIBLE
+            serverPing.text = getString(R.string.ping_short_measuring)
+            UiKit.stylePill(serverPing, Tone.NEUTRAL)
+        }
         runCatching {
             pingExecutor.execute {
                 val ms = EndpointPinger.ping(target)
                 uiHandler.post {
-                    // Drop results for a config that is no longer selected.
+                    // Drop results for a config that is no longer active.
                     if (view == null || generation != pingGeneration) return@post
-                    pingText.text = if (ms != null) getString(R.string.ping_ms, ms)
-                                    else getString(R.string.ping_unreachable)
+                    UiKit.showPing(serverPing, ms)
                 }
             }
         }

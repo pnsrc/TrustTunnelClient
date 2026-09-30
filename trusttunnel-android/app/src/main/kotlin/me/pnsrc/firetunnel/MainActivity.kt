@@ -78,6 +78,19 @@ class MainActivity : AppCompatActivity() {
         showFragment(bottomNav.selectedItemId)
     }
 
+    /** Set when another tab asks the Configs tab to open its "Add" sheet. */
+    private var addSheetRequested = false
+
+    /** Switch to the Configs tab, optionally opening its "Add config" sheet. */
+    fun openConfigs(showAddSheet: Boolean) {
+        addSheetRequested = showAddSheet
+        if (bottomNav.selectedItemId == R.id.nav_configs) showFragment(R.id.nav_configs)
+        else bottomNav.selectedItemId = R.id.nav_configs
+    }
+
+    /** Return true once if the "Add config" sheet was requested. */
+    fun consumeAddSheetRequest(): Boolean = addSheetRequested.also { addSheetRequested = false }
+
     private fun showFragment(itemId: Int) {
         val fragment = when (itemId) {
             R.id.nav_vpn     -> HomeFragment()

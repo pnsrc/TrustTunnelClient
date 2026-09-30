@@ -38,6 +38,11 @@ object ConfigFields {
     fun firstEndpointAddress(toml: String): HostPort? =
         stringArrays(toml, "addresses")["endpoint"]?.firstOrNull()?.let(::parseHostPort)
 
+    /** Return the endpoint's transport for display: `HTTP/3` or the default `HTTP/2`. */
+    fun upstreamProtocol(toml: String): String =
+        if (scalar(toml, "endpoint", "upstream_protocol").equals("http3", ignoreCase = true)) "HTTP/3"
+        else "HTTP/2"
+
     /** Parse `host`, `host:port`, `1.2.3.4:port`, `[v6]:port` or a bare IPv6 address. */
     fun parseHostPort(raw: String): HostPort? {
         val s = raw.trim()
@@ -59,6 +64,22 @@ object ConfigFields {
     }
 
     // ── Minimal TOML scanning ────────────────────────────────────────────────────
+
+    /** Return the unquoted value of a string `key = "value"` in [table], or `null`. */
+    private fun scalar(toml: String, table: String, key: String): String? {
+        var current = ""
+        for (rawLine in toml.lines()) {
+            val line = stripComment(rawLine).trim()
+            if (line.startsWith("[")) {
+                current = line.trim('[', ']', ' ')
+                continue
+            }
+            val eq = line.indexOf('=')
+            if (current != table || eq <= 0 || line.substring(0, eq).trim() != key) continue
+            return quotedStrings(line.substring(eq + 1)).firstOrNull()
+        }
+        return null
+    }
 
     /**
      * Collect string arrays named [key], keyed by the table they appear in

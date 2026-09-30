@@ -34,6 +34,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Android client: redesigned VPN and Configs screens. The VPN tab has a large
+  power button inside a status ring, the active server with its ping (tap to
+  switch in a bottom sheet listing every config with its ping) and four session
+  tiles. Configs: tap a card to make it active; a ⋮ menu offers Edit, Show QR
+  code, Update from dashboard and Delete (edit/QR only for local configs,
+  update only for enrolled ones); adding a config is a bottom sheet with the
+  dashboard link and QR code up front; a proper empty state. The active config
+  is now remembered instead of being a spinner position.
+
 - Android client: the TUN interface now takes DNS from the config like the
   reference Android service: a fake resolver the core serves from
   `dns_upstreams` (`[endpoint]`, falling back to the legacy top-level key), or

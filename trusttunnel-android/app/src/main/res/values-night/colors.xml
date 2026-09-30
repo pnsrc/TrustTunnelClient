@@ -10,4 +10,12 @@
     <color name="fire_on_secondary">#442C27</color>
     <color name="fire_secondary_container">#5D413C</color>
     <color name="fire_on_secondary_container">#FFD9D2</color>
+
+    <!-- Connection status (fixed hues: not replaced by dynamic colour) -->
+    <color name="status_ok">#7AD9A2</color>
+    <color name="status_ok_container">#0F3A25</color>
+    <color name="status_on_ok">#00391E</color>
+    <color name="status_on_ok_container">#BDF3D2</color>
+    <color name="status_warn">#FFB95C</color>
+    <color name="status_warn_container">#4A2C00</color>
 </resources>

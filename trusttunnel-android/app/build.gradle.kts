@@ -72,6 +72,9 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.0")
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
+    // QR code rendering (config export)
+    implementation("com.google.zxing:core:3.5.3")
+
     // Config parsing
     implementation("com.akuleshov7:ktoml-core:0.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3")

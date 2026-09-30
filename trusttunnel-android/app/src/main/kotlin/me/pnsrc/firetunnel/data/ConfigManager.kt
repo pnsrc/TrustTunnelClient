@@ -13,6 +13,7 @@ data class VpnConfig(
 )
 
 private const val TAG = "ConfigManager"
+private const val KEY_ACTIVE = "active_config"
 
 class ConfigManager(private val context: Context) {
 
@@ -35,6 +36,19 @@ class ConfigManager(private val context: Context) {
 
     fun deleteConfig(id: String) {
         prefs.edit().remove("cfg_$id").apply()
+    }
+
+    // ── Active config ────────────────────────────────────────────────────────
+
+    /** Remember [id] as the config the VPN connects with. */
+    fun setActiveConfigId(id: String) {
+        prefs.edit().putString(KEY_ACTIVE, id).apply()
+    }
+
+    /** Return the active config, falling back to the first one if it was deleted. */
+    fun getActiveConfig(configs: List<VpnConfig> = getConfigs()): VpnConfig? {
+        val id = prefs.getString(KEY_ACTIVE, null)
+        return configs.firstOrNull { it.id == id } ?: configs.firstOrNull()
     }
 
     /**

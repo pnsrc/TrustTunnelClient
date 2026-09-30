@@ -17,4 +17,12 @@
 
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
+
+    <!-- Connection status (fixed hues: not replaced by dynamic colour) -->
+    <color name="status_ok">#1D7348</color>
+    <color name="status_ok_container">#DDF1E5</color>
+    <color name="status_on_ok">#FFFFFF</color>
+    <color name="status_on_ok_container">#0E4F2F</color>
+    <color name="status_warn">#9A5B00</color>
+    <color name="status_warn_container">#FCEBCF</color>
 </resources>
