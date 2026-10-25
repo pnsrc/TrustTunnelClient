@@ -372,4 +372,128 @@
     <string name="settings_bypass_apps">Apps outside the VPN</string>
     <string name="settings_logs_sub">Connection log of the VPN core</string>
     <string name="home_bypass_hint">Tap to let some apps skip the VPN</string>
+
+    <!-- App picker and Help -->
+    <string name="app_routing_mode_title">Mode</string>
+    <string name="app_routing_mode_off_sub">The list below is not used</string>
+    <string name="app_routing_mode_bypass_sub">Checked apps go directly, everything else through the VPN</string>
+    <string name="app_routing_mode_only_sub">Only checked apps go through the VPN</string>
+    <string name="app_routing_filter_selected">Selected only</string>
+    <string name="app_routing_filter_selected_count">Selected: %d</string>
+    <string name="app_routing_filter_system">System</string>
+    <string name="app_routing_nothing_found">Nothing found</string>
+    <string name="app_routing_system_badge">System</string>
+    <string name="app_routing_section_selected">Selected · %d</string>
+    <string name="app_routing_section_apps">Apps · %d</string>
+    <string name="app_routing_section_system">System · %d</string>
+    <string name="help_title">Help</string>
+    <string name="help_settings_sub">How to use FireTunnel</string>
+    <string name="help_intro_title">How FireTunnel works</string>
+    <string name="help_intro_body">FireTunnel is a VPN client for the TrustTunnel protocol. It encrypts your phone\'s traffic and sends it through your server. To connect you need a config: a link from your dashboard, a QR code, a file or details from the server administrator.</string>
+    <string name="help_section_topics">Topics</string>
+    <string name="help_section_more">Didn\'t find an answer</string>
+    <string name="help_open_logs_sub">Details of the last connection</string>
+    <string name="help_report">Report a problem</string>
+    <string name="help_report_sub">Project issues on GitHub</string>
+    <string name="help_expanded">Expanded</string>
+    <string name="help_collapsed">Collapsed</string>
+    <string name="help_start_title">Getting started</string>
+    <string name="help_start_body">1. Open the Configs tab and tap Add.
+2. Pick a way: By link — paste the link from your dashboard; QR code — scan it with the camera. You can also build a config in the constructor, paste TOML manually or open a .toml/.conf file.
+3. Go back to the VPN tab and tap the big button. On the first connection Android asks you to allow the VPN — accept.</string>
+    <string name="help_connect_title">Connecting and the main screen</string>
+    <string name="help_connect_body">The big button turns the VPN on and off. Its shape shows the state: off, connecting (the button spins), connected (green). Tapping it while connecting cancels.
+
+Above the button: the status and session time. Below: the active server with its ping, apps that skip the VPN, a speed chart for the last minute and session totals: received, sent and connections (via VPN / direct).
+
+If connecting fails, the status turns red and shows the reason.</string>
+    <string name="help_servers_title">Servers and ping</string>
+    <string name="help_servers_body">Tap the server card on the main screen to choose another config. Each shows its ping — the time to open a connection to the server: green is fast, amber is slow, “no response” means the server is unreachable.
+
+Ping is measured outside the VPN, so it shows the real latency to the server. It refreshes every 30 seconds; tap the ping label to measure now.
+
+If you switch servers while connected, the new one is used after reconnecting.</string>
+    <string name="help_configs_title">Configs</string>
+    <string name="help_configs_body">On the Configs tab tap a card to make that config active — the VPN connects with it.
+
+The ⋮ menu of a config:
+• Edit — change the TOML by hand;
+• Show QR code — move it to another device (the code contains the password, show it only to people you trust);
+• Update from dashboard — for configs from a link;
+• Delete.
+
+Configs from the dashboard cannot be edited or shown as a QR code: the server issues and updates them.</string>
+    <string name="help_enroll_title">Connecting through your dashboard</string>
+    <string name="help_enroll_body">A link like firetunnel://enroll?url=… or https://…/enroll/… connects this device to your account. Open it from a browser, paste it or scan it as a QR code.
+
+A config from such a link updates itself: on every app start, before connecting and in the background every 30 minutes. If the administrator changes the server details, the phone picks them up on its own.
+
+If the device was removed in the dashboard or access was revoked, the config is deleted, the VPN disconnects and you get a notification. If the server is temporarily unavailable, the old config keeps working.</string>
+    <string name="help_constructor_title">Config constructor</string>
+    <string name="help_constructor_body">Use the constructor when the administrator gave you a server address, username and password rather than a ready file.
+
+• Server address: vpn.example.com or vpn.example.com:8443 (port 443 by default).
+• Protocol: HTTP/2 works anywhere; HTTP/3 is faster on mobile networks but blocked on some.
+• DNS: AdGuard DNS without filtering by default; Cloudflare, Google or your own servers (tls:// and https:// too).
+• Advanced: backup addresses, TLS server name (SNI), anti-DPI, post-quantum encryption and skipping certificate verification — the last one is dangerous, for test servers only.</string>
+    <string name="help_apps_title">Apps outside the VPN</string>
+    <string name="help_apps_body">Rules → Apps (or the card on the main screen). Modes:
+• All apps through VPN — the default;
+• Selected apps bypass VPN — checked apps go directly, e.g. a bank or games;
+• Only selected apps through VPN — only checked apps use the VPN.
+
+The list has search and filters. System apps (Google services, WebView and others) are hidden — turn on the System filter. Only apps that can use the internet are listed.
+
+Changes apply on the next connection. FireTunnel itself always bypasses the VPN.</string>
+    <string name="help_sites_title">Sites and addresses</string>
+    <string name="help_sites_body">Rules → Sites and addresses. Modes:
+• Don\'t use the list — routing as set in the config;
+• Bypass the VPN — everything through the VPN except the list;
+• Only through the VPN — only the list goes through the VPN.
+
+Add domains (example.com, *.example.com), IP addresses and subnets (10.0.0.0/8): one per line or by importing a text list from a link. Invalid lines are skipped. Each entry can be switched off temporarily.
+
+The list is added to the config\'s settings when connecting.</string>
+    <string name="help_always_on_title">Always-on VPN and kill switch</string>
+    <string name="help_always_on_body">To make sure traffic never goes around the VPN, turn this on in Android: Settings → Connection → Always-on VPN and kill switch. In the system settings pick FireTunnel and turn on Always-on VPN and Block connections without VPN.
+
+The VPN then starts by itself after a reboot, and apps cannot go online directly if the connection drops.</string>
+    <string name="help_live_title">Live notification</string>
+    <string name="help_live_body">While the VPN is on, a notification shows the server and traffic; you can disconnect from it.
+
+On Android 16 and newer it can appear in the status bar as a Live Update with the session timer. The switch is in Settings → Notifications. The system decides whether to show it; you can turn it off in Android\'s notification settings.</string>
+    <string name="help_appearance_title">Appearance</string>
+    <string name="help_appearance_body">Settings → Appearance:
+• theme — as in the system, light or dark;
+• Wallpaper colours (Android 12+) — colours follow the wallpaper;
+• Colour scheme — Fire, Ocean, Forest or Amethyst; available when wallpaper colours are off.
+
+Changes apply at once.</string>
+    <string name="help_updates_title">Updates</string>
+    <string name="help_updates_body">Once a day the app checks GitHub for a new version and offers to update; turn this off in Settings → Updates, where there is also a Check now button.
+
+The downloaded file is verified (checksum and package name) before installing. Android asks you to let FireTunnel install apps — once.
+
+Debug builds can only be updated after uninstalling them: they are signed with a different key.</string>
+    <string name="help_logs_title">Logs and diagnostics</string>
+    <string name="help_logs_body">Settings → Diagnostics → Logs shows the VPN core\'s connection log. Use Copy to send it to the developer.
+
+Core log level sets the detail: As in the config, normal (info), detailed (debug) or everything (trace). Detailed levels are for troubleshooting only — they slow things down.</string>
+    <string name="help_privacy_title">Security and privacy</string>
+    <string name="help_privacy_body">• The dashboard link is a secret: with it someone could connect their own device. It is stored encrypted and never written to the log. If it leaks, reissue it in the dashboard.
+• Config passwords are stored only on this device.
+• Enrolling sends only a device fingerprint (a hash, not the identifier itself) and the device name.
+• The app list is only used to pick apps outside the VPN and is never sent anywhere.</string>
+    <string name="help_trouble_title">Common problems</string>
+    <string name="help_trouble_body">Won\'t connect:
+• check the internet without the VPN;
+• look at the server ping — “no response” means the server is unreachable from this network;
+• if the config uses HTTP/3, try HTTP/2: some networks block QUIC;
+• turn on Anti-DPI in the constructor\'s advanced settings.
+
+Sites don\'t open although the VPN is connected: check the mode on the Rules tab and the DNS in the config.
+
+A dashboard config disappeared: the device was removed or access was revoked — get a new link in the dashboard.
+
+An app is missing from the list: turn on the System filter — services and apps without a launcher icon are there.</string>
 </resources>

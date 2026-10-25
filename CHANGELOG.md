@@ -44,6 +44,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Android client: the app picker now lists every app that can use the network,
+  including system ones (QUERY_ALL_PACKAGES; previously only apps with a
+  launcher icon were visible). New screen: mode cards, pill search, "Selected"
+  and "System" filters, Selected / Apps / System sections, rows with switches
+  and lazily loaded icons.
+- Android client: Settings → Help explains every feature (getting started,
+  connecting, servers and ping, configs, dashboard enrollment, constructor,
+  apps and sites rules, always-on VPN, live notification, appearance,
+  updates, logs, privacy, common problems).
+
 - Android client: Material 3 Expressive (Material 1.14; AGP 8.7.3, Gradle
   8.9). The VPN tab's power button morphs between expressive shapes on a
   turning halo (spring press, haptics), the off-centre status ring is gone,

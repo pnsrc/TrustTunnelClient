@@ -143,6 +143,16 @@
 
             <TextView
                 style="@style/SettingsSection"
+                android:text="@string/help_title" />
+
+            <com.google.android.material.card.MaterialCardView style="@style/SettingsCard">
+
+                <include android:id="@+id/rowHelp" layout="@layout/item_setting_row" />
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                style="@style/SettingsSection"
                 android:text="@string/about" />
 
             <com.google.android.material.card.MaterialCardView style="@style/SettingsCard">

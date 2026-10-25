@@ -49,6 +49,9 @@ class SettingsActivity : ThemedActivity() {
         setupNotifications()
         setupDiagnostics()
         setupUpdates()
+        row(R.id.rowHelp)
+            .bind(R.drawable.ic_ft_info, getString(R.string.help_title), getString(R.string.help_settings_sub))
+            .asLink { startActivity(Intent(this, HelpActivity::class.java)) }
         setupAbout()
     }
 

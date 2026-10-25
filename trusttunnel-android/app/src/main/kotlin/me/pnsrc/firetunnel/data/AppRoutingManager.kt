@@ -1,18 +1,12 @@
 package me.pnsrc.firetunnel.data
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
-
-/** An installed app that can be picked for per-app routing. */
-data class InstalledApp(
-    val packageName: String,
-    val label: String,
-    val icon: Drawable,
-    val isSystem: Boolean
-)
+import android.os.Build
 
 /** Persistent per-app split tunnelling settings. */
 class AppRoutingManager(context: Context) {
@@ -44,25 +38,38 @@ class AppRoutingManager(context: Context) {
         AppRouting.plan(getMode(), getSelectedPackages(), appContext.packageName)
 
     /**
-     * List launchable apps (blocking — call off the main thread), sorted by label.
-     * FireTunnel itself is excluded: it always bypasses the VPN.
+     * List every app that may use the network (requests INTERNET), sorted by label.
+     * Blocking — call off the main thread. An app counts as "system" only if it is
+     * preinstalled and has no launcher icon (so a preinstalled browser is a normal
+     * app). FireTunnel itself is left out: it always bypasses the VPN.
      */
-    fun loadLaunchableApps(): List<InstalledApp> {
+    fun loadNetworkApps(): List<AppEntry> {
         val pm = appContext.packageManager
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         @Suppress("DEPRECATION")
-        return pm.queryIntentActivities(launcher, PackageManager.MATCH_ALL)
-            .map { it.activityInfo.applicationInfo }
-            .distinctBy { it.packageName }
+        val launchable = pm.queryIntentActivities(launcher, PackageManager.MATCH_ALL)
+            .mapTo(HashSet()) { it.activityInfo.packageName }
+        @Suppress("DEPRECATION")
+        val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
+        } else {
+            pm.getInstalledPackages(PackageManager.GET_PERMISSIONS)
+        }
+        return packages
             .filter { it.packageName != appContext.packageName }
-            .map { info ->
-                InstalledApp(
-                    packageName = info.packageName,
+            .filter { it.requestedPermissions?.contains(Manifest.permission.INTERNET) == true }
+            .mapNotNull { pkg ->
+                val info = pkg.applicationInfo ?: return@mapNotNull null
+                AppEntry(
+                    packageName = pkg.packageName,
                     label = info.loadLabel(pm).toString(),
-                    icon = info.loadIcon(pm),
-                    isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0
+                    isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0 && pkg.packageName !in launchable
                 )
             }
             .sortedBy { it.label.lowercase() }
     }
+
+    /** Load one app's icon (blocking); `null` if it was uninstalled meanwhile. */
+    fun loadIcon(packageName: String): Drawable? =
+        runCatching { appContext.packageManager.getApplicationIcon(packageName) }.getOrNull()
 }
